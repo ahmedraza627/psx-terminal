@@ -1,0 +1,58 @@
+name: PSX Daily Pipeline
+
+on:
+  schedule:
+    # 13:30 UTC = 18:30 PKT, Mon-Fri (PSX closes 15:30 PKT; data settles by then)
+    - cron: "30 13 * * 1-5"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: psx-daily-pipeline
+  cancel-in-progress: false
+
+jobs:
+  run-pipeline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run pipeline
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          OFFMARKET_MIN_VOLUME: "10000"
+          OFFMARKET_REQUIRED: "false"
+          MEDIUM_TERM_STREAK_DAYS: "4"
+          DIV_YIELD_MIN: "6.0"
+          PE_MAX: "12.0"
+          MARKET_CAP_MIN_PKR: "5000000000"
+        run: |
+          python main.py --date $(TZ=Asia/Karachi date +%F)
+
+      - name: Summarize signals in the job summary
+        if: always()
+        run: |
+          {
+            echo "## PSX Pipeline Run"
+            echo ""
+            echo "- Session: $(TZ=Asia/Karachi date +%F)"
+            echo "- Outcome: ${{ job.status }}"
+            echo ""
+            echo "Check the Supabase Table Editor for \`signals_computed\`."
+          } >> "$GITHUB_STEP_SUMMARY"

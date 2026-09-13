@@ -1,0 +1,29 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    color-scheme: dark;
+  }
+  body {
+    /* Institutional numeric alignment everywhere monospace is used */
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@layer utilities {
+  .whale-pulse {
+    animation: whale-pulse 2.6s ease-in-out infinite;
+  }
+}
+
+@keyframes whale-pulse {
+  0%,
+  100% {
+    background-color: rgba(6, 78, 59, 0.14); /* emerald-950-ish */
+  }
+  50% {
+    background-color: rgba(6, 78, 59, 0.32);
+  }
+}
