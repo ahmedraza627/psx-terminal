@@ -83,7 +83,7 @@ export interface NdmRow {
 export async function fetchActiveSessionDate(): Promise<string | null> {
   const supabase = getSupabase();
   const { data, error } = await supabase
-    .from("psx_daily_eod")
+    .from("signals_computed")
     .select("trade_date")
     .order("trade_date", { ascending: false })
     .limit(1);
