@@ -2,7 +2,7 @@ name: PSX Daily Pipeline
 
 on:
   schedule:
-    # 13:30 UTC = 18:30 PKT, Mon-Fri (PSX closes 15:30 PKT; data settles by then)
+    # 13:30 UTC = 18:30 PKT, Mon-Fri
     - cron: "30 13 * * 1-5"
   workflow_dispatch: {}
 
@@ -33,10 +33,10 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run pipeline
-       env:
+        env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY || secrets.SUPABASE_KEY }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY || secrets.SUPABASE_KEY }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           KIBOR_FLOATING_DEBT_MAP: ${{ secrets.KIBOR_FLOATING_DEBT_MAP }}
           OFFMARKET_MIN_VOLUME: "10000"
           OFFMARKET_REQUIRED: "false"
