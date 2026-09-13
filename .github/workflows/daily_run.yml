@@ -33,9 +33,11 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run pipeline
-        env:
+       env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY || secrets.SUPABASE_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY || secrets.SUPABASE_KEY }}
+          KIBOR_FLOATING_DEBT_MAP: ${{ secrets.KIBOR_FLOATING_DEBT_MAP }}
           OFFMARKET_MIN_VOLUME: "10000"
           OFFMARKET_REQUIRED: "false"
           MEDIUM_TERM_STREAK_DAYS: "4"
