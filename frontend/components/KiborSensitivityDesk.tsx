@@ -27,11 +27,11 @@ function fmtPct(value: number | null): string {
 }
 
 function expansionColor(value: number | null): string {
-  if (value == null) return "text-zinc-600";
-  if (value >= 15) return "text-emerald-400";
-  if (value >= 5) return "text-sky-300";
-  if (value >= 0) return "text-zinc-300";
-  return "text-rose-400";
+  if (value == null) return "text-ghost";
+  if (value >= 15) return "text-bull";
+  if (value >= 5) return "text-info";
+  if (value >= 0) return "text-ink";
+  return "text-bear";
 }
 
 export default function KiborSensitivityDesk({
@@ -60,19 +60,19 @@ export default function KiborSensitivityDesk({
         {unreachable ? (
           <FeedErrorPill />
         ) : missing ? (
-          <p className="font-mono text-xs uppercase tracking-widest text-amber-300">
+          <p className="font-mono text-xs uppercase tracking-widest text-warn">
             [SCHEMA PENDING: RUN SCHEMA.SQL IN SUPABASE]
           </p>
         ) : pending ? (
-          <p className="font-mono text-xs uppercase tracking-widest text-sky-300">
+          <p className="font-mono text-xs uppercase tracking-widest text-info">
             [KIBOR DESK: AWAITING FIRST SENSITIVITY PASS]
           </p>
         ) : (
-          <p className="font-mono text-xs uppercase tracking-widest text-sky-300">
+          <p className="font-mono text-xs uppercase tracking-widest text-info">
             [KIBOR DESK: AWAITING FLOATING-DEBT SOURCE]
           </p>
         )}
-        <p className="mt-1 text-[11px] leading-relaxed text-zinc-600">
+        <p className="mt-1 text-[11px] leading-relaxed text-ghost">
           PSX publishes no balance-sheet debt columns. Supply floating debt
           via KIBOR_FLOATING_DEBT_MAP (e.g. &quot;OGDC:185b,PSO:120b&quot;) or
           KIBOR_DEBT_CSV_URL — the desk populates the moment an input lands.
@@ -84,17 +84,17 @@ export default function KiborSensitivityDesk({
 
   return (
     <section>
-      <div className="border-b border-zinc-800 px-3 py-2">
+      <div className="border-b border-hairline px-3 py-2">
         <div className="flex items-center justify-between">
-          <h2 className="text-[10px] font-medium uppercase tracking-widest text-zinc-600">
+          <h2 className="text-[10px] font-medium uppercase tracking-widest text-ghost">
             KIBOR Easing Sensitivity - EPS Expansion per Rate Cut
           </h2>
-          <span className="font-mono text-[11px] tabular-nums text-zinc-500">
+          <span className="font-mono text-[11px] tabular-nums text-muted">
             {rows.length} NAMES
           </span>
         </div>
         <div className="mt-2 flex items-center gap-3">
-          <span className="font-mono text-[10px] uppercase tracking-wider text-zinc-500">
+          <span className="font-mono text-[10px] uppercase tracking-wider text-muted">
             CUT
           </span>
           <input
@@ -107,7 +107,7 @@ export default function KiborSensitivityDesk({
             className="h-1 flex-1 accent-sky-400"
             aria-label="Rate cut in basis points"
           />
-          <span className="rounded border border-sky-500/30 bg-sky-500/10 px-2 py-0.5 font-mono text-xs font-bold tabular-nums text-sky-300">
+          <span className="rounded-[2px] border border-sky-500/30 bg-info/10 px-2 py-0.5 font-mono text-xs font-bold tabular-nums text-info">
             {bps} bps
           </span>
         </div>
@@ -115,7 +115,7 @@ export default function KiborSensitivityDesk({
       <div className="overflow-x-auto">
         <table className="w-full min-w-[720px] border-collapse text-xs">
           <thead>
-            <tr className="border-b border-zinc-800 bg-[#0c1017] text-left text-[10px] uppercase tracking-widest text-zinc-600">
+            <tr className="border-b border-hairline bg-panel text-left text-[10px] uppercase tracking-widest text-ghost">
               <th className="px-3 py-2 font-medium">#</th>
               <th className="px-2 py-2 font-medium">Ticker</th>
               <th className="px-2 py-2 font-medium">Sector</th>
@@ -130,21 +130,21 @@ export default function KiborSensitivityDesk({
             {ranked.map((row, i) => (
               <tr
                 key={row.ticker}
-                className="border-b border-zinc-900 hover:bg-zinc-900/40"
+                className="border-b border-hairline hover:bg-hoverline"
               >
-                <td className="px-3 py-1.5 font-mono tabular-nums text-zinc-600">
+                <td className="px-3 py-1.5 font-mono tabular-nums text-ghost">
                   {i + 1}
                 </td>
-                <td className="px-2 py-1.5 font-mono font-semibold text-zinc-100">
+                <td className="px-2 py-1.5 font-mono font-semibold text-ink">
                   {row.ticker}
                 </td>
-                <td className="max-w-[160px] truncate px-2 py-1.5 font-mono text-[10px] uppercase tracking-wider text-zinc-500">
+                <td className="max-w-[160px] truncate px-2 py-1.5 font-mono text-[10px] uppercase tracking-wider text-muted">
                   {row.sectorName ?? "—"}
                 </td>
-                <td className="px-2 py-1.5 text-right font-mono tabular-nums text-zinc-300">
+                <td className="px-2 py-1.5 text-right font-mono tabular-nums text-ink">
                   {fmtBn(row.floatingDebtPkr)}
                 </td>
-                <td className="px-2 py-1.5 text-right font-mono tabular-nums text-zinc-300">
+                <td className="px-2 py-1.5 text-right font-mono tabular-nums text-ink">
                   {fmtEps(row.epsImpact100bpsPkr)}
                 </td>
                 <td
@@ -159,8 +159,8 @@ export default function KiborSensitivityDesk({
           </tbody>
         </table>
       </div>
-      <div className="border-t border-zinc-900 px-3 py-2">
-        <p className="font-mono text-[10px] leading-relaxed text-zinc-600">
+      <div className="border-t border-hairline px-3 py-2">
+        <p className="font-mono text-[10px] leading-relaxed text-ghost">
           ΔEPS(100bps) = flt debt × 1% × (1 − 29% tax) ÷ shares · cycle
           projection scales linearly to the slider cut · debt basis:
           OPERATOR_INPUT (published FY25/26 filings, KIBOR_FLOATING_DEBT_MAP)

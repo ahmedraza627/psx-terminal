@@ -10,20 +10,54 @@
     /* Institutional numeric alignment everywhere monospace is used */
     font-variant-numeric: tabular-nums;
   }
+  ::selection {
+    background: rgba(56, 139, 253, 0.28);
+  }
 }
 
 @layer utilities {
   .whale-pulse {
     animation: whale-pulse 2.6s ease-in-out infinite;
   }
+  /* Thin machined scrollbars — terminal chrome, not browser chrome */
+  .scroll-thin {
+    scrollbar-width: thin;
+    scrollbar-color: #1e222b transparent;
+  }
+  .scroll-thin::-webkit-scrollbar {
+    height: 6px;
+    width: 6px;
+  }
+  .scroll-thin::-webkit-scrollbar-thumb {
+    background: #1e222b;
+    border-radius: 0;
+  }
+  .scroll-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
 }
 
 @keyframes whale-pulse {
   0%,
   100% {
-    background-color: rgba(6, 78, 59, 0.14); /* emerald-950-ish */
+    background-color: rgba(38, 166, 154, 0.06);
   }
   50% {
-    background-color: rgba(6, 78, 59, 0.32);
+    background-color: rgba(38, 166, 154, 0.16);
   }
+}
+
+@keyframes wire-in {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.wire-in {
+  animation: wire-in 0.18s ease-out;
 }

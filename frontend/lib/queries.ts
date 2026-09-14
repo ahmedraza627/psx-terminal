@@ -479,14 +479,25 @@ export interface BacktestRow {
   maePct: number | null;
   hitTarget: boolean | null;
   stoppedOut: boolean | null;
+  /** Tiered-exit columns (schema v3): hit_target carries the TP1 (+1R) bar. */
+  tp1Hit: boolean | null;
+  tp2Hit: boolean | null;
+  runnerHit: boolean | null;
+  fullStop: boolean | null;
+  /** Realized R blend under the tiered plan (TP1 +1R / TP2 +2R / runner). */
+  realizedR: number | null;
 }
 
 export interface EdgeSummary {
   signalType: string;
   signals: number;
   resolved: number;
-  hitRatePct: number | null;
-  stoppedPct: number | null;
+  /** % of resolved trades that touched TP1 (+1R) intraday. */
+  tp1HitPct: number | null;
+  /** % stopped at the break-even ratchet after TP1 (scratched, ~+0.1R). */
+  scratchBePct: number | null;
+  /** % full -1R stops (never reached TP1). */
+  fullStopPct: number | null;
   avgT5Pct: number | null;
   avgT10Pct: number | null;
   avgT20Pct: number | null;
@@ -510,43 +521,86 @@ export async function fetchBacktestRows(): Promise<{
         "signal_id,ticker,trade_date,signal_type,entry_price,stop_loss,"
         + "return_t5_pct,return_t10_pct,return_t20_pct,"
         + "max_favorable_excursion_pct,max_adverse_excursion_pct,"
-        + "hit_target,stopped_out"
+        + "hit_target,stopped_out,tp1_hit,tp2_hit,runner_hit,full_stop,realized_r"
       )
       .order("trade_date", { ascending: false })
-      .limit(2000);
-    if (error) throw error;
-    const rows = ((data ?? []) as unknown as Record<string, unknown>[]).map((r) => ({
-      signalId: r.signal_id as number,
-      ticker: r.ticker as string,
-      tradeDate: r.trade_date as string,
-      signalType: r.signal_type as string,
-      entryPrice: (r.entry_price as number | null) ?? null,
-      stopLoss: (r.stop_loss as number | null) ?? null,
-      returnT5Pct: (r.return_t5_pct as number | null) ?? null,
-      returnT10Pct: (r.return_t10_pct as number | null) ?? null,
-      returnT20Pct: (r.return_t20_pct as number | null) ?? null,
-      mfePct: (r.max_favorable_excursion_pct as number | null) ?? null,
-      maePct: (r.max_adverse_excursion_pct as number | null) ?? null,
-      hitTarget: (r.hit_target as boolean | null) ?? null,
-      stoppedOut: (r.stopped_out as boolean | null) ?? null,
-    }));
+      .limit(2000);      if (error) throw error;
+      const rows = mapBacktestRows(
+        (data ?? []) as unknown as Record<string, unknown>[]
+      );
     return { rows, tableMissing: false };
   } catch {
-    // Never reject: Edge Lab degrades to its empty state and the health
-    // pill comes from fetchFeedStatuses().unreachable instead.
-    return { rows: [], tableMissing: false };
+    // Tiered columns not migrated yet (PGRST204) or transport failure:
+    // degrade to the legacy column set so Edge Lab still renders.
+    try {
+      const { data, error } = await supabase
+        .from("signal_backtest_performance")
+        .select(
+          "signal_id,ticker,trade_date,signal_type,entry_price,stop_loss,"
+          + "return_t5_pct,return_t10_pct,return_t20_pct,"
+          + "max_favorable_excursion_pct,max_adverse_excursion_pct,"
+          + "hit_target,stopped_out"
+        )
+        .order("trade_date", { ascending: false })
+        .limit(2000);
+      if (error) throw error;
+      return {
+        rows: mapBacktestRows(
+          (data ?? []) as unknown as Record<string, unknown>[]
+        ),
+        tableMissing: false,
+      };
+    } catch {
+      // Never reject: Edge Lab degrades to its empty state and the health
+      // pill comes from fetchFeedStatuses().unreachable instead.
+      return { rows: [], tableMissing: false };
+    }
   }
 }
 
-/** Client-side per-signal-type aggregation over stored backtest rows. */
+function mapBacktestRows(
+  data: Record<string, unknown>[]
+): BacktestRow[] {
+  return data.map((r) => ({
+    signalId: r.signal_id as number,
+    ticker: r.ticker as string,
+    tradeDate: r.trade_date as string,
+    signalType: r.signal_type as string,
+    entryPrice: (r.entry_price as number | null) ?? null,
+    stopLoss: (r.stop_loss as number | null) ?? null,
+    returnT5Pct: (r.return_t5_pct as number | null) ?? null,
+    returnT10Pct: (r.return_t10_pct as number | null) ?? null,
+    returnT20Pct: (r.return_t20_pct as number | null) ?? null,
+    mfePct: (r.max_favorable_excursion_pct as number | null) ?? null,
+    maePct: (r.max_adverse_excursion_pct as number | null) ?? null,
+    hitTarget: (r.hit_target as boolean | null) ?? null,
+    stoppedOut: (r.stopped_out as boolean | null) ?? null,
+    tp1Hit: (r.tp1_hit as boolean | null) ?? null,
+    tp2Hit: (r.tp2_hit as boolean | null) ?? null,
+    runnerHit: (r.runner_hit as boolean | null) ?? null,
+    fullStop: (r.full_stop as boolean | null) ?? null,
+    realizedR: (r.realized_r as number | null) ?? null,
+  }));
+}
+
+/**
+ * Client-side per-signal-type aggregation under the tiered-exit conventions:
+ * TP1 (+1R) hit %, scratch/BE % (stopped at the ratchet after TP1), full-stop
+ * % and R-weighted profit factor / expectancy from realized_r. Legacy rows
+ * (no tiered columns) approximate with hit_target = TP1 bar, +1R / -1R.
+ */
 export function summarizeEdge(rows: BacktestRow[]): EdgeSummary[] {
   const buckets = new Map<
     string,
     {
       n: number;
       resolved: number;
-      hits: number;
-      stops: number;
+      tp1: number;
+      scratches: number;
+      fullStops: number;
+      winsR: number;
+      lossesR: number;
+      rList: number[];
       t5: number[];
       t10: number[];
       t20: number[];
@@ -558,8 +612,12 @@ export function summarizeEdge(rows: BacktestRow[]): EdgeSummary[] {
     const b = buckets.get(row.signalType) ?? {
       n: 0,
       resolved: 0,
-      hits: 0,
-      stops: 0,
+      tp1: 0,
+      scratches: 0,
+      fullStops: 0,
+      winsR: 0,
+      lossesR: 0,
+      rList: [],
       t5: [],
       t10: [],
       t20: [],
@@ -567,10 +625,37 @@ export function summarizeEdge(rows: BacktestRow[]): EdgeSummary[] {
       mae: [],
     };
     b.n += 1;
-    if (row.hitTarget != null) {
-      b.resolved += 1;
-      if (row.hitTarget) b.hits += 1;
-      else if (row.stoppedOut) b.stops += 1;
+    const tiered = row.tp1Hit != null;
+    if (row.hitTarget != null) b.resolved += 1;
+    if (tiered) {
+      if (row.tp1Hit) b.tp1 += 1;
+      if (row.fullStop) {
+        b.fullStops += 1;
+      } else if (
+        row.tp1Hit &&
+        !row.tp2Hit &&
+        !row.runnerHit &&
+        row.realizedR != null &&
+        row.realizedR < 1.75
+      ) {
+        b.scratches += 1;
+      }
+    }
+    const r = row.realizedR;
+    if (r != null) {
+      b.rList.push(r);
+      if (r > 0) b.winsR += r;
+      else b.lossesR += Math.abs(r);
+    } else if (!tiered && row.hitTarget != null) {
+      // Legacy fallback: hit_target carries the TP1 bar, honest +1R / -1R.
+      if (row.hitTarget) {
+        b.winsR += 1;
+        b.rList.push(1);
+      } else if (row.stoppedOut) {
+        b.lossesR += 1;
+        b.fullStops += 1;
+        b.rList.push(-1);
+      }
     }
     if (row.returnT5Pct != null) b.t5.push(row.returnT5Pct);
     if (row.returnT10Pct != null) b.t10.push(row.returnT10Pct);
@@ -587,27 +672,27 @@ export function summarizeEdge(rows: BacktestRow[]): EdgeSummary[] {
 
   const summary: EdgeSummary[] = [];
   for (const [signalType, b] of Array.from(buckets.entries())) {
-    const hitRatePct =
-      b.resolved === 0 ? null : Math.round((b.hits / b.resolved) * 1000) / 10;
+    const pct = (n: number): number | null =>
+      b.resolved === 0 ? null : Math.round((n / b.resolved) * 1000) / 10;
     const expectancyR =
-      hitRatePct == null
+      b.rList.length === 0
         ? null
-        : Math.round(((hitRatePct / 100) * 2 - (1 - hitRatePct / 100)) * 100) / 100;
+        : Math.round(
+            (b.rList.reduce((a, v) => a + v, 0) / b.rList.length) * 100
+          ) / 100;
     const profitFactor =
-      b.resolved === 0
-        ? null
-        : b.stops === 0
-          ? b.hits > 0
-            ? Number.POSITIVE_INFINITY
-            : null
-          : Math.round((b.hits * 2) / b.stops * 100) / 100;
+      b.lossesR === 0
+        ? b.winsR > 0
+          ? Number.POSITIVE_INFINITY
+          : null
+        : Math.round((b.winsR / b.lossesR) * 100) / 100;
     summary.push({
       signalType,
       signals: b.n,
       resolved: b.resolved,
-      hitRatePct,
-      stoppedPct:
-        b.resolved === 0 ? null : Math.round((b.stops / b.resolved) * 1000) / 10,
+      tp1HitPct: pct(b.tp1),
+      scratchBePct: pct(b.scratches),
+      fullStopPct: pct(b.fullStops),
       avgT5Pct: avg(b.t5),
       avgT10Pct: avg(b.t10),
       avgT20Pct: avg(b.t20),
@@ -833,27 +918,58 @@ export async function fetchRotationRows(
   sessionDate: string
 ): Promise<RotationRow[]> {
   const supabase = getSupabase();
+  const mapEnriched = (
+    r: Record<string, unknown>
+  ): RotationRow => ({
+    tradeDate: r.trade_date as string,
+    sectorName: r.sector_name as string,
+    rsRatio: Number(r.rs_ratio ?? 100),
+    rsMomentum: Number(r.rs_momentum ?? 100),
+    quadrant: (r.quadrant as RotationRow["quadrant"]) ?? "LAGGING",
+    topLeaderTicker: (r.top_leader_ticker as string | null) ?? null,
+    topDraggerTicker: (r.top_dragger_ticker as string | null) ?? null,
+    sessionsInQuadrant: (r.sessions_in_quadrant as number | null) ?? null,
+    weeksInQuadrant: (r.weeks_in_quadrant as number | null) ?? null,
+    breadthPct: (r.breadth_pct as number | null) ?? null,
+    breadthFlag: (r.breadth_flag as string | null) ?? null,
+    netInstFlowPkr5d: (r.net_inst_flow_pkr_5d as number | null) ?? null,
+    netRetailFlowPkr5d: (r.net_retail_flow_pkr_5d as number | null) ?? null,
+    verdict: (r.verdict as string | null) ?? null,
+    alphaDrivers: (r.alpha_drivers as RotationRow["alphaDrivers"]) ?? null,
+    alphaDraggers: (r.alpha_draggers as RotationRow["alphaDraggers"]) ?? null,
+  });
   try {
+    // Enriched v2 columns (flow engine). Falls back to the core set when
+    // the ALTERs have not been applied yet (PGRST204).
     const { data, error } = await supabase
       .from("psx_sector_rotation")
       .select(
         "trade_date,sector_name,rs_ratio,rs_momentum,quadrant,"
-        + "top_leader_ticker,top_dragger_ticker"
+        + "top_leader_ticker,top_dragger_ticker,"
+        + "sessions_in_quadrant,weeks_in_quadrant,breadth_pct,breadth_flag,"
+        + "net_inst_flow_pkr_5d,net_retail_flow_pkr_5d,verdict,"
+        + "alpha_drivers,alpha_draggers"
       )
       .eq("trade_date", sessionDate)
       .order("rs_ratio", { ascending: false })
       .limit(60);
     if (error) throw error;
-    return ((data ?? []) as unknown as Record<string, unknown>[]).map((r) => ({
-      tradeDate: r.trade_date as string,
-      sectorName: r.sector_name as string,
-      rsRatio: Number(r.rs_ratio ?? 100),
-      rsMomentum: Number(r.rs_momentum ?? 100),
-      quadrant: (r.quadrant as RotationRow["quadrant"]) ?? "LAGGING",
-      topLeaderTicker: (r.top_leader_ticker as string | null) ?? null,
-      topDraggerTicker: (r.top_dragger_ticker as string | null) ?? null,
-    }));
+    return ((data ?? []) as unknown as Record<string, unknown>[]).map(mapEnriched);
   } catch {
-    return [];
+    // Core columns only (enrichment ALTERs not applied yet).
+    try {
+      const { data } = await supabase
+        .from("psx_sector_rotation")
+        .select(
+          "trade_date,sector_name,rs_ratio,rs_momentum,quadrant,"
+          + "top_leader_ticker,top_dragger_ticker"
+        )
+        .eq("trade_date", sessionDate)
+        .order("rs_ratio", { ascending: false })
+        .limit(60);
+      return ((data ?? []) as unknown as Record<string, unknown>[]).map(mapEnriched);
+    } catch {
+      return [];
+    }
   }
 }

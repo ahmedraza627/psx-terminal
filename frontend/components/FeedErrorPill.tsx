@@ -7,7 +7,7 @@
  */
 export default function FeedErrorPill() {
   return (
-    <p className="font-mono text-xs uppercase tracking-widest text-rose-400">
+    <p className="font-mono text-xs uppercase tracking-widest text-bear">
       [FEED UNREACHABLE: CHECK SUPABASE CONNECTION]
     </p>
   );

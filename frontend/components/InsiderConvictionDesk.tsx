@@ -19,14 +19,14 @@ function fmtQty(value: number): string {
 
 const CONVICTION_STYLES: Record<string, string> = {
   ULTRA_HIGH:
-    "bg-amber-400/15 text-amber-300 ring-amber-400/40 font-bold",
-  HIGH: "bg-emerald-500/10 text-emerald-300 ring-emerald-500/30",
-  STANDARD: "bg-zinc-800 text-zinc-400 ring-zinc-700",
+    "bg-amber-400/15 text-warn ring-amber-400/40 font-bold",
+  HIGH: "bg-bull/10 text-bull ring-bull/30",
+  STANDARD: "bg-panel text-muted ring-hairline",
 };
 
 const TYPE_STYLES: Record<string, string> = {
-  BUY: "text-emerald-400",
-  SELL: "text-rose-400",
+  BUY: "text-bull",
+  SELL: "text-bear",
 };
 
 export default function InsiderConvictionDesk({
@@ -45,19 +45,19 @@ export default function InsiderConvictionDesk({
         {unreachable ? (
           <FeedErrorPill />
         ) : missing ? (
-          <p className="font-mono text-xs uppercase tracking-widest text-amber-300">
+          <p className="font-mono text-xs uppercase tracking-widest text-warn">
             [SCHEMA PENDING: RUN SCHEMA.SQL IN SUPABASE]
           </p>
         ) : pending ? (
-          <p className="font-mono text-xs uppercase tracking-widest text-sky-300">
+          <p className="font-mono text-xs uppercase tracking-widest text-info">
             [INSIDER LEDGER: AWAITING PSX BOARD-LETTER FEED]
           </p>
         ) : (
-          <p className="font-mono text-xs uppercase tracking-widest text-sky-300">
+          <p className="font-mono text-xs uppercase tracking-widest text-info">
             [INSIDER LEDGER: NO FILINGS THIS SESSION]
           </p>
         )}
-        <p className="mt-1 text-[11px] leading-relaxed text-zinc-600">
+        <p className="mt-1 text-[11px] leading-relaxed text-ghost">
           SECP-mandated insider dealings parsed from PSX company
           announcements. PSX&apos;s announcements renderer is JS-only today;
           the ledger populates the moment filings parse — never fabricated.
@@ -76,13 +76,13 @@ export default function InsiderConvictionDesk({
 
   return (
     <section>
-      <div className="flex items-center justify-between border-b border-zinc-800 px-3 py-2">
-        <h2 className="text-[10px] font-medium uppercase tracking-widest text-zinc-600">
+      <div className="flex items-center justify-between border-b border-hairline px-3 py-2">
+        <h2 className="text-[10px] font-medium uppercase tracking-widest text-ghost">
           Insider Conviction - SECP Director / Sponsor Filings
         </h2>
-        <span className="font-mono text-[11px] tabular-nums text-zinc-500">
+        <span className="font-mono text-[11px] tabular-nums text-muted">
           {ultra} ULTRA · {buys}/{rows.length} BUY ·{" "}
-          <span className={netNotional >= 0 ? "text-emerald-400" : "text-rose-400"}>
+          <span className={netNotional >= 0 ? "text-bull" : "text-bear"}>
             {netNotional >= 0 ? "+" : "−"}
             {fmtMn(Math.abs(netNotional))}M NET
           </span>
@@ -91,7 +91,7 @@ export default function InsiderConvictionDesk({
       <div className="overflow-x-auto">
         <table className="w-full min-w-[720px] border-collapse text-xs">
           <thead>
-            <tr className="border-b border-zinc-800 bg-[#0c1017] text-left text-[10px] uppercase tracking-widest text-zinc-600">
+            <tr className="border-b border-hairline bg-panel text-left text-[10px] uppercase tracking-widest text-ghost">
               <th className="px-3 py-2 font-medium">Ticker</th>
               <th className="px-2 py-2 font-medium">Insider</th>
               <th className="px-2 py-2 font-medium">Designation</th>
@@ -106,36 +106,36 @@ export default function InsiderConvictionDesk({
             {rows.map((row, index) => (
               <tr
                 key={`${row.tradeDate}-${row.ticker}-${row.insiderName}-${row.quantity}-${index}`}
-                className="border-b border-zinc-900 hover:bg-zinc-900/40"
+                className="border-b border-hairline hover:bg-hoverline"
               >
-                <td className="px-3 py-1.5 font-mono font-semibold text-zinc-100">
+                <td className="px-3 py-1.5 font-mono font-semibold text-ink">
                   {row.ticker}
                 </td>
-                <td className="max-w-[140px] truncate px-2 py-1.5 font-mono text-[11px] text-zinc-400">
+                <td className="max-w-[140px] truncate px-2 py-1.5 font-mono text-[11px] text-muted">
                   {row.insiderName}
                 </td>
-                <td className="px-2 py-1.5 font-mono text-[10px] uppercase tracking-wider text-zinc-500">
+                <td className="px-2 py-1.5 font-mono text-[10px] uppercase tracking-wider text-muted">
                   {row.designation}
                 </td>
                 <td
                   className={`px-2 py-1.5 font-mono text-[11px] font-bold ${
-                    TYPE_STYLES[row.tradeType] ?? "text-zinc-400"
+                    TYPE_STYLES[row.tradeType] ?? "text-muted"
                   }`}
                 >
                   {row.tradeType}
                 </td>
-                <td className="px-2 py-1.5 text-right font-mono tabular-nums text-zinc-300">
+                <td className="px-2 py-1.5 text-right font-mono tabular-nums text-ink">
                   {fmtQty(row.quantity)}
                 </td>
-                <td className="px-2 py-1.5 text-right font-mono tabular-nums text-zinc-400">
+                <td className="px-2 py-1.5 text-right font-mono tabular-nums text-muted">
                   {row.rate == null ? "—" : row.rate.toFixed(2)}
                 </td>
-                <td className="px-2 py-1.5 text-right font-mono tabular-nums text-zinc-300">
+                <td className="px-2 py-1.5 text-right font-mono tabular-nums text-ink">
                   {fmtMn(row.notionalPkr)}
                 </td>
                 <td className="px-3 py-1.5">
                   <span
-                    className={`inline-block rounded px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider ring-1 ${
+                    className={`inline-block rounded-[2px] px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider ring-1 ${
                       CONVICTION_STYLES[row.conviction] ??
                       CONVICTION_STYLES.STANDARD
                     }`}
@@ -148,8 +148,8 @@ export default function InsiderConvictionDesk({
           </tbody>
         </table>
       </div>
-      <div className="border-t border-zinc-900 px-3 py-2">
-        <p className="font-mono text-[10px] leading-relaxed text-zinc-600">
+      <div className="border-t border-hairline px-3 py-2">
+        <p className="font-mono text-[10px] leading-relaxed text-ghost">
           ULTRA-HIGH = BUY ≥ 10M PKR by a Sponsor/Director (principal money,
           strongest alignment signal on PSX) · HIGH = BUY ≥ 10M any insider or
           ≥ 2M Sponsor/Director · net notional is signed by side.

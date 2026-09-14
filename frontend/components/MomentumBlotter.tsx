@@ -14,10 +14,10 @@ export default function MomentumBlotter({ rows }: { rows: SignalRow[] }) {
   if (rows.length === 0) {
     return (
       <div className="px-3 py-6 text-center">
-        <p className="font-mono text-xs text-zinc-500">
+        <p className="font-mono text-xs text-muted">
           NO SMART-MONEY SECTOR ALIGNMENT THIS SESSION
         </p>
-        <p className="mt-1 text-[11px] text-zinc-600">
+        <p className="mt-1 text-[11px] text-ghost">
           Fills when NCCPL shows Mutual Funds / Foreign Corporates net buying
           and a member stock breaks out on 5-day volume.
         </p>
@@ -29,7 +29,7 @@ export default function MomentumBlotter({ rows }: { rows: SignalRow[] }) {
     <div className="overflow-x-auto">
       <table className="w-full min-w-[600px] border-collapse text-xs">
         <thead>
-          <tr className="border-b border-zinc-800 bg-[#0c1017] text-left text-[10px] uppercase tracking-widest text-zinc-600">
+          <tr className="border-b border-hairline bg-panel text-left text-[10px] uppercase tracking-widest text-ghost">
             <th className="px-3 py-2 font-medium">Ticker</th>
             <th className="px-2 py-2 font-medium">Sector</th>
             <th className="px-2 py-2 text-right font-medium">LTP</th>
@@ -46,36 +46,36 @@ export default function MomentumBlotter({ rows }: { rows: SignalRow[] }) {
             return (
               <tr
                 key={`${row.trade_date}-${row.ticker}`}
-                className="border-b border-zinc-900 hover:bg-zinc-900/40"
+                className="border-b border-hairline hover:bg-hoverline"
               >
-                <td className="px-3 py-1.5 font-mono font-semibold text-zinc-100">
+                <td className="px-3 py-1.5 font-mono font-semibold text-ink">
                   {row.ticker}
                 </td>
-                <td className="max-w-[150px] truncate px-2 py-1.5 text-zinc-500">
+                <td className="max-w-[150px] truncate px-2 py-1.5 text-muted">
                   {meta.sector
                     ? meta.sector.toLowerCase().replace(/\b\w/g, (c) =>
                         c.toUpperCase()
                       )
                     : "—"}
                 </td>
-                <td className="px-2 py-1.5 text-right font-mono tabular-nums text-zinc-100">
+                <td className="px-2 py-1.5 text-right font-mono tabular-nums text-ink">
                   {fmtPrice(row.entry_reference)}
                 </td>
                 <td
                   className={`px-2 py-1.5 text-right font-mono tabular-nums ${
                     day == null
-                      ? "text-zinc-300"
+                      ? "text-ink"
                       : day >= 0
-                        ? "text-emerald-400"
-                        : "text-rose-400"
+                        ? "text-bull"
+                        : "text-bear"
                   }`}
                 >
                   {fmtPct(day)}
                 </td>
-                <td className="px-2 py-1.5 text-right font-mono tabular-nums text-sky-300">
+                <td className="px-2 py-1.5 text-right font-mono tabular-nums text-info">
                   {meta.breakout_multiple?.toFixed(1) ?? "—"}x
                 </td>
-                <td className="px-3 py-1.5 text-right font-mono tabular-nums text-zinc-300">
+                <td className="px-3 py-1.5 text-right font-mono tabular-nums text-ink">
                   {smart == null
                     ? "—"
                     : `${smart >= 0 ? "+" : ""}${(smart / 1e6).toFixed(0)}M`}

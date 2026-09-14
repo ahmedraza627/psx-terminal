@@ -29,8 +29,8 @@ export default function NdmTape({ rows }: { rows: NdmRow[] }) {
 
   return (
     <section>
-      <div className="flex items-center gap-2 border-b border-zinc-800 px-3 py-2">
-        <h2 className="text-[10px] font-medium uppercase tracking-widest text-zinc-600">
+      <div className="flex items-center gap-2 border-b border-hairline px-3 py-2">
+        <h2 className="text-[10px] font-medium uppercase tracking-widest text-ghost">
           NDM Block Tape - Trades &ge; 50K Shares
         </h2>
         <input
@@ -39,16 +39,16 @@ export default function NdmTape({ rows }: { rows: NdmRow[] }) {
           onChange={(e) => setQuery(e.target.value)}
           placeholder="FILTER…"
           aria-label="Filter NDM tape"
-          className="ml-auto w-28 rounded border border-zinc-800 bg-[#05070a] px-2 py-1 font-mono text-[11px] uppercase text-zinc-200 placeholder:text-zinc-600 focus:border-sky-500/60 focus:outline-none"
+          className="ml-auto w-28 rounded-[2px] border border-hairline bg-obsidian px-2 py-1 font-mono text-[11px] uppercase text-ink placeholder:text-ghost focus:border-info/50 focus:outline-none"
         />
-        <span className="font-mono text-[11px] tabular-nums text-zinc-500">
+        <span className="font-mono text-[11px] tabular-nums text-muted">
           {filtered.length}
         </span>
       </div>
 
       {filtered.length === 0 ? (
         <div className="px-3 py-6 text-center">
-          <p className="font-mono text-xs text-zinc-500">
+          <p className="font-mono text-xs text-muted">
             NO BLOCKS &ge; 50K SHARES ON TAPE
           </p>
         </div>
@@ -56,7 +56,7 @@ export default function NdmTape({ rows }: { rows: NdmRow[] }) {
         <div className="overflow-x-auto">
           <table className="w-full min-w-[560px] border-collapse text-xs">
             <thead>
-              <tr className="border-b border-zinc-800 bg-[#0c1017] text-left text-[10px] uppercase tracking-widest text-zinc-600">
+              <tr className="border-b border-hairline bg-panel text-left text-[10px] uppercase tracking-widest text-ghost">
                 <th className="px-3 py-2 font-medium">Date</th>
                 <th className="px-2 py-2 font-medium">Ticker</th>
                 <th className="px-2 py-2 text-right font-medium">Volume</th>
@@ -69,28 +69,28 @@ export default function NdmTape({ rows }: { rows: NdmRow[] }) {
               {filtered.map((row, idx) => {
                 const diffCls =
                   row.ltpDiffPct == null
-                    ? "text-zinc-500"
+                    ? "text-muted"
                     : row.ltpDiffPct >= 0
-                      ? "text-emerald-400"
-                      : "text-rose-400";
+                      ? "text-bull"
+                      : "text-bear";
                 return (
                   <tr
                     key={`${row.tradeDate}-${row.ticker}-${idx}`}
-                    className="border-b border-zinc-900 hover:bg-zinc-900/40"
+                    className="border-b border-hairline hover:bg-hoverline"
                   >
-                    <td className="px-3 py-1.5 font-mono tabular-nums text-zinc-400">
+                    <td className="px-3 py-1.5 font-mono tabular-nums text-muted">
                       {row.tradeDate}
                     </td>
-                    <td className="px-2 py-1.5 font-mono font-semibold text-zinc-100">
+                    <td className="px-2 py-1.5 font-mono font-semibold text-ink">
                       {row.ticker}
                     </td>
-                    <td className="px-2 py-1.5 text-right font-mono tabular-nums text-sky-300">
+                    <td className="px-2 py-1.5 text-right font-mono tabular-nums text-info">
                       {fmtShares(row.quantity)}
                     </td>
-                    <td className="px-2 py-1.5 text-right font-mono tabular-nums text-zinc-100">
+                    <td className="px-2 py-1.5 text-right font-mono tabular-nums text-ink">
                       {fmtPrice(row.rate)}
                     </td>
-                    <td className="px-2 py-1.5 text-right font-mono tabular-nums text-zinc-400">
+                    <td className="px-2 py-1.5 text-right font-mono tabular-nums text-muted">
                       {fmtPrice(row.marketLtp)}
                     </td>
                     <td

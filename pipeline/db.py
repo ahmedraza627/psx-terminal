@@ -161,6 +161,17 @@ def fetch_recent_flows(days: int = 15) -> list[dict[str, Any]]:
     )
 
 
+def fetch_rotation_history(days: int = 120) -> list[dict[str, Any]]:
+    """Stored rotation rows for regime-persistence tracking."""
+    return _paginated_select(
+        "psx_sector_rotation",
+        "trade_date,sector_name,quadrant",
+        order_desc_col="trade_date",
+        order_asc_col="sector_name",
+        max_rows=days * 40,
+    )
+
+
 def fetch_recent_offmarket(days: int = 3) -> list[dict[str, Any]]:
     """Load recent NDM block deals for short-term confirmation."""
     return _paginated_select(

@@ -32,16 +32,16 @@ function fmtDiscount(value: number | null): string {
 }
 
 const STATUS_STYLES: Record<string, string> = {
-  UNDERVALUED: "bg-emerald-500/10 text-emerald-300 ring-emerald-500/30",
-  FAIR_VALUE: "bg-sky-500/10 text-sky-300 ring-sky-500/30",
-  OVERVALUED: "bg-rose-500/10 text-rose-300 ring-rose-500/30",
+  UNDERVALUED: "bg-bull/10 text-bull ring-bull/30",
+  FAIR_VALUE: "bg-info/10 text-info ring-info/30",
+  OVERVALUED: "bg-bear/10 text-bear ring-bear/30",
 };
 
 function scoreColor(score: number): string {
-  if (score >= 75) return "text-emerald-400";
-  if (score >= 55) return "text-sky-300";
-  if (score >= 35) return "text-zinc-300";
-  return "text-zinc-500";
+  if (score >= 75) return "text-bull";
+  if (score >= 55) return "text-info";
+  if (score >= 35) return "text-ink";
+  return "text-muted";
 }
 
 export default function ResearchDeskBlotter({
@@ -60,19 +60,19 @@ export default function ResearchDeskBlotter({
         {unreachable ? (
           <FeedErrorPill />
         ) : missing ? (
-          <p className="font-mono text-xs uppercase tracking-widest text-amber-300">
+          <p className="font-mono text-xs uppercase tracking-widest text-warn">
             [SCHEMA PENDING: RUN SCHEMA.SQL IN SUPABASE]
           </p>
         ) : pending ? (
-          <p className="font-mono text-xs uppercase tracking-widest text-sky-300">
+          <p className="font-mono text-xs uppercase tracking-widest text-info">
             [RESEARCH DESK: AWAITING FIRST SCORING PASS]
           </p>
         ) : (
-          <p className="font-mono text-xs text-zinc-500">
+          <p className="font-mono text-xs text-muted">
             NO RESEARCH COVERAGE FOR THIS SESSION
           </p>
         )}
-        <p className="mt-1 text-[11px] text-zinc-600">
+        <p className="mt-1 text-[11px] text-ghost">
           Composite alpha scores (valuation 35 / quality 25 / growth 20 /
           yield 20) with the PSX institutional multi-factor intrinsic value,
           built from quarterly DPS financials (psx_equity_research).
@@ -95,18 +95,18 @@ export default function ResearchDeskBlotter({
 
   return (
     <section>
-      <div className="flex items-center justify-between border-b border-zinc-800 px-3 py-2">
-        <h2 className="text-[10px] font-medium uppercase tracking-widest text-zinc-600">
+      <div className="flex items-center justify-between border-b border-hairline px-3 py-2">
+        <h2 className="text-[10px] font-medium uppercase tracking-widest text-ghost">
           Research Desk - Sector P/E Multiple + Dividend Floor Model
         </h2>
-        <span className="font-mono text-[11px] tabular-nums text-zinc-500">
+        <span className="font-mono text-[11px] tabular-nums text-muted">
           {undervalued} UNDER · {overvalued} OVER · {highScore} α≥75
         </span>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[720px] border-collapse text-xs">
           <thead>
-            <tr className="border-b border-zinc-800 bg-[#0c1017] text-left text-[10px] uppercase tracking-widest text-zinc-600">
+            <tr className="border-b border-hairline bg-panel text-left text-[10px] uppercase tracking-widest text-ghost">
               <th className="px-3 py-2 font-medium">Ticker</th>
               <th className="px-2 py-2 text-right font-medium">α Score</th>
               <th className="px-2 py-2 text-right font-medium">Intrinsic</th>
@@ -125,9 +125,9 @@ export default function ResearchDeskBlotter({
             {rows.map((row) => (
               <tr
                 key={`${row.tradeDate}-${row.ticker}`}
-                className="border-b border-zinc-900 hover:bg-zinc-900/40"
+                className="border-b border-hairline hover:bg-hoverline"
               >
-                <td className="px-3 py-1.5 font-mono font-semibold text-zinc-100">
+                <td className="px-3 py-1.5 font-mono font-semibold text-ink">
                   {row.ticker}
                 </td>
                 <td
@@ -137,39 +137,39 @@ export default function ResearchDeskBlotter({
                 >
                   {row.alphaScore}
                 </td>
-                <td className="px-2 py-1.5 text-right font-mono tabular-nums text-zinc-300">
+                <td className="px-2 py-1.5 text-right font-mono tabular-nums text-ink">
                   {fmtPrice(row.intrinsicValuePkr)}
                 </td>
                 <td
                   className={`px-2 py-1.5 text-right font-mono tabular-nums ${
                     row.valuationDiscountPct == null
-                      ? "text-zinc-500"
+                      ? "text-muted"
                       : row.valuationDiscountPct >= 15
-                        ? "text-emerald-400"
+                        ? "text-bull"
                         : row.valuationDiscountPct <= -15
-                          ? "text-rose-400"
-                          : "text-zinc-300"
+                          ? "text-bear"
+                          : "text-ink"
                   }`}
                 >
                   {fmtDiscount(row.valuationDiscountPct)}
                 </td>
                 {hasTargetPe && (
-                  <td className="px-2 py-1.5 text-right font-mono tabular-nums text-zinc-400">
+                  <td className="px-2 py-1.5 text-right font-mono tabular-nums text-muted">
                     {row.targetPeUsed == null
                       ? "—"
                       : `${row.targetPeUsed.toFixed(1)}x`}
                   </td>
                 )}
                 {hasDivFloor && (
-                  <td className="px-2 py-1.5 text-right font-mono tabular-nums text-zinc-400">
+                  <td className="px-2 py-1.5 text-right font-mono tabular-nums text-muted">
                     {fmtPrice(row.dividendFloorPkr)}
                   </td>
                 )}
                 <td className="px-2 py-1.5">
                   <span
-                    className={`inline-block rounded px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider ring-1 ${
+                    className={`inline-block rounded-[2px] px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider ring-1 ${
                       STATUS_STYLES[row.valuationStatus] ??
-                      "bg-zinc-800 text-zinc-400 ring-zinc-700"
+                      "bg-panel text-muted ring-hairline"
                     }`}
                   >
                     {row.valuationStatus.replace("_", " ")}
@@ -181,8 +181,8 @@ export default function ResearchDeskBlotter({
                       className={`font-mono text-[10px] uppercase tracking-wider ${
                         row.balanceSheetRiskFlag &&
                         row.balanceSheetRiskFlag !== "CLEAN"
-                          ? "text-rose-400"
-                          : "text-zinc-600"
+                          ? "text-bear"
+                          : "text-ghost"
                       }`}
                     >
                       {row.balanceSheetRiskFlag ?? "—"}
@@ -194,8 +194,8 @@ export default function ResearchDeskBlotter({
           </tbody>
         </table>
       </div>
-      <div className="border-t border-zinc-900 px-3 py-2">
-        <p className="font-mono text-[10px] leading-relaxed text-zinc-600">
+      <div className="border-t border-hairline px-3 py-2">
+        <p className="font-mono text-[10px] leading-relaxed text-ghost">
           MODEL: SECTOR P/E MULTIPLE + DIVIDEND FLOOR (PSX_MF_V1) — intrinsic
           = TTM EPS × sector normal P/E (E&amp;P 6.0x · fertilizer 7.5x ·
           cement 7.0x · tech 12.0x · banks 5.0x · default 6.5x); dividend

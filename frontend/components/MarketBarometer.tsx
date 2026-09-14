@@ -16,12 +16,12 @@ function fmtSigned(value: number): string {
 export default function MarketBarometer({ data }: { data: Barometer | null }) {
   if (!data) {
     return (
-      <div className="flex items-center gap-4 border-b border-zinc-800 bg-[#0c1017] px-3 py-2">
-        <span className="text-[10px] uppercase tracking-widest text-zinc-600">
+      <div className="flex items-center gap-4 border-b border-hairline bg-panel px-3 py-2">
+        <span className="text-[10px] uppercase tracking-widest text-ghost">
           NCCPL Flows
         </span>
-        <span className="h-3 w-40 animate-pulse rounded bg-zinc-800" />
-        <span className="h-3 w-40 animate-pulse rounded bg-zinc-800" />
+        <span className="h-3 w-40 animate-pulse rounded-[2px] bg-panel" />
+        <span className="h-3 w-40 animate-pulse rounded-[2px] bg-panel" />
       </div>
     );
   }
@@ -34,37 +34,37 @@ export default function MarketBarometer({ data }: { data: Barometer | null }) {
         : "FLOWS ALIGNED";
   const labelCls =
     data.divergence === "SMART_MONEY_ACCUMULATION"
-      ? "text-emerald-400"
+      ? "text-bull"
       : data.divergence === "RETAIL_TRAP_RISK"
-        ? "text-rose-400"
-        : "text-sky-300";
+        ? "text-bear"
+        : "text-info";
 
   return (
-    <div className="flex items-center gap-x-4 gap-y-1 overflow-x-auto whitespace-nowrap border-b border-zinc-800 bg-[#0c1017] px-3 py-2 text-xs">
-      <span className="text-[10px] font-medium uppercase tracking-widest text-zinc-600">
+    <div className="flex items-center gap-x-4 gap-y-1 overflow-x-auto whitespace-nowrap border-b border-hairline bg-panel px-3 py-2 text-xs">
+      <span className="text-[10px] font-medium uppercase tracking-widest text-ghost">
         NCCPL {data.tradeDate}
       </span>
-      <span className="font-mono tabular-nums text-zinc-400">
+      <span className="font-mono tabular-nums text-muted">
         INST{" "}
         <span
           className={
-            data.institutionalNet >= 0 ? "text-emerald-400" : "text-rose-400"
+            data.institutionalNet >= 0 ? "text-bull" : "text-bear"
           }
         >
           {fmtMn(data.institutionalNet)}
         </span>
       </span>
-      <span className="font-mono tabular-nums text-zinc-400">
+      <span className="font-mono tabular-nums text-muted">
         RETAIL{" "}
         <span
-          className={data.retailNet >= 0 ? "text-emerald-400" : "text-rose-400"}
+          className={data.retailNet >= 0 ? "text-bull" : "text-bear"}
         >
           {fmtMn(data.retailNet)}
         </span>
       </span>
-      <span className="font-mono tabular-nums text-zinc-400">
+      <span className="font-mono tabular-nums text-muted">
         DIV{" "}
-        <span className="tabular-nums text-sky-300">
+        <span className="tabular-nums text-info">
           {fmtSigned(data.institutionalNet - data.retailNet)}
         </span>
       </span>

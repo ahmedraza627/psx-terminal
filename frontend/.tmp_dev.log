@@ -1,3 +1,7 @@
+
+> psx-intelligence-dashboard@1.0.0 dev
+> next dev -p 3000
+
   ▲ Next.js 14.2.35
   - Local:        http://localhost:3000
   - Environments: .env.local
@@ -5,9 +9,7 @@
     · webpackBuildWorker
 
  ✓ Starting...
- ✓ Ready in 3.5s
+ ✓ Ready in 7.5s
  ○ Compiling / ...
- ✓ Compiled / in 9s (588 modules)
- GET / 200 in 9466ms
- GET / 200 in 380ms
- GET / 200 in 220ms
+ ✓ Compiled / in 19.6s (618 modules)
+ GET / 200 in 22055ms

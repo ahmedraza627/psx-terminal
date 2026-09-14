@@ -340,11 +340,33 @@ create table if not exists public.psx_sector_rotation (
     quadrant           varchar(16)  not null,    -- LEADING | IMPROVING | WEAKENING | LAGGING
     top_leader_ticker  varchar(16),
     top_dragger_ticker varchar(16),
-    created_at         timestamptz  default now(),
+    -- Institutional flow-engine enrichment (v2):
+    sessions_in_quadrant integer,             -- consecutive sessions in quadrant (incl. today)
+    weeks_in_quadrant   integer,              -- sessions // 5, min 1
+    breadth_pct         numeric(5, 2),        -- % of members above their 20-SMA
+    breadth_flag        varchar(24),          -- BROAD_PARTICIPATION | NARROW_TRAP | NEUTRAL
+    net_inst_flow_pkr_5d numeric(18, 2),      -- 5d Mutual Funds + FIPI net (sector rows)
+    net_retail_flow_pkr_5d numeric(18, 2),    -- 5d INDIVIDUALS net (sector rows)
+    verdict             varchar(24),          -- EARLY_ACCUMULATION | MOMENTUM_RIDE |
+                                              -- DISTRIBUTION_RISK | AVOID_CAPITAL_TRAP
+    alpha_drivers       jsonb,                -- [{ticker,ltp,ret_5d_pct,rs_vs_sector_pct,vol_x_sma20}]
+    alpha_draggers      jsonb,
+    created_at          timestamptz  default now(),
     constraint uq_sector_rotation unique (trade_date, sector_name),
     constraint sector_rotation_quadrant_check
         check (quadrant in ('LEADING', 'IMPROVING', 'WEAKENING', 'LAGGING'))
 );
+
+-- v2 columns for installs created before the flow-engine enrichment.
+alter table public.psx_sector_rotation add column if not exists sessions_in_quadrant integer;
+alter table public.psx_sector_rotation add column if not exists weeks_in_quadrant integer;
+alter table public.psx_sector_rotation add column if not exists breadth_pct numeric(5, 2);
+alter table public.psx_sector_rotation add column if not exists breadth_flag varchar(24);
+alter table public.psx_sector_rotation add column if not exists net_inst_flow_pkr_5d numeric(18, 2);
+alter table public.psx_sector_rotation add column if not exists net_retail_flow_pkr_5d numeric(18, 2);
+alter table public.psx_sector_rotation add column if not exists verdict varchar(24);
+alter table public.psx_sector_rotation add column if not exists alpha_drivers jsonb;
+alter table public.psx_sector_rotation add column if not exists alpha_draggers jsonb;
 
 create index if not exists idx_sector_quad
     on public.psx_sector_rotation (trade_date desc, quadrant);

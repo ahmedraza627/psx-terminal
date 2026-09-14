@@ -14,6 +14,24 @@ Methodology (daily RRG):
                          (ratio>=100, mom<100) / IMPROVING (ratio<100,
                          mom>=100) / LAGGING (ratio<100, mom<100).
 
+Institutional flow-engine enrichment (v2) - one psx_sector_rotation row
+carries the full desk view:
+  - sessions_in_quadrant / weeks_in_quadrant: consecutive-session regime
+    persistence from stored rotation history (honest: NULL on first sight).
+  - breadth_pct: % of sector members whose latest close is above their own
+    20-session SMA (SMA includes the session close, standard convention);
+    flags BROAD_PARTICIPATION (>=70%), NARROW_TRAP (<=30% while the sector
+    index rose over 5 sessions) or NARROW (<=30% without divergence).
+  - net_inst_flow_pkr_5d / net_retail_flow_pkr_5d: 5-session cumulative
+    NCCPL net flow per sector (institutions = MUTUAL FUNDS + FIPI;
+    retail = INDIVIDUALS).
+  - alpha_drivers / alpha_draggers: top-2 / bottom-2 members by 5-session
+    return, each with LTP, 5D %, RS vs the sector mean and volume x SMA20.
+  - verdict: EARLY_ACCUMULATION (Improving + positive inst flow),
+    MOMENTUM_RIDE (Leading + broad breadth), DISTRIBUTION_RISK (Weakening,
+    or Leading with negative flow), AVOID_CAPITAL_TRAP (Lagging + narrow
+    breadth); NULL = mixed signals, desk shows MONITOR - never forced.
+
 Sectors come from the psx_fundamentals snapshot's sector_name mapping.
 A sector is only published when it has >= MIN_SECTOR_MEMBERS tickers with
 prices at both ends of the window - thin sectors are skipped, never
@@ -39,6 +57,26 @@ RRG_LOOKBACK_SESSIONS = int(os.getenv("RRG_LOOKBACK_SESSIONS", "60"))
 RRG_JACOB_SPAN = int(os.getenv("RRG_JACOB_SPAN", "5"))
 MIN_SECTOR_MEMBERS = int(os.getenv("RRG_MIN_SECTOR_MEMBERS", "4"))
 BENCHMARK_SYMBOL = os.getenv("RRG_BENCHMARK", "KSE100")
+
+# Flow-engine enrichment tunables.
+BREADTH_SMA_SESSIONS = int(os.getenv("RRG_BREADTH_SMA", "20"))
+FLOW_WINDOW_SESSIONS = int(os.getenv("RRG_FLOW_WINDOW", "5"))
+BREADTH_BROAD_PCT = float(os.getenv("RRG_BREADTH_BROAD", "70"))
+BREADTH_NARROW_PCT = float(os.getenv("RRG_BREADTH_NARROW", "30"))
+INST_FLOW_TYPES = {"MUTUAL FUNDS", "FIPI"}
+RETAIL_FLOW_TYPES = {"INDIVIDUALS"}
+
+# Upsert degrade: enriched write falls back to the core column set when the
+# v2 ALTERs have not been applied yet (PGRST204 unknown-column rejection).
+CORE_ROTATION_FIELDS = (
+    "trade_date",
+    "sector_name",
+    "rs_ratio",
+    "rs_momentum",
+    "quadrant",
+    "top_leader_ticker",
+    "top_dragger_ticker",
+)
 
 _benchmark_cache: dict[str, list[tuple[date, float]]] = {}
 
@@ -79,14 +117,148 @@ def _quadrant(rs_ratio: float, rs_momentum: float) -> str:
     return "IMPROVING" if rs_momentum >= 100.0 else "LAGGING"
 
 
+# --------------------------------------------------------------------------- #
+# Flow-engine enrichment helpers (pure, unit-testable).                        #
+# --------------------------------------------------------------------------- #
+def _weeks_from_sessions(sessions: int) -> int:
+    """Trading weeks: 5 sessions/week, minimum 1 week in regime."""
+    return max(1, sessions // 5)
+
+
+def compute_breadth(
+    trade_date: date,
+    eod_by_ticker: dict[str, list[tuple[date, float, Optional[int]]]],
+    tickers: list[str],
+    *,
+    sma_sessions: int = BREADTH_SMA_SESSIONS,
+) -> dict[str, Any]:
+    """Sector breadth: % of members above their own 20-SMA (inclusive).
+
+    Volume x SMA20 per member is returned for the drilldown panel. Members
+    with < sma_sessions stored sessions are excluded (never guessed).
+    """
+    above = 0
+    counted = 0
+    vol_x: dict[str, Optional[float]] = {}
+    for t in tickers:
+        series = eod_by_ticker.get(t, [])
+        if len(series) < sma_sessions:
+            vol_x[t] = None
+            continue
+        window = [c for _, c, _ in series[-sma_sessions:]]
+        sma = sum(window) / len(window)
+        last_day, last_close, last_vol = series[-1]
+        if last_day != trade_date or last_close <= 0:
+            vol_x[t] = None
+            continue
+        counted += 1
+        if last_close > sma:
+            above += 1
+        window_vols = [v for _, _, v in series[-sma_sessions:]]
+        vol_x[t] = (
+            float(last_vol) / (sum(window_vols) / sma_sessions)
+            if last_vol is not None and all(v is not None for v in window_vols)
+            else None
+        )
+    pct = (above / counted * 100.0) if counted else None
+    return {"pct": pct, "counted": counted, "vol_x": vol_x}
+
+
+def compute_sector_flows(
+    flows: list[dict[str, Any]],
+    sector: str,
+    *,
+    window_sessions: int = FLOW_WINDOW_SESSIONS,
+) -> dict[str, Optional[float]]:
+    """5-session cumulative NCCPL net flow for one sector.
+
+    Institutions = MUTUAL FUNDS + FIPI; retail = INDIVIDUALS. Sector rows
+    only (ALL totals cancel). Returns {} when the sector has no stored rows.
+    """
+    dates = sorted(
+        {
+            str(r.get("trade_date"))[:10]
+            for r in flows
+            if (r.get("sector_name") or "").strip().upper() == sector
+        }
+    )
+    if not dates:
+        return {}
+    window = set(dates[-window_sessions:])
+    inst = 0.0
+    retail = 0.0
+    for r in flows:
+        if (r.get("sector_name") or "").strip().upper() != sector:
+            continue
+        if str(r.get("trade_date"))[:10] not in window:
+            continue
+        ptype = (r.get("participant_type") or "").strip().upper()
+        net = r.get("net_pkr")
+        if net is None:
+            continue
+        if ptype in INST_FLOW_TYPES:
+            inst += float(net)
+        elif ptype in RETAIL_FLOW_TYPES:
+            retail += float(net)
+    return {"inst": inst, "retail": retail}
+
+
+def compute_alpha_tails(
+    trade_date: date,
+    eod_by_ticker: dict[str, list[tuple[date, float, Optional[int]]]],
+    tickers: list[str],
+    sector_mean_5d: Optional[float],
+    vol_x: dict[str, Optional[float]],
+    *,
+    window: int = 5,
+) -> dict[str, list[dict[str, Any]]]:
+    """Top-2 / bottom-2 members by 5-session return with full drilldown fields."""
+    stocks: list[dict[str, Any]] = []
+    for t in tickers:
+        series = eod_by_ticker.get(t, [])
+        if len(series) < window + 1:
+            continue
+        end_day, end_close, _ = series[-1]
+        start_close = series[-1 - window][1]
+        if end_day != trade_date or start_close <= 0 or end_close <= 0:
+            continue
+        ret_5d = (end_close / start_close - 1.0) * 100.0
+        stocks.append(
+            {
+                "ticker": t,
+                "ltp": round(end_close, 2),
+                "ret_5d_pct": round(ret_5d, 2),
+                "rs_vs_sector_pct": (
+                    round(ret_5d - sector_mean_5d, 2)
+                    if sector_mean_5d is not None
+                    else None
+                ),
+                "vol_x_sma20": (
+                    round(vol_x[t], 2)
+                    if vol_x.get(t) is not None
+                    else None
+                ),
+            }
+        )
+    stocks.sort(key=lambda s: s["ret_5d_pct"], reverse=True)
+    return {
+        "drivers": stocks[:2],
+        "draggers": (
+            stocks[-2:][::-1] if len(stocks) >= 2 else []
+        ),
+    }
+
+
 def compute_sector_rotation(
     trade_date: date,
     *,
     eod_history: list[dict[str, Any]],
     sector_of: dict[str, str],
     benchmark: list[tuple[date, float]],
+    flows: Optional[list[dict[str, Any]]] = None,
+    history: Optional[list[dict[str, Any]]] = None,
 ) -> list[dict[str, Any]]:
-    """Build the psx_sector_rotation payload for one session."""
+    """Build the enriched psx_sector_rotation payload for one session."""
     if len(benchmark) < RRG_LOOKBACK_SESSIONS + 2:
         LOGGER.warning(
             "rotation: benchmark has %d sessions, need %d - desk stays idle",
@@ -121,6 +293,26 @@ def compute_sector_rotation(
             window_days[-1],
         )
         return []
+
+    # EOD series with volume for breadth / alpha attribution: per-ticker
+    # [(day, close, volume)] over the full stored span (close>0 only).
+    eod_by_ticker: dict[str, list[tuple[date, float, Optional[int]]]] = defaultdict(
+        list
+    )
+    for row in eod_history:
+        try:
+            day = date.fromisoformat(str(row["trade_date"])[:10])
+        except (ValueError, TypeError):
+            continue
+        close = row.get("close_price")
+        if close is None or float(close) <= 0:
+            continue
+        vol = row.get("volume")
+        eod_by_ticker[row["ticker"]].append(
+            (day, float(close), int(vol) if vol is not None else None)
+        )
+    for series in eod_by_ticker.values():
+        series.sort(key=lambda x: x[0])
 
     # Sector membership restricted to tickers with a price on the session.
     members: dict[str, set[str]] = defaultdict(set)
@@ -185,6 +377,7 @@ def compute_sector_rotation(
         if math.isnan(rs_ratio) or math.isnan(prev) or prev == 0:
             continue
         rs_momentum = rs_ratio / prev * 100.0
+        quadrant = _quadrant(rs_ratio, rs_momentum)
 
         # Window leader/dragger among eligible members.
         def window_return(ticker: str) -> Optional[float]:
@@ -203,15 +396,115 @@ def compute_sector_rotation(
         leader = ranked[0][0] if ranked else None
         dragger = ranked[-1][0] if len(ranked) >= 2 else None
 
+        # ---------------- Flow-engine enrichment (v2) ----------------
+        breadth = compute_breadth(trade_date, eod_by_ticker, eligible)
+        breadth_pct = breadth["pct"]
+        sector_mean_5d = (
+            sum(r for _, r in ranked) / len(ranked) if ranked else None
+        )
+        tails = compute_alpha_tails(
+            trade_date,
+            eod_by_ticker,
+            eligible,
+            sector_mean_5d,
+            breadth["vol_x"],
+        )
+
+        inst_flow: Optional[float] = None
+        retail_flow: Optional[float] = None
+        if flows:
+            sector_flows = compute_sector_flows(flows, sector)
+            inst_flow = sector_flows.get("inst")
+            retail_flow = sector_flows.get("retail")
+
+        # Regime persistence: consecutive stored sessions the sector has
+        # held this quadrant (today's own row is session 1).
+        sessions_in_quad: Optional[int] = None
+        if history:
+            sessions_in_quad = 1
+            cursor = trade_date
+            for _ in range(250):
+                cursor = cursor.fromordinal(cursor.toordinal() - 1)
+                row_d = next(
+                    (
+                        r
+                        for r in history
+                        if str(r.get("trade_date"))[:10] == cursor.isoformat()
+                        and str(r.get("sector_name") or "").strip().upper()
+                        == sector.upper()
+                    ),
+                    None,
+                )
+                if row_d is None:
+                    break  # no stored row for that date: stop
+                if str(row_d.get("quadrant") or "") != quadrant:
+                    break  # regime changed
+                sessions_in_quad += 1
+        weeks_in_quad = (
+            _weeks_from_sessions(sessions_in_quad)
+            if sessions_in_quad is not None
+            else None
+        )
+
+        # Breadth flag: NARROW_TRAP needs the divergence test (breadth
+        # <= 30% while the equal-weight sector rose over 5 sessions).
+        rose_5d = sector_mean_5d is not None and sector_mean_5d > 0
+        breadth_flag: Optional[str] = None
+        if breadth_pct is not None:
+            if breadth_pct >= BREADTH_BROAD_PCT:
+                breadth_flag = "BROAD_PARTICIPATION"
+            elif breadth_pct <= BREADTH_NARROW_PCT and rose_5d:
+                breadth_flag = "NARROW_TRAP"
+            elif breadth_pct <= BREADTH_NARROW_PCT:
+                breadth_flag = "NARROW"
+            else:
+                breadth_flag = "NEUTRAL"
+
+        # Verdict matrix: NULL stays NULL (desk renders MONITOR).
+        verdict: Optional[str] = None
+        if quadrant == "IMPROVING" and inst_flow is not None and inst_flow > 0:
+            verdict = "EARLY_ACCUMULATION"
+        elif quadrant == "LEADING" and (
+            breadth_pct is not None and breadth_pct >= BREADTH_BROAD_PCT
+        ):
+            verdict = "MOMENTUM_RIDE"
+        elif quadrant == "WEAKENING" or (
+            quadrant == "LEADING"
+            and inst_flow is not None
+            and inst_flow < 0
+        ):
+            verdict = "DISTRIBUTION_RISK"
+        elif quadrant == "LAGGING" and breadth_pct is not None and (
+            breadth_pct <= BREADTH_NARROW_PCT
+        ):
+            verdict = "AVOID_CAPITAL_TRAP"
+
         payload.append(
             {
                 "trade_date": trade_date.isoformat(),
                 "sector_name": sector,
                 "rs_ratio": round(rs_ratio, 2),
                 "rs_momentum": round(rs_momentum, 2),
-                "quadrant": _quadrant(rs_ratio, rs_momentum),
+                "quadrant": quadrant,
                 "top_leader_ticker": leader,
                 "top_dragger_ticker": dragger,
+                "sessions_in_quadrant": sessions_in_quad,
+                "weeks_in_quadrant": weeks_in_quad,
+                "breadth_pct": (
+                    round(breadth_pct, 2) if breadth_pct is not None else None
+                ),
+                "breadth_flag": breadth_flag,
+                "net_inst_flow_pkr_5d": (
+                    round(inst_flow, 2) if inst_flow is not None else None
+                ),
+                "net_retail_flow_pkr_5d": (
+                    round(retail_flow, 2)
+                    if retail_flow is not None
+                    else None
+                ),
+                "verdict": verdict,
+                "alpha_drivers": tails["drivers"],
+                "alpha_draggers": tails["draggers"],
             }
         )
 
@@ -252,16 +545,40 @@ def run_sector_rotation(
         and str(row.get("trade_date"))[:10] == fund_day.isoformat()
     }
 
+    flows = db.fetch_recent_flows(days=8)
+    history = db.fetch_rotation_history(days=120)
+
     payload = compute_sector_rotation(
         trade_date,
         eod_history=eod_history,
         sector_of=sector_of,
         benchmark=benchmark,
+        flows=flows,
+        history=history,
     )
     if not payload:
         return 0
     if not write:
         return len(payload)
-    return db.upsert_records(
-        "psx_sector_rotation", payload, on_conflict="trade_date,sector_name"
+    written = db.upsert_records(
+        "psx_sector_rotation",
+        payload,
+        on_conflict="trade_date,sector_name",
     )
+    if written < len(payload):
+        # Enriched columns not migrated yet (PGRST204 unknown column):
+        # retry core-only so the desk still gets fresh RRG rows.
+        LOGGER.warning(
+            "rotation: enriched write incomplete (%d/%d) - retrying core columns",
+            written,
+            len(payload),
+        )
+        core = [
+            {k: row[k] for k in CORE_ROTATION_FIELDS} for row in payload
+        ]
+        written += db.upsert_records(
+            "psx_sector_rotation",
+            core,
+            on_conflict="trade_date,sector_name",
+        )
+    return written
