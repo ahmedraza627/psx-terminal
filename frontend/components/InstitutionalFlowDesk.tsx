@@ -11,7 +11,11 @@ import {
   type Tone,
 } from "@/components/ui/primitives";
 import { fmtPct, fmtPkrM } from "@/components/ui/format";
-import type { EodPoint, FlowRow } from "@/lib/deskQueries";
+import {
+  computeSectorSmartMoney,
+  type EodPoint,
+  type FlowRow,
+} from "@/lib/deskQueries";
 import type { KiborRow } from "@/lib/queries";
 
 /**
@@ -70,16 +74,6 @@ const FLOW_CATEGORIES: { label: string; types: ReadonlySet<string> }[] = [
   { label: "INDIVIDUALS", types: new Set(["INDIVIDUALS"]) },
   { label: "OTHER ORGS", types: new Set(["OTHER ORGANIZATIONS"]) },
 ];
-
-/** Institutional set for sector smart money (matches queries.ts convention). */
-const INSTITUTIONAL = new Set([
-  "MUTUAL FUNDS",
-  "FIPI",
-  "FOREIGN CORPORATES",
-  "BANKS",
-  "BANKS/DFIS",
-  "DFI",
-]);
 
 /** KIBOR stand-in for the annual-interest coverage proxy (fraction). */
 const KIBOR_RATE = 0.11;
@@ -250,34 +244,33 @@ export default function InstitutionalFlowDesk({
   }, [flows]);
 
   // ---- Panel B: sector smart money + divergence --------------------------
+  // Consumes the shared engine (same source as the Insights Wire) so the
+  // desk and the signal engine can never diverge on the absorption read.
   const sectorRows = useMemo(() => {
-    const inst = rollFlows(
-      flows,
-      (r) => (r.sectorName === "ALL" ? null : r.sectorName),
-      (t) => INSTITUTIONAL.has(t)
-    );
-    const prices = sectorPrice5d(eod, sectorMap);
-    return inst.rows.size === 0
-      ? []
-      : Array.from(inst.rows.entries())
-          .map(([sector, b]) => {
-            const score =
-              b.s30 !== 0 ? b.s5 / b.s30 + b.s15 / b.s30 : b.s5 + b.s15 > 0 ? 2 : b.s5 + b.s15 < 0 ? -2 : 0;
-            const price5 = prices.get(sector) ?? null;
-            let signal: { label: string; tone: Tone } = {
-              label: "NEUTRAL",
-              tone: "ghost",
-            };
-            if (b.s5 > 0 && score >= 0.5 && price5 != null && price5 < -1) {
-              signal = { label: "ABSORPTION ACCUMULATION", tone: "bull" };
-            } else if (b.s5 > 0 && score >= 0.5) {
-              signal = { label: "ACCUMULATION", tone: "bull" };
-            } else if (b.s5 < 0 && score <= -0.5) {
-              signal = { label: "DISTRIBUTION", tone: "bear" };
-            }
-            return { sector, ...b, score, price5, signal };
-          })
-          .sort((a, b) => b.s5 - a.s5);
+    const rows = computeSectorSmartMoney({ flows, eod, sectorMap });
+    return rows.map((r) => {
+      let signal: { label: string; tone: Tone } = {
+        label: "NEUTRAL",
+        tone: "ghost",
+      };
+      if (r.absorption) {
+        signal = { label: "ABSORPTION ACCUMULATION", tone: "bull" };
+      } else if (r.net5dPkr > 0 && r.score >= 0.5) {
+        signal = { label: "ACCUMULATION", tone: "bull" };
+      } else if (r.net5dPkr < 0 && r.score <= -0.5) {
+        signal = { label: "DISTRIBUTION", tone: "bear" };
+      }
+      return {
+        sector: r.sector,
+        latest: r.latestPkr,
+        s5: r.net5dPkr,
+        s15: r.net15dPkr,
+        s30: r.net30dPkr,
+        score: r.score,
+        price5: r.price5dPct,
+        signal,
+      };
+    });
   }, [flows, eod, sectorMap]);
 
   const maxCat5d = Math.max(1, ...categories.map((c) => Math.abs(c.s5)));
