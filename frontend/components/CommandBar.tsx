@@ -31,6 +31,7 @@ const DESK_COMMANDS: { cmd: string; label: string; tabId: string }[] = [
   { cmd: "RISK", label: "Risk Desk", tabId: "RISK" },
   { cmd: "PORTFOLIO", label: "Model Portfolio Desk", tabId: "PORTFOLIO" },
   { cmd: "WIRE", label: "Market Insights Wire", tabId: "WIRE" },
+  { cmd: "SIGNALS", label: "Quant Signals Wire — Anomaly Engine", tabId: "SIGNALS" },
   { cmd: "NOTES", label: "Companies Explained", tabId: "NOTES" },
   { cmd: "WATCH", label: "Watchlists", tabId: "WATCH" },
 ];

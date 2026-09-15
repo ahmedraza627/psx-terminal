@@ -13,6 +13,7 @@ import EdgeAnalyticsBlotter from "@/components/EdgeAnalyticsBlotter";
 import ResearchDeskBlotter from "@/components/ResearchDeskBlotter";
 import SectorRotationBlotter from "@/components/SectorRotationBlotter";
 import InstitutionalFlowDesk from "@/components/InstitutionalFlowDesk";
+import InsightsWire from "@/components/InsightsWire";
 import KiborSensitivityDesk from "@/components/KiborSensitivityDesk";
 import InsiderConvictionDesk from "@/components/InsiderConvictionDesk";
 import RiskDesk from "@/components/RiskDesk";
@@ -95,6 +96,7 @@ type TabId =
   | "COMP"
   | "PORTFOLIO"
   | "WIRE"
+  | "SIGNALS"
   | "NOTES"
   | "WATCH"
   | "BROKER"
@@ -118,6 +120,7 @@ const TABS: { id: TabId; label: string }[] = [
   { id: "RISK", label: "Risk Desk" },
   { id: "PORTFOLIO", label: "Portfolio" },
   { id: "WIRE", label: "Wire" },
+  { id: "SIGNALS", label: "Signals Wire" },
   { id: "NOTES", label: "Notes" },
   { id: "COMP", label: "Compare" },
   { id: "WATCH", label: "Watchlists" },
@@ -386,6 +389,32 @@ export default function HomePage() {
   const momentumCount = momentumRows.length;
   const riskBadge = sizingSignals.filter((s) => s.stopLoss != null).length;
 
+  // Signal count surfaced on the Signals Wire tab badge.
+  const signalsTabBadge =
+    whaleRows.length > 0 || eod.length > 0 || flowRows.length > 0 || kiborRows.length > 0
+      ? whaleCount
+      : 0;
+
+  /**
+   * Signal-card action dispatch: FLOW lands pre-filtered to the card's sector
+   * (reusing the command-bar focus state), BREADTH / KIBOR route bare.
+   */
+  const handleSignalsNavigate = useCallback(
+    (desk: string, filter?: string) => {
+      if (desk === "FLOW" && filter != null) {
+        setFlowSectorFilter(filter);
+        setTab("FLOW");
+      } else if (desk === "BREADTH") {
+        setTab("BREADTH");
+      } else if (desk === "KIBOR") {
+        setTab("KIBOR");
+      } else {
+        setTab(desk as TabId);
+      }
+    },
+    []
+  );
+
   const tabBadges: Record<TabId, number> = {
     WHALE: whaleRows.length,
     RESEARCH: researchRows.length,
@@ -404,6 +433,7 @@ export default function HomePage() {
     COMP: 0,
     PORTFOLIO: 0,
     WIRE: 0,
+    SIGNALS: signalsTabBadge,
     NOTES: researchRows.length,
     WATCH: 0,
     BROKER: 0,
@@ -677,6 +707,16 @@ export default function HomePage() {
               disclosures={disclosureRows}
               rotation={rotationRows}
               kibor={kiborRows}
+            />
+          )}
+          {activeTab === "SIGNALS" && (
+            <InsightsWire
+              eod={eod}
+              fundamentals={fundamentals}
+              kiborRows={kiborRows}
+              sectorMap={sectorMap}
+              flows={flowRows}
+              onNavigate={handleSignalsNavigate}
             />
           )}
           {activeTab === "NOTES" && (
