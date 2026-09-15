@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import {
   Badge,
   DataTable,
@@ -43,6 +43,10 @@ interface Props {
   kibor?: KiborRow[];
   eod?: EodPoint[];
   sectorMap?: Map<string, string>;
+  /** Command-bar [F] hotkey: focus the sector panel on one sector. */
+  sectorFilter?: string | null;
+  /** Clears the command-bar sector filter. */
+  onClearSectorFilter?: () => void;
 }
 
 /** Aggregate rows that would double-count the per-sector detail. */
@@ -192,7 +196,7 @@ function fmtEpsShock(v: number): string {
 }
 
 /** Sub-panel header strip (inside the desk frame). */
-function PanelHeader({ label, right }: { label: string; right?: string }) {
+function PanelHeader({ label, right }: { label: string; right?: ReactNode }) {
   return (
     <div className="flex items-center justify-between border-b border-hairline bg-panel px-2.5 py-1">
       <span className="font-mono text-[9px] font-semibold uppercase tracking-[0.2em] text-ghost">
@@ -212,6 +216,8 @@ export default function InstitutionalFlowDesk({
   kibor = [],
   eod = [],
   sectorMap = new Map(),
+  sectorFilter = null,
+  onClearSectorFilter,
 }: Props) {
   // ---- Panel A: participant matrix, bucketed by participant type ---------
   const catAgg = useMemo(
@@ -399,7 +405,18 @@ export default function InstitutionalFlowDesk({
         <>
           <PanelHeader
             label="SECTOR SMART MONEY — INSTITUTIONAL NET PKR"
-            right="SCORE = 5D/30D + 15D/30D"
+            right={
+              sectorFilter != null ? (
+                <button
+                  onClick={() => onClearSectorFilter?.()}
+                  className="rounded-[2px] border border-info/40 bg-info/10 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider text-info hover:border-info/70"
+                >
+                  FOCUS: {sectorFilter} · CLEAR
+                </button>
+              ) : (
+                "SCORE = 5D/30D + 15D/30D"
+              )
+            }
           />
           <DataTable
             minWidth={780}
@@ -413,7 +430,10 @@ export default function InstitutionalFlowDesk({
               { label: "Signal", align: "right", width: "20%" },
             ]}
           >
-            {sectorRows.map((s) => (
+            {(sectorFilter != null
+              ? sectorRows.filter((s) => s.sector === sectorFilter)
+              : sectorRows
+            ).map((s) => (
               <Row key={s.sector}>
                 <td
                   className="max-w-[220px] truncate px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-ink"

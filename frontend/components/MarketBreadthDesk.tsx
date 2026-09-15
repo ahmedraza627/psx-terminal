@@ -11,7 +11,7 @@ import {
   type Tone,
 } from "@/components/ui/primitives";
 import { fmtPct } from "@/components/ui/format";
-import type { EodPoint } from "@/lib/deskQueries";
+import { computeAmihudStats, type EodPoint } from "@/lib/deskQueries";
 
 /**
  * Market Breadth & Liquidity Matrix.
@@ -213,26 +213,12 @@ export default function MarketBreadthDesk({ eod = [], sectorMap = new Map() }: P
       const chg5dPct =
         base5 != null && base5 > 0 ? ((latestClose - base5) / base5) * 100 : null;
 
-      // Amihud: mean of |ret| / PKR turnover (×1e6) over trailing 20 sessions.
-      const tail = withClose.slice(-(AMIHUD_WINDOW + 1));
-      const vals: number[] = [];
-      const turnovers: number[] = [];
-      for (let i = 1; i < tail.length; i++) {
-        const prevClose = tail[i - 1].close as number;
-        const onClose = tail[i].close as number;
-        const vol = tail[i].volume ?? null;
-        if (prevClose <= 0) continue;
-        const turnover = vol != null ? vol * onClose : null;
-        if (turnover == null || turnover <= 0) continue;
-        const ret = Math.abs((onClose - prevClose) / prevClose);
-        vals.push((ret / turnover) * 1e6);
-        turnovers.push(turnover);
-      }
-      const amihud = vals.length >= 10 ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
-      const medTurnoverPkr =
-        turnovers.length > 0
-          ? turnovers.slice().sort((a, b) => a - b)[Math.floor(turnovers.length / 2)]
-          : null;
+      // Amihud via the shared helper (same formula as the quote HUD).
+      const { amihud, medianTurnoverPkr } = computeAmihudStats(
+        withClose.map((r) => ({ close: r.close, volume: r.volume })),
+        AMIHUD_WINDOW,
+        10
+      );
 
       stats.push({
         ticker,
@@ -244,7 +230,7 @@ export default function MarketBreadthDesk({ eod = [], sectorMap = new Map() }: P
         atHigh: latestClose >= hi200 - EPSILON,
         atLow: latestClose <= lo200 + EPSILON,
         amihud,
-        medTurnoverPkr,
+        medTurnoverPkr: medianTurnoverPkr,
       });
     }
 

@@ -366,6 +366,43 @@ export async function fetchFlowMatrix(): Promise<FlowRow[]> {
   }
 }
 
+/**
+ * Amihud illiquidity from a chronological close/volume series:
+ * mean(|daily return| / PKR turnover) x1e6 over the trailing `window`
+ * sessions. Shared by the Market Breadth desk and the command-bar quote HUD
+ * so both surfaces rank liquidity identically. Returns null when fewer than
+ * `minValid` sessions carry a positive turnover — never imputed.
+ */
+export function computeAmihudStats(
+  rows: { close: number | null; volume: number | null }[],
+  window = 20,
+  minValid = 10
+): { amihud: number | null; medianTurnoverPkr: number | null } {
+  const tail = rows.slice(-(window + 1));
+  const vals: number[] = [];
+  const turnovers: number[] = [];
+  for (let i = 1; i < tail.length; i++) {
+    const prevClose = tail[i - 1].close;
+    const onClose = tail[i].close;
+    const vol = tail[i].volume;
+    if (prevClose == null || prevClose <= 0 || onClose == null) continue;
+    const turnover = vol != null ? vol * onClose : null;
+    if (turnover == null || turnover <= 0) continue;
+    const ret = Math.abs((onClose - prevClose) / prevClose);
+    vals.push((ret / turnover) * 1e6);
+    turnovers.push(turnover);
+  }
+  const amihud =
+    vals.length >= minValid
+      ? vals.reduce((a, b) => a + b, 0) / vals.length
+      : null;
+  const medianTurnoverPkr =
+    turnovers.length > 0
+      ? turnovers.slice().sort((a, b) => a - b)[Math.floor(turnovers.length / 2)]
+      : null;
+  return { amihud, medianTurnoverPkr };
+}
+
 export interface EodPoint {
   ticker: string;
   tradeDate: string;

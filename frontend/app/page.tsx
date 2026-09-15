@@ -179,6 +179,7 @@ export default function HomePage() {
   const [drawerTicker, setDrawerTicker] = useState<string | null>(null);
   const [drawerSignals, setDrawerSignals] = useState<SignalRow[]>([]);
   const [compareTickers, setCompareTickers] = useState<string[]>([]);
+  const [flowSectorFilter, setFlowSectorFilter] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -429,6 +430,9 @@ export default function HomePage() {
     else if (a.kind === "COMPARE") {
       setCompareTickers(a.tickers.slice(0, 3));
       setTab("COMP");
+    } else if (a.kind === "FLOW_SECTOR") {
+      setFlowSectorFilter(a.sector);
+      setTab("FLOW");
     } else setDrawerTicker(a.ticker);
   };
 
@@ -625,6 +629,8 @@ export default function HomePage() {
               kibor={kiborRows}
               eod={eod}
               sectorMap={sectorMap}
+              sectorFilter={flowSectorFilter}
+              onClearSectorFilter={() => setFlowSectorFilter(null)}
             />
           )}
           {activeTab === "KIBOR" && (
@@ -724,6 +730,10 @@ export default function HomePage() {
         onClose={() => setCmdOpen(false)}
         onAction={onCommand}
         tickers={cmdTickers}
+        eod={eod}
+        fundamentals={fundamentals}
+        kibor={kiborRows}
+        sectorMap={sectorMap}
       />
       <FeatureRequestPortal
         open={portalOpen}
