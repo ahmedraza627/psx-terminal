@@ -936,6 +936,11 @@ def _momentum_signals(
             (close - prev_close) / prev_close * 100.0
             if prev_close and prev_close > 0 else 0.0
         )
+        true_atr = (
+            atr(s["highs"], s["lows"], s["closes"], ATR_PERIOD)
+            if len(rows) >= ATR_PERIOD + 1
+            else None
+        )
         candidates.append(
             (
                 breakout,
@@ -945,6 +950,10 @@ def _momentum_signals(
                     "day_pct": day_pct,
                     "sector": sector,
                     "sector_aligned": sector_aligned,
+                    "atr": true_atr,
+                    "stop": close - ATR_MULT * true_atr
+                    if true_atr is not None and true_atr > 0
+                    else None,
                 },
             )
         )
@@ -985,10 +994,16 @@ def _momentum_signals(
                 f"alignment available this session."
             )
             sector_smart_net = None
+        # Sizable stop geometry: 1.5x ATR(14) when history allows, else the
+        # engine-wide 6% structural floor - never None, so the risk desk and
+        # the playbook can size INSTITUTIONAL_TARGET rows.
+        stop = info["stop"] if info["stop"] is not None else info["close"] * 0.94
+        if stop >= info["close"]:
+            stop = info["close"] * 0.94
         signals.append(
             _mk_signal(
                 trade_date, ticker, "MOMENTUM", "INSTITUTIONAL_TARGET",
-                entry_reference=info["close"], stop_loss=None,
+                entry_reference=info["close"], stop_loss=stop,
                 rationale=rationale,
                 metadata={
                     "breakout_multiple": round(breakout, 2),
@@ -996,6 +1011,7 @@ def _momentum_signals(
                     "sector": sector_label,
                     "sector_smart_net_pkr": sector_smart_net,
                     "fallback": fallback_used,
+                    "stop_basis": "ATR14" if info["stop"] is not None else "PCT_6",
                 },
             )
         )
@@ -1558,6 +1574,20 @@ def run_quant_engine(session_date: date | None = None) -> int:
     if not payload:
         LOGGER.warning("no signals produced for %s", trade_date)
         return 0
+
+    # Stamp the gate verdict into every row (jsonb-safe scalars only) so the
+    # frontend playbook consumes the exact regime state these signals were
+    # filtered by - one source of truth, no client-side re-derivation.
+    regime_stamp = {
+        "regime_status": regime["regime_status"],
+        "inst_net_flow_pkr": regime["inst_net_flow_pkr"],
+        "flow_basis": regime["flow_basis"],
+        "benchmark_close": regime["benchmark_close"],
+        "benchmark_sma20": regime["benchmark_sma20"],
+        "benchmark_basis": regime["benchmark_basis"],
+    }
+    for row in payload:
+        row.setdefault("metadata", {})["regime"] = regime_stamp
 
     written = db.upsert_records(
         "signals_computed",

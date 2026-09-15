@@ -82,12 +82,23 @@ export interface NdmRow {
 // ------------------------------------------------------------------ //
 export async function fetchActiveSessionDate(): Promise<string | null> {
   const supabase = getSupabase();
+  // Anchor on sector rotation: only advances when full quant pipeline completes a session
   const { data, error } = await supabase
-    .from("signals_computed")
+    .from("psx_sector_rotation")
     .select("trade_date")
     .order("trade_date", { ascending: false })
     .limit(1);
-  if (error) throw error;
+
+  if (error || !data || data.length === 0) {
+    const fallback = await supabase
+      .from("nccpl_fipi_lipi")
+      .select("trade_date")
+      .order("trade_date", { ascending: false })
+      .limit(1);
+    const fbRows = fallback.data as { trade_date: string }[] | null;
+    return fbRows && fbRows.length > 0 ? fbRows[0].trade_date : null;
+  }
+
   const rows = data as { trade_date: string }[] | null;
   return rows && rows.length > 0 ? rows[0].trade_date : null;
 }

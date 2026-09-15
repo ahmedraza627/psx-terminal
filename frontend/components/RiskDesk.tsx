@@ -1,217 +1,104 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import {
-  RISK_DEFAULTS,
-  sizeBook,
-  type SizingSignal,
-} from "@/lib/risk";
+import { useState } from "react";
+import { DeskFrame } from "@/components/ui/primitives";
 
-function fmtPkr(value: number): string {
-  if (Math.abs(value) >= 1e6) return `${(value / 1e6).toFixed(2)}M`;
-  if (Math.abs(value) >= 1e3) return `${(value / 1e3).toFixed(0)}K`;
-  return value.toFixed(0);
-}
+export default function RiskDesk() {
+  const [portfolioSize, setPortfolioSize] = useState<number>(5000000); // 5M PKR default
+  const [riskPct, setRiskPct] = useState<number>(1.5); // 1.5% max risk per trade
+  const [entryPrice, setEntryPrice] = useState<number>(100);
+  const [stopLoss, setStopLoss] = useState<number>(94);
 
-function fmtPct(value: number, digits = 2): string {
-  return `${value >= 0 ? "" : ""}${value.toFixed(digits)}%`;
-}
-
-export default function RiskDesk({
-  signals,
-}: {
-  signals: SizingSignal[];
-}) {
-  const [equityMn, setEquityMn] = useState(5);
-  const [riskPct, setRiskPct] = useState(RISK_DEFAULTS.riskPerTradePct);
-
-  const equityPkr = Math.max(0, equityMn) * 1_000_000;
-
-  const book = useMemo(
-    () =>
-      sizeBook(signals, equityPkr, {
-        ...RISK_DEFAULTS,
-        riskPerTradePct: riskPct,
-      }),
-    [signals, equityPkr, riskPct]
-  );
-
-  const heat = book.totals.portfolioHeatPct;
-  const heatPctOfCap = Math.min(
-    100,
-    (heat / RISK_DEFAULTS.maxPortfolioHeatPct) * 100
-  );
+  // Calculations
+  const maxRiskAmount = (portfolioSize * riskPct) / 100;
+  const riskPerShare = Math.max(0.01, entryPrice - stopLoss);
+  const recommendedShares = Math.floor(maxRiskAmount / riskPerShare);
+  const totalAllocation = recommendedShares * entryPrice;
+  const allocationPct = (totalAllocation / portfolioSize) * 100;
 
   return (
-    <section>
-      <div className="flex items-center justify-between border-b border-hairline px-3 py-2">
-        <h2 className="text-[10px] font-medium uppercase tracking-widest text-ghost">
-          Risk Desk - Fixed-Fractional Position Sizing
-        </h2>
-        <span className="font-mono text-[11px] tabular-nums text-muted">
-          {book.totals.positions} SIZED · {book.rejected.length} REJ
-        </span>
-      </div>
+    <DeskFrame title="Position Sizing & Portfolio Risk Engine — Fixed Fractional Model">
+      <div className="grid gap-6 lg:grid-cols-2 font-mono p-4">
+        {/* Left: Input Controls */}
+        <div className="space-y-4 rounded border border-hairline bg-panel/40 p-4">
+          <h3 className="text-[11px] font-bold uppercase tracking-widest text-info">Trade & Account Parameters</h3>
+          
+          <div>
+            <label className="block text-[10px] text-muted uppercase">Total Portfolio Capital (PKR)</label>
+            <input
+              type="number"
+              value={portfolioSize}
+              onChange={(e) => setPortfolioSize(Number(e.target.value))}
+              className="mt-1 w-full rounded border border-hairline bg-obsidian px-3 py-1.5 text-sm text-ink focus:border-info focus:outline-none"
+            />
+          </div>
 
-      {/* Inputs */}
-      <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-hairline bg-panel px-3 py-2">
-        <label className="flex items-center gap-2 font-mono text-[11px] text-muted">
-          EQUITY
-          <span className="font-mono text-ghost">PKR</span>
-          <input
-            type="number"
-            min={0}
-            step={0.5}
-            value={equityMn}
-            onChange={(e) => setEquityMn(Number(e.target.value) || 0)}
-            className="w-20 rounded-[2px] border border-hairline bg-obsidian px-1.5 py-0.5 font-mono tabular-nums text-ink outline-none focus:border-info/40"
-          />
-          <span className="text-ghost">M</span>
-        </label>
-        <label className="flex items-center gap-2 font-mono text-[11px] text-muted">
-          RISK/TRADE
-          <input
-            type="number"
-            min={0.1}
-            max={5}
-            step={0.1}
-            value={riskPct}
-            onChange={(e) => setRiskPct(Number(e.target.value) || 0)}
-            className="w-14 rounded-[2px] border border-hairline bg-obsidian px-1.5 py-0.5 font-mono tabular-nums text-ink outline-none focus:border-info/40"
-          />
-          <span className="text-ghost">%</span>
-        </label>
-        <span className="font-mono text-[10px] uppercase tracking-wider text-ghost">
-          HEAT CAP {RISK_DEFAULTS.maxPortfolioHeatPct}% · POS CAP{" "}
-          {RISK_DEFAULTS.maxPositionPct}% · MAX {RISK_DEFAULTS.maxPositions}
-        </span>
-      </div>
+          <div>
+            <label className="block text-[10px] text-muted uppercase">Max Risk Per Trade (%)</label>
+            <input
+              type="number"
+              step="0.1"
+              value={riskPct}
+              onChange={(e) => setRiskPct(Number(e.target.value))}
+              className="mt-1 w-full rounded border border-hairline bg-obsidian px-3 py-1.5 text-sm text-ink focus:border-info focus:outline-none"
+            />
+          </div>
 
-      {/* Heat gauge */}
-      <div className="border-b border-hairline px-3 py-2">
-        <div className="flex items-center justify-between font-mono text-[10px] uppercase tracking-widest">
-          <span className="text-ghost">Portfolio heat</span>
-          <span
-            className={`tabular-nums ${
-              heat >= RISK_DEFAULTS.maxPortfolioHeatPct
-                ? "text-bear"
-                : heat >= RISK_DEFAULTS.maxPortfolioHeatPct * 0.7
-                  ? "text-warn"
-                  : "text-bull"
-            }`}
-          >
-            {fmtPct(heat, 2)} / {RISK_DEFAULTS.maxPortfolioHeatPct}%
-          </span>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[10px] text-muted uppercase">Entry Price (PKR)</label>
+              <input
+                type="number"
+                step="0.1"
+                value={entryPrice}
+                onChange={(e) => setEntryPrice(Number(e.target.value))}
+                className="mt-1 w-full rounded border border-hairline bg-obsidian px-3 py-1.5 text-sm text-ink focus:border-info focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] text-muted uppercase">Stop-Loss (PKR)</label>
+              <input
+                type="number"
+                step="0.1"
+                value={stopLoss}
+                onChange={(e) => setStopLoss(Number(e.target.value))}
+                className="mt-1 w-full rounded border border-hairline bg-obsidian px-3 py-1.5 text-sm text-ink focus:border-info focus:outline-none"
+              />
+            </div>
+          </div>
         </div>
-        <div className="mt-1 h-1.5 w-full overflow-hidden rounded-[2px] bg-obsidian">
-          <div
-            className={`h-full ${
-              heatPctOfCap >= 100
-                ? "bg-rose-500"
-                : heatPctOfCap >= 70
-                  ? "bg-amber-500"
-                  : "bg-emerald-500"
-            }`}
-            style={{ width: `${heatPctOfCap}%` }}
-          />
-        </div>
-        <div className="mt-1 flex justify-between font-mono text-[10px] tabular-nums text-ghost">
-          <span>
-            DEPLOYED {fmtPkr(book.totals.deployedValuePkr)} (
-            {fmtPct(book.totals.deployedPctOfEquity, 1)} EQ)
-          </span>
-          <span>
-            OPEN RISK {fmtPkr(book.totals.totalRiskPkr)}
-          </span>
-        </div>
-      </div>
 
-      {/* Book table */}
-      {book.positions.length === 0 ? (
-        <div className="px-3 py-6 text-center">
-          <p className="font-mono text-xs text-muted">
-            NO SIZABLE SETUPS THIS SESSION
-          </p>
-          <p className="mt-1 text-[11px] text-ghost">
-            Sizing requires actionable long signals with a valid protective
-            stop (≥ {RISK_DEFAULTS.minStopDistancePct}% stop distance).
+        {/* Right: Output Recommendations */}
+        <div className="flex flex-col justify-between rounded border border-hairline bg-obsidian p-5">
+          <h3 className="text-[11px] font-bold uppercase tracking-widest text-ghost">Execution Directive</h3>
+          
+          <div className="space-y-3 my-auto">
+            <div className="flex items-center justify-between border-b border-hairline pb-2">
+              <span className="text-xs text-muted uppercase">Maximum Capital Risk:</span>
+              <span className="text-sm font-bold text-bear">Rs. {maxRiskAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+            </div>
+
+            <div className="flex items-center justify-between border-b border-hairline pb-2">
+              <span className="text-xs text-muted uppercase">Risk Per Share:</span>
+              <span className="text-sm font-semibold text-ink">Rs. {riskPerShare.toFixed(2)}</span>
+            </div>
+
+            <div className="flex items-center justify-between border-b border-hairline pb-2">
+              <span className="text-xs text-muted uppercase">Recommended Shares:</span>
+              <span className="text-base font-bold text-bull">{recommendedShares.toLocaleString()} Units</span>
+            </div>
+
+            <div className="flex items-center justify-between border-b border-hairline pb-2">
+              <span className="text-xs text-muted uppercase">Total Capital Allocation:</span>
+              <span className="text-sm font-bold text-info">Rs. {totalAllocation.toLocaleString(undefined, { maximumFractionDigits: 0 })} ({allocationPct.toFixed(1)}% of Portfolio)</span>
+            </div>
+          </div>
+
+          <p className="text-[10px] text-ghost leading-relaxed border-t border-hairline pt-3">
+            RULE: Position size is strictly sized so that a stop-loss hit results in exactly {riskPct}% drawdown of total portfolio equity. Zero emotional over-leveraging.
           </p>
         </div>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[700px] border-collapse text-xs">
-            <thead>
-              <tr className="border-b border-hairline bg-panel text-left text-[10px] uppercase tracking-widest text-ghost">
-                <th className="px-3 py-2 font-medium">Ticker</th>
-                <th className="px-2 py-2 text-right font-medium">Entry</th>
-                <th className="px-2 py-2 text-right font-medium">Stop</th>
-                <th className="px-2 py-2 text-right font-medium">Stop Dist</th>
-                <th className="px-2 py-2 text-right font-medium">Shares</th>
-                <th className="px-2 py-2 text-right font-medium">Value</th>
-                <th className="px-2 py-2 text-right font-medium">Risk</th>
-                <th className="px-3 py-2 text-right font-medium">Conv</th>
-              </tr>
-            </thead>
-            <tbody>
-              {book.positions.map((p) => (
-                <tr
-                  key={p.ticker}
-                  className="border-b border-hairline hover:bg-hoverline"
-                >
-                  <td className="px-3 py-1.5 font-mono font-semibold text-ink">
-                    {p.ticker}
-                    {p.clampedByMaxPosition && (
-                      <span className="ml-1 rounded-[2px] bg-warn/10 px-1 font-mono text-[9px] uppercase text-warn ring-1 ring-warn/30">
-                        capped
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-2 py-1.5 text-right font-mono tabular-nums text-ink">
-                    {p.entryReference.toFixed(2)}
-                  </td>
-                  <td className="px-2 py-1.5 text-right font-mono tabular-nums text-bear">
-                    {p.stopLoss.toFixed(2)}
-                  </td>
-                  <td className="px-2 py-1.5 text-right font-mono tabular-nums text-muted">
-                    {fmtPct(p.stopDistancePct, 1)}
-                  </td>
-                  <td className="px-2 py-1.5 text-right font-mono tabular-nums text-ink">
-                    {p.shares.toLocaleString()}
-                  </td>
-                  <td className="px-2 py-1.5 text-right font-mono tabular-nums text-ink">
-                    {fmtPkr(p.positionValuePkr)}
-                  </td>
-                  <td className="px-2 py-1.5 text-right font-mono tabular-nums text-warn">
-                    {fmtPct(p.riskPctOfEquity, 2)}
-                  </td>
-                  <td className="px-3 py-1.5 text-right font-mono text-[10px] uppercase text-muted">
-                    {p.conviction ?? "—"}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {/* Rejections trail */}
-      {book.rejected.length > 0 && (
-        <div className="border-t border-hairline px-3 py-2">
-          <p className="font-mono text-[10px] leading-relaxed text-ghost">
-            Filter log:
-            {book.rejected.slice(0, 4).map((r, i) => (
-              <span key={`${r.ticker}-${i}`} className="ml-2 text-muted">
-                {r.ticker ?? "—"}[{r.reason}]
-              </span>
-            ))}
-            {book.rejected.length > 4 && (
-              <span className="ml-2 text-ghost">
-                +{book.rejected.length - 4} more
-              </span>
-            )}
-          </p>
-        </div>
-      )}
-    </section>
+      </div>
+    </DeskFrame>
   );
 }

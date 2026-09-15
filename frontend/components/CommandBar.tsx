@@ -17,23 +17,16 @@ export type CommandAction =
   | { kind: "FLOW_SECTOR"; sector: string };
 
 const DESK_COMMANDS: { cmd: string; label: string; tabId: string }[] = [
+  { cmd: "ROTATION", label: "Sector Rotation (RRG)", tabId: "ROTATION" },
+  { cmd: "FLOW", label: "Institutional Flow & Rates", tabId: "FLOW" },
   { cmd: "WHALE", label: "Whale Matrix", tabId: "WHALE" },
-  { cmd: "RESEARCH", label: "Research Desk", tabId: "RESEARCH" },
-  { cmd: "ROTATION", label: "Sector Rotation", tabId: "ROTATION" },
-  { cmd: "BREADTH", label: "Market Breadth & Liquidity", tabId: "BREADTH" },
-  { cmd: "FLOW", label: "Institutional Flow & Rate Shock", tabId: "FLOW" },
-  { cmd: "KIBOR", label: "KIBOR Easing Desk", tabId: "KIBOR" },
-  { cmd: "LEDGER", label: "Insider Conviction Ledger", tabId: "LEDGER" },
   { cmd: "MOMENTUM", label: "Momentum Blotter", tabId: "MOMENTUM" },
-  { cmd: "MTS", label: "MTS Squeeze Desk", tabId: "MTS" },
+  { cmd: "RESEARCH", label: "Research Desk", tabId: "RESEARCH" },
+  { cmd: "BREADTH", label: "Market Breadth & Liquidity", tabId: "BREADTH" },
   { cmd: "NDM", label: "NDM Tape", tabId: "NDM" },
   { cmd: "EDGE", label: "Edge Lab", tabId: "EDGE" },
-  { cmd: "RISK", label: "Risk Desk", tabId: "RISK" },
-  { cmd: "PORTFOLIO", label: "Model Portfolio Desk", tabId: "PORTFOLIO" },
   { cmd: "WIRE", label: "Market Insights Wire", tabId: "WIRE" },
-  { cmd: "SIGNALS", label: "Quant Signals Wire — Anomaly Engine", tabId: "SIGNALS" },
   { cmd: "NOTES", label: "Companies Explained", tabId: "NOTES" },
-  { cmd: "WATCH", label: "Watchlists", tabId: "WATCH" },
 ];
 
 /** Amihud liquidity tier shared with the Market Breadth desk. */

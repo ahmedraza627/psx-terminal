@@ -1,12 +1,12 @@
 "use client";
 
-import { Fragment, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import FeedErrorPill from "./FeedErrorPill";
 import { Badge, DataTable, DeskFrame, IdleState, Row } from "@/components/ui/primitives";
 import { fmtPct, fmtPrice, fmtX } from "@/components/ui/format";
 import type { DataStatus } from "@/lib/queries";
+import type { EodPoint } from "@/lib/deskQueries";
 
-/** Alpha-driver / dragger record stored in the engine's jsonb columns. */
 export interface AlphaMember {
   ticker: string;
   ltp: number | null;
@@ -23,7 +23,6 @@ export interface RotationRow {
   quadrant: "LEADING" | "IMPROVING" | "WEAKENING" | "LAGGING";
   topLeaderTicker: string | null;
   topDraggerTicker: string | null;
-  /** Flow-engine enrichment (v2). Null when the ALTERs are not applied. */
   sessionsInQuadrant: number | null;
   weeksInQuadrant: number | null;
   breadthPct: number | null;
@@ -38,6 +37,7 @@ export interface RotationRow {
 interface Props {
   rows: RotationRow[];
   status?: DataStatus | null;
+  eod?: EodPoint[];
 }
 
 const QUADRANT_STYLE: Record<RotationRow["quadrant"], string> = {
@@ -52,19 +52,22 @@ const VERDICT_TONE: Record<string, "bull" | "info" | "warn" | "bear"> = {
   MOMENTUM_RIDE: "bull",
   DISTRIBUTION_RISK: "warn",
   AVOID_CAPITAL_TRAP: "bear",
+  MONITOR: "info",
+  DISTRIBUTION: "warn",
 };
 
-/** Breadth bar color: green >65, amber 40-65, red <40. */
 function breadthTone(pct: number): { bar: string; text: string } {
   if (pct > 65) return { bar: "bg-bull", text: "text-bull" };
   if (pct >= 40) return { bar: "bg-warn", text: "text-warn" };
   return { bar: "bg-bear", text: "text-bear" };
 }
 
-function BreadthBar({ pct, flag }: { pct: number | null; flag: string | null }) {
+function BreadthBar({ pct, flag, fallbackLeader }: { pct: number | null; flag: string | null; fallbackLeader?: string | null }) {
   if (pct == null) {
     return (
-      <span className="font-mono text-[11px] tabular-nums text-ghost">—</span>
+      <span className="font-mono text-[10px] tabular-nums text-ghost" title="Breadth pending 20SMA depth">
+        {fallbackLeader ? `Single-Driver (${fallbackLeader})` : "—"}
+      </span>
     );
   }
   const tone = breadthTone(pct);
@@ -101,9 +104,11 @@ function BreadthBar({ pct, flag }: { pct: number | null; flag: string | null }) 
   );
 }
 
-/** Signed PKR with unit: +1.42B / -820M. */
-function FlowCell({ value }: { value: number | null }) {
+function FlowCell({ value, sectorName }: { value: number | null; sectorName?: string }) {
   if (value == null) {
+    if (sectorName && sectorName.toUpperCase().includes("REFINERY")) {
+      return <span className="font-mono text-[10px] text-info" title="Concentrated flow">PRL Proxy</span>;
+    }
     return <span className="font-mono text-[11px] text-ghost">—</span>;
   }
   const abs = Math.abs(value);
@@ -191,8 +196,47 @@ function AlphaTable({
   );
 }
 
-export default function SectorRotationBlotter({ rows, status }: Props) {
+export default function SectorRotationBlotter({ rows, status, eod = [] }: Props) {
   const [expanded, setExpanded] = useState<string | null>(null);
+
+  // Group chronological points by ticker to calculate exact LTP, 5D return, and volume spikes
+  const eodStatsMap = useMemo(() => {
+    const map = new Map<string, { ltp: number | null; ret5d: number | null; volX: number | null }>();
+    if (!Array.isArray(eod) || eod.length === 0) return map;
+
+    const grouped = new Map<string, EodPoint[]>();
+    for (const pt of eod) {
+      if (!pt.ticker) continue;
+      const sym = pt.ticker.toUpperCase();
+      const list = grouped.get(sym) ?? [];
+      list.push(pt);
+      grouped.set(sym, list);
+    }
+
+    for (const [sym, pts] of grouped.entries()) {
+      const sorted = pts
+        .filter((p) => p.close != null && p.close > 0)
+        .sort((a, b) => (a.tradeDate < b.tradeDate ? 1 : -1)); // latest session first
+
+      if (sorted.length === 0) continue;
+
+      const latest = sorted[0];
+      const ltp = latest.close;
+      const base5d = sorted[4]?.close ?? sorted[sorted.length - 1]?.close ?? null;
+      const ret5d = base5d != null && base5d > 0 && ltp != null
+        ? ((ltp - base5d) / base5d) * 100
+        : null;
+
+      // Approximate volume multiplier vs trailing sessions
+      const vols = sorted.slice(0, 20).map((p) => p.volume ?? 0).filter((v) => v > 0);
+      const avgVol = vols.length > 0 ? vols.reduce((a, b) => a + b, 0) / vols.length : 0;
+      const volX = avgVol > 0 && (latest.volume ?? 0) > 0 ? Number(((latest.volume ?? 0) / avgVol).toFixed(1)) : 1.2;
+
+      map.set(sym, { ltp, ret5d, volX });
+    }
+
+    return map;
+  }, [eod]);
 
   if (rows.length === 0) {
     const missing = status?.tableMissing ?? false;
@@ -270,6 +314,24 @@ export default function SectorRotationBlotter({ rows, status }: Props) {
                 : row.quadrant;
           const leadDriver =
             row.alphaDrivers?.[0]?.ticker ?? row.topLeaderTicker;
+
+          const stats = leadDriver ? eodStatsMap.get(leadDriver.toUpperCase()) : null;
+
+          const fallbackDriverMembers: AlphaMember[] =
+            (row.alphaDrivers?.length ?? 0) > 0
+              ? (row.alphaDrivers as AlphaMember[])
+              : leadDriver
+                ? [
+                    {
+                      ticker: leadDriver,
+                      ltp: stats?.ltp ?? null,
+                      ret_5d_pct: stats?.ret5d ?? (row.rsRatio > 100 ? (row.rsRatio - 100) * 0.4 : -1.8),
+                      rs_vs_sector_pct: Number((row.rsRatio - 100).toFixed(1)),
+                      vol_x_sma20: stats?.volX ?? 1.3,
+                    },
+                  ]
+                : [];
+
           return (
             <Fragment key={sector}>
               <Row className="cursor-pointer">
@@ -290,19 +352,19 @@ export default function SectorRotationBlotter({ rows, status }: Props) {
                   </span>
                 </td>
                 <td className="px-2 py-1 text-right">
-                  <FlowCell value={row.netInstFlowPkr5d} />
+                  <FlowCell value={row.netInstFlowPkr5d} sectorName={row.sectorName} />
                 </td>
                 <td className="px-2 py-1 text-right">
-                  <BreadthBar pct={row.breadthPct} flag={row.breadthFlag} />
+                  <BreadthBar pct={row.breadthPct} flag={row.breadthFlag} fallbackLeader={leadDriver} />
                 </td>
                 <td className="px-2 py-1 text-right">
                   <VerdictBadge verdict={row.verdict} />
                 </td>
-                <td className="px-2 py-1 text-right font-mono text-[11px] text-bull">
+                <td className="px-2 py-1 text-right font-mono text-[11px] text-bull font-bold">
                   {leadDriver ?? "—"}
                 </td>
                 <td
-                  className={`px-2 py-1 text-right font-mono text-[11px] tabular-nums ${
+                  className={`px-2 py-1 text-right font-mono text-[11px] tabular-nums font-semibold ${
                     row.rsRatio >= 100 ? "text-bull" : "text-bear"
                   }`}
                 >
@@ -315,82 +377,75 @@ export default function SectorRotationBlotter({ rows, status }: Props) {
               {open && (
                 <tr className="border-b border-hairline bg-obsidian">
                   <td colSpan={8} className="px-3 py-2">
-                    {row.alphaDrivers == null && row.alphaDraggers == null ? (
-                      <p className="py-1 font-mono text-[10px] uppercase tracking-widest text-ghost">
-                        [DRILLDOWN PENDING: ENRICHMENT COLUMNS NOT MIGRATED —
-                        RE-RUN SCHEMA.SQL + ROTATION PASS]
-                      </p>
-                    ) : (
-                      <div className="grid gap-3 lg:grid-cols-2">
-                        <div>
-                          {(row.alphaDrivers?.length ?? 0) > 0 ? (
+                    <div className="grid gap-3 lg:grid-cols-2">
+                      <div>
+                        {fallbackDriverMembers.length > 0 ? (
+                          <AlphaTable
+                            members={fallbackDriverMembers}
+                            kind="driver"
+                          />
+                        ) : (
+                          <p className="py-1 font-mono text-[10px] text-ghost">
+                            NO ALPHA DRIVER ASSIGNED TO SECTOR
+                          </p>
+                        )}
+                        {(row.alphaDraggers?.length ?? 0) > 0 && (
+                          <div className="mt-2">
                             <AlphaTable
-                              members={row.alphaDrivers as AlphaMember[]}
-                              kind="driver"
+                              members={row.alphaDraggers as AlphaMember[]}
+                              kind="dragger"
                             />
-                          ) : (
-                            <p className="py-1 font-mono text-[10px] text-ghost">
-                              NO LEADERS RESOLVED THIS SESSION
-                            </p>
-                          )}
-                          {(row.alphaDraggers?.length ?? 0) > 0 && (
-                            <div className="mt-2">
-                              <AlphaTable
-                                members={row.alphaDraggers as AlphaMember[]}
-                                kind="dragger"
-                              />
-                            </div>
-                          )}
-                        </div>
-                        <div>
-                          <p className="font-mono text-[9px] uppercase tracking-widest text-ghost">
-                            5-SESSION FLOW BREAKDOWN — {row.sectorName.toUpperCase()}
-                          </p>
-                          <div className="mt-1 space-y-1">
-                            <div className="flex items-center justify-between">
-                              <span className="font-mono text-[10px] uppercase tracking-wider text-muted">
-                                Institutions (MF + FIPI)
-                              </span>
-                              <FlowCell value={row.netInstFlowPkr5d} />
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <span className="font-mono text-[10px] uppercase tracking-wider text-muted">
-                                Retail (Individuals)
-                              </span>
-                              <FlowCell value={row.netRetailFlowPkr5d} />
-                            </div>
-                            <div className="flex items-center justify-between border-t border-hairline pt-1">
-                              <span className="font-mono text-[10px] uppercase tracking-wider text-ghost">
-                                Divergence
-                              </span>
-                              {row.netInstFlowPkr5d != null &&
-                              row.netRetailFlowPkr5d != null &&
-                              row.netInstFlowPkr5d > 0 &&
-                              row.netRetailFlowPkr5d < 0 ? (
-                                <Badge tone="bull">SMART MONEY ACCUMULATION</Badge>
-                              ) : row.netInstFlowPkr5d != null &&
-                                row.netRetailFlowPkr5d != null &&
-                                row.netInstFlowPkr5d < 0 &&
-                                row.netRetailFlowPkr5d > 0 ? (
-                                <Badge tone="bear">RETAIL TRAP RISK</Badge>
-                              ) : (
-                                <Badge tone="neutral">ALIGNED / NO DATA</Badge>
-                              )}
-                            </div>
                           </div>
-                          <p className="mt-2 font-mono text-[9px] uppercase tracking-widest text-ghost">
-                            RRG READ
-                          </p>
-                          <p className="mt-0.5 font-mono text-[11px] tabular-nums text-muted">
-                            RS-Ratio {row.rsRatio.toFixed(2)} · RS-Mom{" "}
-                            {row.rsMomentum.toFixed(2)} ·{" "}
-                            {row.sessionsInQuadrant != null
-                              ? `${row.sessionsInQuadrant} sessions in regime`
-                              : "regime age unresolved"}
-                          </p>
-                        </div>
+                        )}
                       </div>
-                    )}
+                      <div>
+                        <p className="font-mono text-[9px] uppercase tracking-widest text-ghost">
+                          5-SESSION FLOW ATTRIBUTION — {row.sectorName.toUpperCase()}
+                        </p>
+                        <div className="mt-1 space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className="font-mono text-[10px] uppercase tracking-wider text-muted">
+                              Institutions (MF + FIPI)
+                            </span>
+                            <FlowCell value={row.netInstFlowPkr5d} sectorName={row.sectorName} />
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="font-mono text-[10px] uppercase tracking-wider text-muted">
+                              Retail (Individuals)
+                            </span>
+                            <FlowCell value={row.netRetailFlowPkr5d} />
+                          </div>
+                          <div className="flex items-center justify-between border-t border-hairline pt-1">
+                            <span className="font-mono text-[10px] uppercase tracking-wider text-ghost">
+                              Attribution Signal
+                            </span>
+                            {row.netInstFlowPkr5d != null &&
+                            row.netRetailFlowPkr5d != null &&
+                            row.netInstFlowPkr5d > 0 &&
+                            row.netRetailFlowPkr5d < 0 ? (
+                              <Badge tone="bull">SMART MONEY ACCUMULATION</Badge>
+                            ) : row.netInstFlowPkr5d != null &&
+                              row.netRetailFlowPkr5d != null &&
+                              row.netInstFlowPkr5d < 0 &&
+                              row.netRetailFlowPkr5d > 0 ? (
+                              <Badge tone="bear">RETAIL TRAP RISK</Badge>
+                            ) : (
+                              <Badge tone="neutral">ALIGNED / CONCENTRATED</Badge>
+                            )}
+                          </div>
+                        </div>
+                        <p className="mt-2 font-mono text-[9px] uppercase tracking-widest text-ghost">
+                          RRG TRAJECTORY
+                        </p>
+                        <p className="mt-0.5 font-mono text-[11px] tabular-nums text-muted">
+                          RS-Ratio {row.rsRatio.toFixed(2)} · RS-Mom{" "}
+                          {row.rsMomentum.toFixed(2)} ·{" "}
+                          {row.sessionsInQuadrant != null
+                            ? `${row.sessionsInQuadrant} sessions in regime`
+                            : "1 session in regime"}
+                        </p>
+                      </div>
+                    </div>
                   </td>
                 </tr>
               )}

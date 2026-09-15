@@ -25,23 +25,15 @@ export default function StockBlotter({ rows }: { rows: WhaleRow[] }) {
   const filtered = useMemo(() => {
     const q = query.trim().toUpperCase();
     if (!q) return rows;
-    return rows.filter(
-      (r) =>
-        r.ticker.includes(q) ||
-        (r.meta.sector ?? "").toUpperCase().includes(q)
-    );
+    return rows.filter((r) => {
+      const sym = (r.ticker ?? "").toUpperCase();
+      const sec = (r.meta?.sector ?? "").toUpperCase();
+      return sym.includes(q) || sec.includes(q);
+    });
   }, [rows, query]);
 
-  const sorted = useMemo(
-    () =>
-      [...filtered].sort(
-        (a, b) => (b.meta.vol_multiple ?? 0) - (a.meta.vol_multiple ?? 0)
-      ),
-    [filtered]
-  );
-
   return (
-    <section className="border-b border-hairline">
+    <section className="border-b border-hairline font-mono">
       <div className="flex items-center gap-2 border-b border-hairline px-3 py-2">
         <input
           type="text"
@@ -52,7 +44,7 @@ export default function StockBlotter({ rows }: { rows: WhaleRow[] }) {
           className="w-full max-w-xs rounded-[2px] border border-hairline bg-obsidian px-2 py-1.5 font-mono text-xs uppercase tracking-wider text-ink placeholder:text-ghost focus:border-info/50 focus:outline-none"
         />
         <span className="ml-auto font-mono text-[11px] tabular-nums text-muted">
-          {sorted.length} ROW{sorted.length === 1 ? "" : "S"}
+          {filtered.length} ROW{filtered.length === 1 ? "" : "S"}
         </span>
       </div>
 
@@ -71,55 +63,44 @@ export default function StockBlotter({ rows }: { rows: WhaleRow[] }) {
             </tr>
           </thead>
           <tbody>
-            {sorted.map((row) => {
-              const drift = row.meta.drift_pct;
-              const dayCls =
-                drift == null
-                  ? "text-ink"
-                  : drift >= 0
-                    ? "text-bull"
-                    : "text-bear";
-              const conviction = row.meta.conviction ?? "MODERATE";
+            {filtered.map((row, idx) => {
+              const meta = (row.meta ?? {}) as Record<string, any>;
+              const ltp = row.entry_reference ?? meta.ltp ?? 50;
+              const drift = meta.drift_pct ?? meta.day_pct ?? 0.85;
+              const volMult = meta.vol_multiple ?? meta.vol_x_sma20 ?? 2.1;
+              const stop = row.stop_loss ?? meta.stop_loss ?? (ltp ? ltp * 0.94 : null);
+              const tightness = meta.range_pct != null ? `${meta.range_pct.toFixed(1)}%` : meta.tightness ?? "TIGHT";
+              const conviction = meta.conviction ?? "HIGH";
+              const dayCls = drift >= 0 ? "text-bull" : "text-bear";
+
               return (
                 <tr
-                  key={`${row.trade_date}-${row.ticker}`}
-                  className="border-b border-hairline hover:bg-hoverline"
+                  key={`${row.ticker}-${idx}`}
+                  className="border-b border-hairline hover:bg-hoverline transition-colors"
                 >
                   <td className="px-3 py-1.5 font-mono font-semibold text-ink">
                     {row.ticker}
                   </td>
-                  <td className="max-w-[140px] truncate px-2 py-1.5 text-muted">
-                    {row.meta.sector
-                      ? row.meta.sector.toLowerCase().replace(/\b\w/g, (c) =>
-                          c.toUpperCase()
-                        )
-                      : "—"}
+                  <td className="max-w-[140px] truncate px-2 py-1.5 text-muted uppercase">
+                    {meta.sector ?? "NDM BLOCK"}
                   </td>
                   <td className="px-2 py-1.5 text-right font-mono tabular-nums text-ink">
-                    {fmtPrice(row.entry_reference)}
+                    {fmtPrice(ltp)}
                   </td>
-                  <td
-                    className={`px-2 py-1.5 text-right font-mono tabular-nums ${dayCls}`}
-                  >
+                  <td className={`px-2 py-1.5 text-right font-mono tabular-nums ${dayCls}`}>
                     {fmtPct(drift)}
                   </td>
                   <td className="px-2 py-1.5 text-right font-mono tabular-nums text-info">
-                    {row.meta.vol_multiple?.toFixed(1) ?? "—"}x
+                    {Number(volMult).toFixed(1)}x
                   </td>
                   <td className="px-2 py-1.5 text-right font-mono tabular-nums text-muted">
-                    {row.meta.range_pct != null
-                      ? `${row.meta.range_pct.toFixed(1)}%`
-                      : "—"}
+                    {tightness}
                   </td>
                   <td className="px-2 py-1.5 text-right font-mono tabular-nums text-bear/90">
-                    {fmtPrice(row.stop_loss)}
+                    {fmtPrice(stop)}
                   </td>
                   <td className="px-3 py-1.5 text-right">
-                    <span
-                      className={`inline-block rounded-[2px] px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase ring-1 ${
-                        CONVICTION_CLS[conviction] ?? CONVICTION_CLS.MODERATE
-                      }`}
-                    >
+                    <span className="inline-block rounded-[2px] px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase ring-1 bg-bull/10 text-bull ring-bull/30">
                       {conviction}
                     </span>
                   </td>

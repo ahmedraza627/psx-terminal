@@ -1,20 +1,17 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // Completely disable experimental worker flags during production build to prevent Windows access violations
   experimental: {
-    // Compile in-process instead of a separate build worker - avoids OOM
-    // crashes on memory-constrained dev machines. No effect on output.
     webpackBuildWorker: false,
+    cpus: 1, // Forces single-core thread for building, preventing OOM and segmentation faults on Windows
   },
   webpack: (config, { dev }) => {
     if (dev) {
-      // Disable webpack's persistent filesystem cache in development.
-      // The .pack/.pack.gz cache files under .next/cache live on OneDrive,
-      // which holds exclusive locks and evicts files on sync - producing
-      // "ENOENT ... stat ...0.pack.gz" build-cache crashes. Disabling the
-      // persistent cache trades a slower warm start for a stable dev loop.
       config.cache = false;
     }
+    // Also disable webpack persistent cache in production if running on OneDrive to prevent file locks
+    config.cache = false; 
     return config;
   },
 };

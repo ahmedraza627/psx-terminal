@@ -13,42 +13,14 @@ import {
 import { fmtPct } from "@/components/ui/format";
 import { computeAmihudStats, type EodPoint } from "@/lib/deskQueries";
 
-/**
- * Market Breadth & Liquidity Matrix.
- *
- * PANEL A — Advance/Decline/Unchanged across the active PSX universe for the
- * latest session and the 5-session trend, plus volume-weighted A/D: volume
- * traded in advancing names vs declining names. A rising index on declining
- * volume-weighted breadth is the classic shallow-pump signature and is
- * flagged as a DIVERGENCE signal.
- *
- * PANEL B — New 200-session extremes blotter: names piercing their highest
- * high or lowest low across the stored history (52-week equivalent for the
- * ~160-session stored window). Count + names, computed strictly from stored
- * closes.
- *
- * PANEL C — Amihud illiquidity matrix: |daily return| / PKR turnover
- * averaged over the trailing 20 sessions (millionths per 1M PKR traded).
- * High Amihud = price moves violently on thin PKR — an execution slippage
- * trap for institutional size; low Amihud = liquid, institution-tradeable.
- *
- * Zero mock data: names without sufficient stored history render "—" and
- * are excluded from rankings, never imputed.
- */
-
-// --------------------------------------------------------------- //
-// Contract (page.tsx): eod / sectorMap — optional, degrade-safe.   //
-// --------------------------------------------------------------- //
 interface Props {
   eod?: EodPoint[];
   sectorMap?: Map<string, string>;
+  sessionDate?: string | null;
 }
 
-/** Sessions required for a name to enter the extremes / Amihud ranks. */
 const MIN_SESSIONS = 30;
-/** Trailing window for the Amihud illiquidity average. */
 const AMIHUD_WINDOW = 20;
-/** Close needed to classify a session's direction. */
 const EPSILON = 1e-9;
 
 interface SessionBreadth {
@@ -56,9 +28,7 @@ interface SessionBreadth {
   adv: number;
   dec: number;
   unch: number;
-  /** PKR turnover in advancing names. */
   advPkr: number;
-  /** PKR turnover in declining names. */
   decPkr: number;
 }
 
@@ -108,7 +78,6 @@ function PanelHeader({ label, right }: { label: string; right?: string }) {
   );
 }
 
-/** Micro gauge bar: 0..1 fill, bull/bear tint. */
 function Gauge({ frac, positive }: { frac: number; positive: boolean }) {
   const w = Math.max(0, Math.min(1, frac)) * 100;
   return (
@@ -121,20 +90,16 @@ function Gauge({ frac, positive }: { frac: number; positive: boolean }) {
   );
 }
 
-export default function MarketBreadthDesk({ eod = [], sectorMap = new Map() }: Props) {
+function netToneCls(v: number): string {
+  return v > 0 ? "text-bull" : v < 0 ? "text-bear" : "text-muted";
+}
+
+export default function MarketBreadthDesk({ eod = [], sectorMap = new Map(), sessionDate }: Props) {
   const [openExtremes, setOpenExtremes] = useState(false);
   const [openAmihud, setOpenAmihud] = useState(false);
 
-  // ---- Core derivation: per-ticker chronological series -----------------
   const model = useMemo(() => {
     if (eod.length === 0) return null;
-    const dates = Array.from(new Set(eod.map((r) => r.tradeDate)))
-      .sort()
-      .reverse();
-    const latest = dates[0];
-    const prev = dates[1] ?? null;
-    const w5 = new Set(dates.slice(0, 5));
-    const last5 = dates.slice(0, 5);
 
     const byTicker = new Map<string, EodPoint[]>();
     for (const r of eod) {
@@ -143,38 +108,51 @@ export default function MarketBreadthDesk({ eod = [], sectorMap = new Map() }: P
       else byTicker.set(r.ticker, [r]);
     }
 
-    // --- Session breadth rows (latest + 5-session trend) ---
-    const breadth: SessionBreadth[] = last5
-      .slice()
-      .reverse()
-      .map((d) => {
-        const adv = { n: 0, pkr: 0 };
-        const dec = { n: 0, pkr: 0 };
-        let unch = 0;
-        for (const rows of byTicker.values()) {
-          const series = rows
-            .filter((r) => r.tradeDate <= d && r.close != null)
-            .sort((a, b) => (a.tradeDate < b.tradeDate ? -1 : 1));
-          if (series.length < 2) continue; // no prior close → not classified
-          const onDate = series[series.length - 1];
-          const base = series[series.length - 2].close;
-          if (base == null || base <= EPSILON || onDate.close == null) continue;
-          const chg = onDate.close - base;
-          const pkr = (onDate.volume ?? 0) * onDate.close;
-          if (chg > EPSILON) {
-            adv.n += 1;
-            adv.pkr += pkr;
-          } else if (chg < -EPSILON) {
-            dec.n += 1;
-            dec.pkr += pkr;
-          } else {
-            unch += 1;
-          }
-        }
-        return { tradeDate: d, adv: adv.n, dec: dec.n, unch, advPkr: adv.pkr, decPkr: dec.pkr };
-      });
+    const allDates = Array.from(new Set(eod.map((r) => r.tradeDate)))
+      .sort()
+      .reverse();
 
-    const today = breadth[breadth.length - 1];
+    // 1. Raw Breadth Computation for every date
+    const rawBreadth: SessionBreadth[] = allDates.map((d) => {
+      const adv = { n: 0, pkr: 0 };
+      const dec = { n: 0, pkr: 0 };
+      let unch = 0;
+      for (const rows of byTicker.values()) {
+        const series = rows
+          .filter((r) => r.tradeDate <= d && r.close != null)
+          .sort((a, b) => (a.tradeDate < b.tradeDate ? -1 : 1));
+        if (series.length < 2) continue;
+        const onDate = series[series.length - 1];
+        const base = series[series.length - 2].close;
+        if (base == null || base <= EPSILON || onDate.close == null) continue;
+        const chg = onDate.close - base;
+        const pkr = (onDate.volume ?? 0) * onDate.close;
+        if (chg > EPSILON) {
+          adv.n += 1;
+          adv.pkr += pkr;
+        } else if (chg < -EPSILON) {
+          dec.n += 1;
+          dec.pkr += pkr;
+        } else {
+          unch += 1;
+        }
+      }
+      return { tradeDate: d, adv: adv.n, dec: dec.n, unch, advPkr: adv.pkr, decPkr: dec.pkr };
+    });
+
+    // 2. HARD FILTER: Discard 15-Sep (adhoora 1-trade record) aur weekends (0 volume)
+    // Rule: Session must have traded turnover > 20M PKR AND at least 2 active moving tickers (adv + dec >= 2)
+    const validBreadth = rawBreadth.filter((b) => {
+      if (sessionDate && b.tradeDate > sessionDate) return false;
+      const totalVolumePkr = b.advPkr + b.decPkr;
+      const activeTickers = b.adv + b.dec;
+      return totalVolumePkr >= 20_000_000 && activeTickers >= 2;
+    });
+
+    const displayBreadth = (validBreadth.length > 0 ? validBreadth : rawBreadth).slice(0, 5).reverse();
+    const today = displayBreadth[displayBreadth.length - 1];
+    const latest = today ? today.tradeDate : allDates[0];
+
     const total = today ? today.adv + today.dec + today.unch : 0;
     const aDRatio = today && today.dec > 0 ? today.adv / today.dec : null;
     const advPct = total > 0 ? (today.adv / total) * 100 : null;
@@ -182,10 +160,10 @@ export default function MarketBreadthDesk({ eod = [], sectorMap = new Map() }: P
     const vwAdv = today && today.advPkr + today.decPkr > 0
       ? (today.advPkr / (today.advPkr + today.decPkr)) * 100
       : null;
-    // Shallow-pump divergence: price-breadth advancing while VW breadth <= 40%.
+
     const pumpDivergence = today != null && vwAdv != null && today.adv > today.dec && vwAdv <= 40;
 
-    // --- Per-ticker metrics ---
+    // 3. Per-ticker metrics up to the latest clean session
     interface TickerStat {
       ticker: string;
       sessions: number;
@@ -201,10 +179,10 @@ export default function MarketBreadthDesk({ eod = [], sectorMap = new Map() }: P
     const stats: TickerStat[] = [];
     for (const [ticker, rows] of byTicker) {
       const chrono = rows
-        .slice()
+        .filter((r) => r.tradeDate <= latest)
         .sort((a, b) => (a.tradeDate < b.tradeDate ? -1 : a.tradeDate > b.tradeDate ? 1 : 0));
       const withClose = chrono.filter((r) => r.close != null && r.close > 0);
-      if (withClose.length < MIN_SESSIONS) continue; // insufficient history — honest skip
+      if (withClose.length < MIN_SESSIONS) continue;
       const closes = withClose.map((r) => r.close as number);
       const latestClose = closes[closes.length - 1];
       const hi200 = Math.max(...closes);
@@ -213,7 +191,6 @@ export default function MarketBreadthDesk({ eod = [], sectorMap = new Map() }: P
       const chg5dPct =
         base5 != null && base5 > 0 ? ((latestClose - base5) / base5) * 100 : null;
 
-      // Amihud via the shared helper (same formula as the quote HUD).
       const { amihud, medianTurnoverPkr } = computeAmihudStats(
         withClose.map((r) => ({ close: r.close, volume: r.volume })),
         AMIHUD_WINDOW,
@@ -246,7 +223,6 @@ export default function MarketBreadthDesk({ eod = [], sectorMap = new Map() }: P
     );
     const amihudRows = ranked.map((s) => {
       const v = s.amihud as number;
-      // Tiers on raw PKR impact: >50 = brutal slippage, >10 = thin, <1 = institutional.
       const tier =
         v >= 50
           ? "TRAP — BRUTAL SLIPPAGE"
@@ -262,8 +238,8 @@ export default function MarketBreadthDesk({ eod = [], sectorMap = new Map() }: P
 
     return {
       latest,
-      sessionCount: dates.length,
-      breadth,
+      sessionCount: displayBreadth.length,
+      breadth: displayBreadth,
       today,
       total,
       aDRatio,
@@ -278,7 +254,7 @@ export default function MarketBreadthDesk({ eod = [], sectorMap = new Map() }: P
       trapCount,
       rankedCount: ranked.length,
     };
-  }, [eod]);
+  }, [eod, sessionDate]);
 
   if (eod.length === 0) {
     return (
@@ -305,7 +281,7 @@ export default function MarketBreadthDesk({ eod = [], sectorMap = new Map() }: P
       title="Market Breadth & Liquidity Matrix"
       right={
         <span className="font-mono text-[10px] uppercase tracking-wider text-ghost">
-          SESSION {m.latest} · {m.sessionCount}S HISTORY · {m.total} ACTIVE
+          SESSION {m.latest} · CLEAN HISTORICAL SESSIONS · {m.total} ACTIVE
         </span>
       }
       footer={
@@ -314,15 +290,11 @@ export default function MarketBreadthDesk({ eod = [], sectorMap = new Map() }: P
           the active universe. VW A/D = PKR turnover share of advancing vs
           declining names; a price-advancing session with VW-advancing ≤40% is
           flagged SHALLOW-PUMP DIVERGENCE. Extremes = latest close at the
-          highest/lowest level across all stored sessions (min 30 sessions of
-          history — names with less are excluded, never imputed). Amihud =
-          mean(|daily return| ÷ PKR turnover) ×1e6 over trailing 20 sessions;
-          ≥50 TRAP, ≥10 ILLIQUID, ≥1 THIN, &lt;1 INSTITUTIONAL. Zero mock
-          values — incomplete series render —.
+          highest/lowest level across all stored sessions. Amihud =
+          mean(|daily return| ÷ PKR turnover) ×1e6 over trailing 20 sessions.
         </p>
       }
     >
-      {/* -------- Panel A: A/D/U + volume-weighted -------- */}
       <PanelHeader
         label="ADVANCE / DECLINE / UNCHANGED — VOLUME-WEIGHTED"
         right={`5-SESSION TREND · ${m.latest}`}
@@ -411,7 +383,6 @@ export default function MarketBreadthDesk({ eod = [], sectorMap = new Map() }: P
         </div>
       </div>
 
-      {/* 5-session trend strip */}
       <DataTable
         minWidth={640}
         columns={[
@@ -465,7 +436,6 @@ export default function MarketBreadthDesk({ eod = [], sectorMap = new Map() }: P
         })}
       </DataTable>
 
-      {/* -------- Panel B: 200-session extremes -------- */}
       <PanelHeader
         label="NEW 200-SESSION EXTREMES — 52-WEEK HIGHS / LOWS"
         right={`${m.newHighs.length} NEW HIGHS · ${m.newLows.length} NEW LOWS`}
@@ -546,7 +516,6 @@ export default function MarketBreadthDesk({ eod = [], sectorMap = new Map() }: P
         </>
       )}
 
-      {/* -------- Panel C: Amihud illiquidity matrix -------- */}
       <PanelHeader
         label="AMIHUD ILLIQUIDITY MATRIX — |RET| / PKR TURNOVER"
         right={`${m.rankedCount} RANKED · ${m.liquidCount} INSTITUTIONAL · ${m.trapCount} TRAPS`}
@@ -631,8 +600,4 @@ export default function MarketBreadthDesk({ eod = [], sectorMap = new Map() }: P
       )}
     </DeskFrame>
   );
-}
-
-function netToneCls(v: number): string {
-  return v > 0 ? "text-bull" : v < 0 ? "text-bear" : "text-muted";
 }

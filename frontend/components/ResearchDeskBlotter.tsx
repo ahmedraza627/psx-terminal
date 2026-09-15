@@ -1,12 +1,12 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import FeedErrorPill from "./FeedErrorPill";
 import type { DataStatus } from "@/lib/queries";
 import {
   KE_REQUIRED,
   PIB_YIELD_PCT,
   DIV_GROWTH_PCT,
-  sectorTargetPe,
 } from "@/lib/valuation";
 
 export interface ResearchRow {
@@ -44,6 +44,9 @@ function scoreColor(score: number): string {
   return "text-muted";
 }
 
+// Known penny/illiquid outliers that skew automated intrinsic P/E screens
+const OUTLIER_EXCLUSION_SET = new Set(["ITANZ", "THCCL", "SLGL", "MDTL", "ZUMA"]);
+
 export default function ResearchDeskBlotter({
   rows,
   status,
@@ -51,62 +54,114 @@ export default function ResearchDeskBlotter({
   rows: ResearchRow[];
   status?: DataStatus | null;
 }) {
+  const [filterMode, setFilterMode] = useState<"LIQUID_CORE" | "ALL">("LIQUID_CORE");
+
+  const sanitizedRows = useMemo(() => {
+    if (!Array.isArray(rows)) return [];
+
+    if (filterMode === "ALL") {
+      return [...rows].sort((a, b) => (b.alphaScore ?? 0) - (a.alphaScore ?? 0));
+    }
+
+    // Institutional Liquidity Filter:
+    // 1. Drop known distorted outliers (e.g. ITANZ with broken EPS base)
+    // 2. Bound unrealistic discounts (-60% to +150%)
+    return rows
+      .filter((r) => {
+        if (!r.ticker) return false;
+        const sym = r.ticker.toUpperCase();
+        if (OUTLIER_EXCLUSION_SET.has(sym)) return false;
+
+        const disc = r.valuationDiscountPct ?? 0;
+        return disc >= -60 && disc <= 150;
+      })
+      .sort((a, b) => {
+        // High score first, then biggest valid discount
+        if (b.alphaScore !== a.alphaScore) {
+          return (b.alphaScore ?? 0) - (a.alphaScore ?? 0);
+        }
+        return (b.valuationDiscountPct ?? 0) - (a.valuationDiscountPct ?? 0);
+      });
+  }, [rows, filterMode]);
+
   if (rows.length === 0) {
     const missing = status?.tableMissing ?? false;
     const pending = status?.feedPending ?? false;
     const unreachable = status?.unreachable ?? false;
     return (
-      <div className="px-3 py-6 text-center">
+      <div className="px-3 py-6 text-center font-mono">
         {unreachable ? (
           <FeedErrorPill />
         ) : missing ? (
-          <p className="font-mono text-xs uppercase tracking-widest text-warn">
+          <p className="text-xs uppercase tracking-widest text-warn">
             [SCHEMA PENDING: RUN SCHEMA.SQL IN SUPABASE]
           </p>
         ) : pending ? (
-          <p className="font-mono text-xs uppercase tracking-widest text-info">
+          <p className="text-xs uppercase tracking-widest text-info">
             [RESEARCH DESK: AWAITING FIRST SCORING PASS]
           </p>
         ) : (
-          <p className="font-mono text-xs text-muted">
+          <p className="text-xs text-muted">
             NO RESEARCH COVERAGE FOR THIS SESSION
           </p>
         )}
         <p className="mt-1 text-[11px] text-ghost">
           Composite alpha scores (valuation 35 / quality 25 / growth 20 /
-          yield 20) with the PSX institutional multi-factor intrinsic value,
-          built from quarterly DPS financials (psx_equity_research).
+          yield 20) with the PSX institutional multi-factor intrinsic value.
         </p>
       </div>
     );
   }
 
-  const undervalued = rows.filter((r) => r.valuationStatus === "UNDERVALUED").length;
-  const overvalued = rows.filter((r) => r.valuationStatus === "OVERVALUED").length;
-  const highScore = rows.filter((r) => r.alphaScore >= 75).length;
-  // Adaptive columns: NULL-only metrics (e.g. Risk before debt ingestion, or
-  // provenance columns pre-migration) are suppressed so the desk stays a
-  // clean relative screener instead of a wall of em-dashes.
-  const hasTargetPe = rows.some((r) => r.targetPeUsed != null);
-  const hasDivFloor = rows.some((r) => r.dividendFloorPkr != null);
-  const hasRisk = rows.some(
+  const undervalued = sanitizedRows.filter((r) => r.valuationStatus === "UNDERVALUED").length;
+  const overvalued = sanitizedRows.filter((r) => r.valuationStatus === "OVERVALUED").length;
+  const highScore = sanitizedRows.filter((r) => r.alphaScore >= 70).length;
+
+  const hasTargetPe = sanitizedRows.some((r) => r.targetPeUsed != null);
+  const hasDivFloor = sanitizedRows.some((r) => r.dividendFloorPkr != null);
+  const hasRisk = sanitizedRows.some(
     (r) => r.balanceSheetRiskFlag != null && r.balanceSheetRiskFlag !== "CLEAN"
   );
 
   return (
-    <section>
-      <div className="flex items-center justify-between border-b border-hairline px-3 py-2">
-        <h2 className="text-[10px] font-medium uppercase tracking-widest text-ghost">
-          Research Desk - Sector P/E Multiple + Dividend Floor Model
-        </h2>
-        <span className="font-mono text-[11px] tabular-nums text-muted">
-          {undervalued} UNDER · {overvalued} OVER · {highScore} α≥75
+    <section className="font-mono">
+      <div className="flex flex-wrap items-center justify-between border-b border-hairline bg-panel px-3 py-2 gap-2">
+        <div className="flex items-center gap-3">
+          <h2 className="text-[10px] font-bold uppercase tracking-widest text-ghost">
+            RESEARCH DESK · INTRINSIC MULTI-FACTOR VALUATION
+          </h2>
+          <div className="flex items-center rounded border border-hairline bg-obsidian p-0.5 text-[9px]">
+            <button
+              onClick={() => setFilterMode("LIQUID_CORE")}
+              className={`px-2 py-0.5 font-bold uppercase transition-colors ${
+                filterMode === "LIQUID_CORE"
+                  ? "bg-info/20 text-info"
+                  : "text-ghost hover:text-ink"
+              }`}
+            >
+              Institutional Core
+            </button>
+            <button
+              onClick={() => setFilterMode("ALL")}
+              className={`px-2 py-0.5 font-bold uppercase transition-colors ${
+                filterMode === "ALL"
+                  ? "bg-info/20 text-info"
+                  : "text-ghost hover:text-ink"
+              }`}
+            >
+              All Universe ({rows.length})
+            </button>
+          </div>
+        </div>
+        <span className="text-[11px] tabular-nums text-muted">
+          {undervalued} UNDER · {overvalued} OVER · {highScore} α≥70
         </span>
       </div>
+
       <div className="overflow-x-auto">
         <table className="w-full min-w-[720px] border-collapse text-xs">
           <thead>
-            <tr className="border-b border-hairline bg-panel text-left text-[10px] uppercase tracking-widest text-ghost">
+            <tr className="border-b border-hairline bg-panel/70 text-left text-[10px] uppercase tracking-widest text-ghost">
               <th className="px-3 py-2 font-medium">Ticker</th>
               <th className="px-2 py-2 text-right font-medium">α Score</th>
               <th className="px-2 py-2 text-right font-medium">Intrinsic</th>
@@ -118,16 +173,16 @@ export default function ResearchDeskBlotter({
                 <th className="px-2 py-2 text-right font-medium">Div Floor</th>
               )}
               <th className="px-2 py-2 font-medium">Verdict</th>
-              {hasRisk && <th className="px-3 py-2 font-medium">Risk</th>}
+              {hasRisk && <th className="px-3 py-2 font-medium">Risk Flag</th>}
             </tr>
           </thead>
-          <tbody>
-            {rows.map((row) => (
+          <tbody className="divide-y divide-hairline">
+            {sanitizedRows.map((row) => (
               <tr
                 key={`${row.tradeDate}-${row.ticker}`}
-                className="border-b border-hairline hover:bg-hoverline"
+                className="hover:bg-hoverline transition-colors"
               >
-                <td className="px-3 py-1.5 font-mono font-semibold text-ink">
+                <td className="px-3 py-1.5 font-mono font-bold text-ink">
                   {row.ticker}
                 </td>
                 <td
@@ -141,7 +196,7 @@ export default function ResearchDeskBlotter({
                   {fmtPrice(row.intrinsicValuePkr)}
                 </td>
                 <td
-                  className={`px-2 py-1.5 text-right font-mono tabular-nums ${
+                  className={`px-2 py-1.5 text-right font-mono font-semibold tabular-nums ${
                     row.valuationDiscountPct == null
                       ? "text-muted"
                       : row.valuationDiscountPct >= 15
@@ -167,12 +222,12 @@ export default function ResearchDeskBlotter({
                 )}
                 <td className="px-2 py-1.5">
                   <span
-                    className={`inline-block rounded-[2px] px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider ring-1 ${
+                    className={`inline-block rounded-[2px] px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wider ring-1 ${
                       STATUS_STYLES[row.valuationStatus] ??
                       "bg-panel text-muted ring-hairline"
                     }`}
                   >
-                    {row.valuationStatus.replace("_", " ")}
+                    {row.valuationStatus.replace(/_/g, " ")}
                   </span>
                 </td>
                 {hasRisk && (
@@ -181,11 +236,11 @@ export default function ResearchDeskBlotter({
                       className={`font-mono text-[10px] uppercase tracking-wider ${
                         row.balanceSheetRiskFlag &&
                         row.balanceSheetRiskFlag !== "CLEAN"
-                          ? "text-bear"
+                          ? "text-bear font-semibold"
                           : "text-ghost"
                       }`}
                     >
-                      {row.balanceSheetRiskFlag ?? "—"}
+                      {row.balanceSheetRiskFlag ?? "CLEAN"}
                     </span>
                   </td>
                 )}
@@ -194,17 +249,14 @@ export default function ResearchDeskBlotter({
           </tbody>
         </table>
       </div>
-      <div className="border-t border-hairline px-3 py-2">
-        <p className="font-mono text-[10px] leading-relaxed text-ghost">
-          MODEL: SECTOR P/E MULTIPLE + DIVIDEND FLOOR (PSX_MF_V1) — intrinsic
-          = TTM EPS × sector normal P/E (E&amp;P 6.0x · fertilizer 7.5x ·
-          cement 7.0x · tech 12.0x · banks 5.0x · default 6.5x); dividend
-          payers blend 60% P/E leg + 40% dividend floor (TTM DPS ÷ K_e = PIB{" "}
-          {PIB_YIELD_PCT}% − growth {DIV_GROWTH_PCT}% ={" "}
-          {(KE_REQUIRED * 100).toFixed(1)}%). Discount + = price below
-          intrinsic. Relative screener — metric columns that are NULL across
-          the session are auto-suppressed.
-        </p>
+
+      <div className="border-t border-hairline bg-panel/30 px-3 py-2 text-[10px] text-ghost leading-relaxed">
+        MODEL: SECTOR P/E MULTIPLE + DIVIDEND FLOOR (PSX_MF_V1) — Intrinsic
+        = TTM EPS × sector normal P/E (E&amp;P 6.0x · Fertilizer 7.5x ·
+        Cement 7.0x · Tech 12.0x · Banks 5.0x · Default 6.5x). Dividend
+        payers blend 60% P/E leg + 40% dividend floor (TTM DPS ÷ K_e = PIB{" "}
+        {PIB_YIELD_PCT}% − growth {DIV_GROWTH_PCT}% ={" "}
+        {(KE_REQUIRED * 100).toFixed(1)}%).
       </div>
     </section>
   );

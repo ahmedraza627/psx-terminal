@@ -63,6 +63,15 @@ export interface SignalMetadata {
   spot_close?: number | null;
   basis_pct?: number | null;
   basis_prev_pct?: number | null;
+  /** Macro regime gate verdict stamped by quant_engine.run_quant_engine. */
+  regime?: {
+    regime_status?: string | null;
+    inst_net_flow_pkr?: number | null;
+    flow_basis?: string | null;
+    benchmark_close?: number | null;
+    benchmark_sma20?: number | null;
+    benchmark_basis?: string | null;
+  } | null;
 }
 
 export interface SignalRow {
