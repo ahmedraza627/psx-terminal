@@ -11,6 +11,7 @@ const DESK_COMMANDS: { cmd: string; label: string; tabId: string }[] = [
   { cmd: "WHALE", label: "Whale Matrix", tabId: "WHALE" },
   { cmd: "RESEARCH", label: "Research Desk", tabId: "RESEARCH" },
   { cmd: "ROTATION", label: "Sector Rotation", tabId: "ROTATION" },
+  { cmd: "BREADTH", label: "Market Breadth & Liquidity", tabId: "BREADTH" },
   { cmd: "FLOW", label: "Institutional Flow & Rate Shock", tabId: "FLOW" },
   { cmd: "KIBOR", label: "KIBOR Easing Desk", tabId: "KIBOR" },
   { cmd: "LEDGER", label: "Insider Conviction Ledger", tabId: "LEDGER" },

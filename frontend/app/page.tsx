@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import MarketBarometer from "@/components/MarketBarometer";
+import MarketBreadthDesk from "@/components/MarketBreadthDesk";
 import StockBlotter from "@/components/StockBlotter";
 import ArbitrageBlotter from "@/components/ArbitrageBlotter";
 import NdmTape from "@/components/NdmTape";
@@ -80,6 +81,7 @@ type TabId =
   | "WHALE"
   | "RESEARCH"
   | "ROTATION"
+  | "BREADTH"
   | "FLOW"
   | "KIBOR"
   | "LEDGER"
@@ -104,6 +106,7 @@ const TABS: { id: TabId; label: string }[] = [
   { id: "MOMENTUM", label: "Momentum" },
   { id: "RESEARCH", label: "Research" },
   { id: "ROTATION", label: "Rotation" },
+  { id: "BREADTH", label: "Market Breadth" },
   { id: "FLOW", label: "Flow & Rates" },
   { id: "KIBOR", label: "KIBOR" },
   { id: "LEDGER", label: "Insider" },
@@ -386,6 +389,7 @@ export default function HomePage() {
     WHALE: whaleRows.length,
     RESEARCH: researchRows.length,
     ROTATION: rotationRows.length,
+    BREADTH: eod.length > 0 ? 1 : 0,
     FLOW: flowRows.length,
     KIBOR: kiborRows.length,
     LEDGER: disclosureRows.length,
@@ -611,6 +615,9 @@ export default function HomePage() {
           )}
           {activeTab === "ROTATION" && (
             <SectorRotationBlotter rows={rotationRows} status={rotationStatus} />
+          )}
+          {activeTab === "BREADTH" && (
+            <MarketBreadthDesk eod={eod} sectorMap={sectorMap} />
           )}
           {activeTab === "FLOW" && (
             <InstitutionalFlowDesk
