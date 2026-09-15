@@ -403,6 +403,137 @@ export function computeAmihudStats(
   return { amihud, medianTurnoverPkr };
 }
 
+/**
+ * Sector smart-money engine — shared by the Institutional Flow desk and the
+ * Insights Wire signal engine (one formula source, never divergent).
+ *
+ * Rolls nccpl_fipi_lipi institutional nets per sector across trailing
+ * windows and pairs them with equal-weight sector price returns computed
+ * from stored EOD closes, enabling absorption-accumulation detection:
+ * institutions net-buying a sector whose price is falling.
+ */
+export interface SectorSmartMoneyRow {
+  sector: string;
+  /** Net institutional PKR, newest stored flow session. */
+  latestPkr: number;
+  net5dPkr: number;
+  net15dPkr: number;
+  net30dPkr: number;
+  /** Persistence score: 5D/30D + 15D/30D (±2 cap when 30D is flat). */
+  score: number;
+  /** Equal-weight sector price return over the 5 newest EOD sessions (%). */
+  price5dPct: number | null;
+  /** Institutional 5D net > 0 while price5d < -1% — absorption pattern. */
+  absorption: boolean;
+}
+
+export interface SmartMoneyInputs {
+  /** Flow rows keyed by participant_type / sector_name / net_pkr. */
+  flows: {
+    tradeDate: string;
+    participantType: string;
+    sectorName: string;
+    netPkr: number | null;
+  }[];
+  /** Stored EOD closes (any window ≥ 5 sessions). */
+  eod: { tradeDate: string; ticker: string; close: number | null }[];
+  /** Ticker -> sector map (psx_fundamentals). */
+  sectorMap: Map<string, string>;
+}
+
+/** Institutional participant set (matches queries.ts convention). */
+const SMART_MONEY_TYPES = new Set([
+  "MUTUAL FUNDS",
+  "FIPI",
+  "FOREIGN CORPORATES",
+  "BANKS",
+  "BANKS/DFIS",
+  "DFI",
+]);
+
+export function computeSectorSmartMoney(
+  inputs: SmartMoneyInputs
+): SectorSmartMoneyRow[] {
+  const { flows, eod, sectorMap } = inputs;
+  const dates = Array.from(new Set(flows.map((r) => r.tradeDate))).sort().reverse();
+  if (dates.length === 0) return [];
+  const latestDate = dates[0];
+  const w5 = new Set(dates.slice(0, 5));
+  const w15 = new Set(dates.slice(0, 15));
+  const w30 = new Set(dates.slice(0, 30));
+
+  // Per-sector institutional nets across windows.
+  const agg = new Map<string, { latest: number; s5: number; s15: number; s30: number }>();
+  for (const r of flows) {
+    if (!SMART_MONEY_TYPES.has(r.participantType)) continue;
+    const sector = r.sectorName.toUpperCase().trim();
+    if (sector === "ALL" || sector === "") continue; // aggregates cancel
+    const net = r.netPkr ?? 0;
+    const b = agg.get(sector) ?? { latest: 0, s5: 0, s15: 0, s30: 0 };
+    if (r.tradeDate === latestDate) b.latest += net;
+    if (w5.has(r.tradeDate)) b.s5 += net;
+    if (w15.has(r.tradeDate)) b.s15 += net;
+    if (w30.has(r.tradeDate)) b.s30 += net;
+    agg.set(sector, b);
+  }
+
+  // Equal-weight sector price return over the 5 newest EOD sessions.
+  const eodDates = Array.from(new Set(eod.map((r) => r.tradeDate)))
+    .sort()
+    .reverse()
+    .slice(0, 5);
+  const price5 = new Map<string, number>();
+  if (eodDates.length >= 2) {
+    const first = eodDates[eodDates.length - 1];
+    const last = eodDates[0];
+    const firstClose = new Map<string, number>();
+    const lastClose = new Map<string, number>();
+    for (const r of eod) {
+      if (r.close == null) continue;
+      if (r.tradeDate === first) firstClose.set(r.ticker, r.close);
+      if (r.tradeDate === last) lastClose.set(r.ticker, r.close);
+    }
+    const acc = new Map<string, { sum: number; n: number }>();
+    for (const [ticker, close] of lastClose) {
+      const base = firstClose.get(ticker);
+      if (base == null || base <= 0) continue;
+      const sector = sectorMap.get(ticker);
+      if (!sector) continue;
+      const b = acc.get(sector) ?? { sum: 0, n: 0 };
+      b.sum += ((close - base) / base) * 100;
+      b.n += 1;
+      acc.set(sector, b);
+    }
+    for (const [sector, v] of acc) price5.set(sector, v.sum / v.n);
+  }
+
+  return Array.from(agg.entries())
+    .map(([sector, b]) => {
+      const score =
+        b.s30 !== 0
+          ? b.s5 / b.s30 + b.s15 / b.s30
+          : b.s5 + b.s15 > 0
+            ? 2
+            : b.s5 + b.s15 < 0
+              ? -2
+              : 0;
+      const price5dPct = price5.get(sector) ?? null;
+      const absorption =
+        b.s5 > 0 && price5dPct != null && price5dPct < -1;
+      return {
+        sector,
+        latestPkr: b.latest,
+        net5dPkr: b.s5,
+        net15dPkr: b.s15,
+        net30dPkr: b.s30,
+        score,
+        price5dPct,
+        absorption,
+      };
+    })
+    .sort((a, b) => b.net5dPkr - a.net5dPkr);
+}
+
 export interface EodPoint {
   ticker: string;
   tradeDate: string;
