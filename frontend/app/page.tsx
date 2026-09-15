@@ -11,6 +11,7 @@ import RolloverDeskBlotter from "@/components/RolloverDeskBlotter";
 import EdgeAnalyticsBlotter from "@/components/EdgeAnalyticsBlotter";
 import ResearchDeskBlotter from "@/components/ResearchDeskBlotter";
 import SectorRotationBlotter from "@/components/SectorRotationBlotter";
+import InstitutionalFlowDesk from "@/components/InstitutionalFlowDesk";
 import KiborSensitivityDesk from "@/components/KiborSensitivityDesk";
 import InsiderConvictionDesk from "@/components/InsiderConvictionDesk";
 import RiskDesk from "@/components/RiskDesk";
@@ -62,11 +63,13 @@ import {
 } from "@/lib/queries";
 import {
   fetchEodHistory,
+  fetchFlowMatrix,
   fetchFundamentalsRows,
   fetchSignalHistory,
   fetchSignalsForTicker,
   fetchTickerSectorMap,
   type EodPoint,
+  type FlowRow,
   type FundamentalsRow,
   type HistSignal,
 } from "@/lib/deskQueries";
@@ -77,6 +80,7 @@ type TabId =
   | "WHALE"
   | "RESEARCH"
   | "ROTATION"
+  | "FLOW"
   | "KIBOR"
   | "LEDGER"
   | "ARB"
@@ -100,6 +104,7 @@ const TABS: { id: TabId; label: string }[] = [
   { id: "MOMENTUM", label: "Momentum" },
   { id: "RESEARCH", label: "Research" },
   { id: "ROTATION", label: "Rotation" },
+  { id: "FLOW", label: "Flow & Rates" },
   { id: "KIBOR", label: "KIBOR" },
   { id: "LEDGER", label: "Insider" },
   { id: "ARB", label: "Cash Arb" },
@@ -153,6 +158,7 @@ export default function HomePage() {
   const [researchStatus, setResearchStatus] = useState<DataStatus | null>(null);
   const [rotationStatus, setRotationStatus] = useState<DataStatus | null>(null);
   const [kiborRows, setKiborRows] = useState<KiborRow[]>([]);
+  const [flowRows, setFlowRows] = useState<FlowRow[]>([]);
   const [disclosureRows, setDisclosureRows] = useState<DisclosureRow[]>([]);
   const [kiborStatus, setKiborStatus] = useState<DataStatus | null>(null);
   const [disclosureStatus, setDisclosureStatus] = useState<DataStatus | null>(null);
@@ -199,6 +205,7 @@ export default function HomePage() {
         setResearchStatus(null);
         setRotationStatus(null);
         setKiborRows([]);
+        setFlowRows([]);
         setDisclosureRows([]);
         setKiborStatus(null);
         setDisclosureStatus(null);
@@ -261,6 +268,7 @@ export default function HomePage() {
         fetchTickerSectorMap(), // 1
         fetchEodHistory(sessionDate, 60), // 2
         fetchSignalHistory(31), // 3
+        fetchFlowMatrix(), // 4
       ]);
       const xv = <T,>(index: number, fallback: T): T => {
         const r = expansion[index];
@@ -295,6 +303,7 @@ export default function HomePage() {
       setSectorMap(xv(1, new Map<string, string>()));
       setEod(xv(2, [] as EodPoint[]));
       setHistorySignals(xv(3, [] as HistSignal[]));
+      setFlowRows(xv(4, [] as FlowRow[]));
       setError(null);
     } catch (err) {
       setError(
@@ -377,6 +386,7 @@ export default function HomePage() {
     WHALE: whaleRows.length,
     RESEARCH: researchRows.length,
     ROTATION: rotationRows.length,
+    FLOW: flowRows.length,
     KIBOR: kiborRows.length,
     LEDGER: disclosureRows.length,
     ARB: arbRows.length,
@@ -472,7 +482,7 @@ export default function HomePage() {
     { k: "SIG", ok: whaleRows.length > 0 },
     { k: "RRG", ok: rotationRows.length > 0 },
     { k: "FUND", ok: researchRows.length > 0 },
-    { k: "FLOWS", ok: barometer != null },
+    { k: "FLOWS", ok: flowRows.length > 0 },
     { k: "KIBOR", ok: kiborRows.length > 0 },
     { k: "FILINGS", ok: disclosureRows.length > 0 },
   ];
@@ -601,6 +611,14 @@ export default function HomePage() {
           )}
           {activeTab === "ROTATION" && (
             <SectorRotationBlotter rows={rotationRows} status={rotationStatus} />
+          )}
+          {activeTab === "FLOW" && (
+            <InstitutionalFlowDesk
+              flows={flowRows}
+              kibor={kiborRows}
+              eod={eod}
+              sectorMap={sectorMap}
+            />
           )}
           {activeTab === "KIBOR" && (
             <KiborSensitivityDesk rows={kiborRows} status={kiborStatus} />

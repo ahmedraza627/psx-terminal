@@ -335,6 +335,37 @@ export async function fetchTickerOhlcv(
 // --------------------------------------------------------------- //
 // EOD history for portfolio analytics + comparison desk.           //
 // --------------------------------------------------------------- //
+// --------------------------------------------------------------- //
+// NCCPL FIPI/LIPI flow matrix for the Institutional Flow desk.     //
+// Columns mirror the live table exactly (no PGRST204 risk).        //
+// --------------------------------------------------------------- //
+export interface FlowRow {
+  tradeDate: string;
+  participantType: string;
+  sectorName: string;
+  netPkr: number | null;
+}
+
+export async function fetchFlowMatrix(): Promise<FlowRow[]> {
+  try {
+    const supabase = getSupabase();
+    const { data, error } = await supabase
+      .from("nccpl_fipi_lipi")
+      .select("trade_date,participant_type,sector_name,net_pkr")
+      .order("trade_date", { ascending: false })
+      .limit(3000);
+    if (error) throw error;
+    return ((data ?? []) as unknown as Record<string, unknown>[]).map((r) => ({
+      tradeDate: String(r.trade_date),
+      participantType: String(r.participant_type ?? "").toUpperCase().trim(),
+      sectorName: String(r.sector_name ?? "ALL").toUpperCase().trim(),
+      netPkr: (r.net_pkr as number | null) ?? null,
+    }));
+  } catch {
+    return [];
+  }
+}
+
 export interface EodPoint {
   ticker: string;
   tradeDate: string;
