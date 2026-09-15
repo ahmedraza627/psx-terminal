@@ -137,6 +137,10 @@ export interface FundamentalsRow {
   marketCapPkr: number | null;
   closePrice: number | null;
   peRatio: number | null;
+  /** Forward-compatible: rendered once a feed publishes book value. */
+  pbRatio?: number | null;
+  /** Forward-compatible: rendered once a feed publishes EBITDA + net debt. */
+  evEbitda?: number | null;
   dividendYield: number | null;
   freeFloat: number | null;
   volume30dAvg: number | null;
