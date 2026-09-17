@@ -18,6 +18,12 @@ Two live sources are attempted, in order of preference (verified 2026-09-12):
    symbols (a restored PSX board, an authenticated NCCPL export, or a
    mirror). When unset or unparsable, this tier is skipped with a clear log.
 
+Optional OPEN INTEREST column: when a source table carries a parseable
+non-negative integer in the 8th cell, it is stored in oi_shares. This is the
+DFC short scanner's second leg (rising OI + negative basis = shorts pressing);
+sources without the column leave oi_shares NULL and the scanner degrades to
+basis-only. Never inferred, never imputed.
+
 When neither source yields contract rows for the session, the scraper
 returns an empty list and logs explicitly - psx_futures_eod stays empty and
 the arbitrage / rollover desks render their idle banners. No synthetic
@@ -114,6 +120,7 @@ def _parse_contract_rows(html: str, trade_date: date) -> list[dict[str, Any]]:
             close = to_number(tds[4].get_text(" ", strip=True))
             if close is None or close <= 0:
                 continue
+            oi = to_int(tds[7].get_text(" ", strip=True)) if len(tds) >= 8 else None
             records.append(
                 {
                     "trade_date": trade_date.isoformat(),
@@ -123,6 +130,7 @@ def _parse_contract_rows(html: str, trade_date: date) -> list[dict[str, Any]]:
                     "low_price": to_number(tds[3].get_text(" ", strip=True)),
                     "close_price": round(close, 2),
                     "volume": to_int(tds[6].get_text(" ", strip=True)),
+                    "oi_shares": oi if (oi is not None and oi >= 0) else None,
                 }
             )
     # Dedupe by symbol (mirrored tables render the same contracts twice).

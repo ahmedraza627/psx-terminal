@@ -82,8 +82,13 @@ create table if not exists public.psx_futures_eod (
     low_price   numeric(10, 2),
     close_price numeric(10, 2),
     volume      bigint,
+    oi_shares   bigint,                     -- open interest (DFC scanner leg)
     constraint psx_futures_eod_date_ticker_key unique (trade_date, ticker)
 );
+
+-- Installed tables created before the OI column are migrated forward here.
+alter table public.psx_futures_eod
+    add column if not exists oi_shares bigint;
 
 create index if not exists psx_futures_eod_ticker_date_idx
     on public.psx_futures_eod (ticker, trade_date desc);
@@ -374,25 +379,28 @@ create index if not exists idx_sector_quad
 -- ---------------------------------------------------------------------------
 -- 9. KIBOR easing sensitivity: projected EPS expansion per rate cut.
 --    Floating debt is estimator input (finance-cost-implied or manually
---    enriched); the engine publishes its provenance per row.
+--    enriched). Column set reconciled to the deployed table and the
+--    kibor_engine emit contract (an earlier v2 rename draft never migrated
+--    against the live table — see migrations/001_reconcile_drifted_tables.sql).
 -- ---------------------------------------------------------------------------
 create table if not exists public.psx_kibor_sensitivity (
     id                      bigserial primary key,
     trade_date              date         not null,
     ticker                  varchar(16)  not null,
     sector_name             varchar(64),
-    floating_debt_pkr       numeric(18, 2),
-    debt_basis              varchar(24)  not null default 'NONE',
+    floating_debt           numeric(18, 2),
+    total_debt              numeric(18, 2),
+    shares_outstanding      numeric(18, 2),
+    effective_tax_rate      numeric(5, 2),
     current_eps             numeric(10, 2),
-    eps_impact_100bps_pkr   numeric(10, 4),
-    eps_expansion_300bps_pct numeric(10, 2),
-    rank_by_eps_expansion   integer,
+    eps_impact_per_100bps   numeric(10, 4),
+    eps_growth_300bps_pct   numeric(10, 2),
     created_at              timestamptz  default now(),
     constraint uq_kibor_ticker_date unique (trade_date, ticker)
 );
 
 create index if not exists idx_kibor_rank
-    on public.psx_kibor_sensitivity (trade_date desc, eps_expansion_300bps_pct desc);
+    on public.psx_kibor_sensitivity (trade_date desc, eps_growth_300bps_pct desc);
 
 -- 10. Insider conviction ledger: parsed board-letter filings tagged by size.
 create table if not exists public.psx_insider_disclosures (
@@ -415,6 +423,60 @@ create index if not exists idx_insider_conv
     on public.psx_insider_disclosures (trade_date desc, conviction);
 
 -- ---------------------------------------------------------------------------
+-- 11. Global macro & commodity correlation / prediction engine.
+--     Drivers: WTI/Brent crude (Arab Light proxies), XAU, DXY, urea/coal/
+--     steel proxies, accumulating USD/PKR spot. Correlations pair macro
+--     sessions with PSX sessions (session-geometric lags, never ffill).
+-- ---------------------------------------------------------------------------
+create table if not exists public.psx_macro_indicator_prices (
+    id          bigserial primary key,
+    driver_code varchar(16)  not null,
+    trade_date  date         not null,
+    close       numeric(18, 6) not null,
+    source      varchar(24)  not null default 'STOOQ',
+    created_at  timestamptz  default now(),
+    constraint uq_macro_price unique (driver_code, trade_date)
+);
+
+create index if not exists idx_macro_price
+    on public.psx_macro_indicator_prices (driver_code, trade_date desc);
+
+create table if not exists public.psx_macro_correlation (
+    id           bigserial primary key,
+    trade_date   date         not null,
+    driver_code  varchar(16)  not null,
+    sector_name  varchar(64)  not null,
+    lag_days     integer      not null,   -- optimal session lag (argmax |r|)
+    correlation  numeric(6, 4) not null,  -- Pearson r at the optimal lag
+    beta         numeric(10, 4) not null, -- OLS beta at the optimal lag
+    sample_size  integer      not null,   -- overlapping paired sessions
+    method       varchar(32)  not null default 'pearson_lagged_ols',
+    created_at   timestamptz  default now(),
+    constraint uq_macro_corr unique (trade_date, driver_code, sector_name)
+);
+
+create index if not exists idx_macro_corr
+    on public.psx_macro_correlation (trade_date desc, driver_code);
+
+create table if not exists public.psx_macro_prediction (
+    id                     bigserial primary key,
+    trade_date             date         not null,
+    driver_code            varchar(16)  not null,
+    sector_name            varchar(64)  not null,
+    shock_window_sessions  integer      not null,
+    shock_pct              numeric(10, 2) not null,
+    expected_move_pct      numeric(10, 2) not null,
+    optimal_lag_days       integer      not null,
+    confidence             numeric(6, 4) not null,
+    stock_plays            jsonb,       -- [{ticker,correlation,beta,expected_move_pct}]
+    created_at             timestamptz  default now(),
+    constraint uq_macro_pred unique (trade_date, driver_code, sector_name)
+);
+
+create index if not exists idx_macro_pred
+    on public.psx_macro_prediction (trade_date desc, driver_code);
+
+-- ---------------------------------------------------------------------------
 -- Row Level Security: pipeline writes with the service-role key (bypasses
 -- RLS); the website reads with the anon key -> allow public SELECT only.
 -- ---------------------------------------------------------------------------
@@ -432,6 +494,9 @@ alter table public.psx_equity_research   enable row level security;
 alter table public.psx_sector_rotation   enable row level security;
 alter table public.psx_kibor_sensitivity enable row level security;
 alter table public.psx_insider_disclosures enable row level security;
+alter table public.psx_macro_indicator_prices enable row level security;
+alter table public.psx_macro_correlation     enable row level security;
+alter table public.psx_macro_prediction      enable row level security;
 
 drop policy if exists "public read psx_daily_eod"       on public.psx_daily_eod;
 drop policy if exists "public read nccpl_fipi_lipi"     on public.nccpl_fipi_lipi;
@@ -476,3 +541,9 @@ create policy "public read psx_kibor_sensitivity"
     on public.psx_kibor_sensitivity for select using (true);
 create policy "public read psx_insider_disclosures"
     on public.psx_insider_disclosures for select using (true);
+create policy "public read psx_macro_indicator_prices"
+    on public.psx_macro_indicator_prices for select using (true);
+create policy "public read psx_macro_correlation"
+    on public.psx_macro_correlation for select using (true);
+create policy "public read psx_macro_prediction"
+    on public.psx_macro_prediction for select using (true);

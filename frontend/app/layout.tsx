@@ -2,9 +2,9 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "PSX QUANT TERMINAL",
+  title: "PSX DESK",
   description:
-    "Institutional PSX & NCCPL intelligence: smart-money flows, tiered edge analytics, fundamental alpha and microstructure desks.",
+    "Single-page institutional console: certified NCCPL flows, NDM block tape, and verified universe breadth. No signals, no predictions.",
 };
 
 export const viewport: Viewport = {

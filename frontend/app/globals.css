@@ -9,6 +9,8 @@
   body {
     /* Institutional numeric alignment everywhere monospace is used */
     font-variant-numeric: tabular-nums;
+    /* Kill mobile tap flash — terminal chrome stays matte on touch */
+    -webkit-tap-highlight-color: transparent;
   }
   ::selection {
     background: rgba(56, 139, 253, 0.28);
@@ -34,6 +36,55 @@
   }
   .scroll-thin::-webkit-scrollbar-track {
     background: transparent;
+  }
+
+  /* -----------------------------------------------------------------
+   * Mobile pixel-perfect utilities
+   *
+   * .table-scroll   touch-momentum horizontal panning for dense blotters;
+   *                 overscroll contained so swipes never trigger browser
+   *                 back/forward navigation mid-table-read.
+   * .sticky-left    (< 768px only) pins the first column (ticker/symbol/
+   *                 session) while the rest of the blotter pans. Desktop is
+   *                 untouched: the rules live inside the media query.
+   * ----------------------------------------------------------------- */
+  .table-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+  }
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+@media (max-width: 767px) {
+  /* Body-cell variant: sits above panning columns, obsidian fill so cell
+     content never shows through the pinned strip. Hairline shadow marks
+     the pin boundary. */
+  .sticky-left {
+    position: sticky;
+    left: 0;
+    z-index: 10;
+    background-color: #090a0c;
+    box-shadow: 1px 0 0 0 #1e222b;
+  }
+  /* Header-cell variant: one step above body pins so the corner cell wins
+     diagonal scrolls. bg-panel fill for bg-panel table heads. */
+  .sticky-left-panel {
+    position: sticky;
+    left: 0;
+    z-index: 20;
+    background-color: #111318;
+    box-shadow: 1px 0 0 0 #1e222b;
+  }
+  /* Header-cell variant for DataTable's obsidian heads. */
+  .sticky-left-head {
+    position: sticky;
+    left: 0;
+    z-index: 20;
+    background-color: #090a0c;
+    box-shadow: 1px 0 0 0 #1e222b;
   }
 }
 

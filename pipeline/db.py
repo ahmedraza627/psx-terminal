@@ -47,6 +47,24 @@ def get_client() -> Client:
     return _client
 
 
+def _strip_unknown_columns(
+    table: str,
+    records: list[dict[str, Any]],
+    missing_cols: set[str],
+) -> list[dict[str, Any]]:
+    """Drop the given (missing) keys from every record (returns a new list)."""
+    LOGGER.warning(
+        "%s: schema drift detected (missing: %s) - degrading to the live "
+        "columns so the feed keeps flowing; apply migrations/002 to heal.",
+        table,
+        ", ".join(sorted(missing_cols)),
+    )
+    return [
+        {k: v for k, v in record.items() if k not in missing_cols}
+        for record in records
+    ]
+
+
 def upsert_records(
     table: str,
     records: list[dict[str, Any]],
@@ -54,11 +72,15 @@ def upsert_records(
     on_conflict: str,
     chunk_size: int = CHUNK_SIZE,
 ) -> int:
-    """Upsert records into a table in safe chunks; returns rows written.
+    """Upsert records in safe chunks; returns rows written.
 
     - Chunks of 500 keep each POST small enough for Supabase free tier.
     - A failed chunk is logged and skipped so one bad row never kills a
       whole day's run.
+    - PGRST204 (column not present in the live table) triggers a ONE-SHOT
+      degrade: the writer introspects which record keys the table lacks,
+      strips them, and retries - schema drift degrades the COLUMNS instead
+      of silently zeroing the table. All other errors keep log-and-skip.
     """
     if not records:
         LOGGER.info("upsert(%s): nothing to write", table)
@@ -66,27 +88,100 @@ def upsert_records(
 
     client = get_client()
     written = 0
-    for index, chunk in enumerate(chunked(records, chunk_size), start=1):
+    degrade: Optional[set[str]] = None  # set once on the first PGRST204
+    index = 0
+    chunks = list(chunked(records, chunk_size))
+    while index < len(chunks):
+        chunk = chunks[index]
+        index += 1
+        payload = chunk
+        if degrade is not None:
+            payload = [
+                {k: v for k, v in row.items() if k not in degrade}
+                for row in chunk
+            ]
         try:
-            (
-                client.table(table)
-                .upsert(chunk, on_conflict=on_conflict)
-                .execute()
-            )
-            written += len(chunk)
-            LOGGER.debug(
-                "upsert(%s): chunk %d wrote %d rows", table, index, len(chunk)
-            )
+            client.table(table).upsert(payload, on_conflict=on_conflict).execute()
+            written += len(payload)
+            continue
         except Exception as exc:  # noqa: BLE001 - keep the run alive
+            message = str(exc)
+            if "PGRST204" in message and degrade is None:
+                degrade = _detect_missing_columns(table, records)
+                if degrade:
+                    LOGGER.warning(
+                        "upsert(%s): PGRST204 - degrading columns: %s",
+                        table,
+                        ", ".join(sorted(degrade)),
+                    )
+                    records[:] = _strip_unknown_columns(table, records, degrade)
+                    chunks = list(chunked(records, chunk_size))
+                    index -= 1  # reprocess this chunk in degraded form
+                    continue
             LOGGER.error(
-                "upsert(%s): chunk %d/%d failed after retries: %s",
+                "upsert(%s): chunk %d/%d failed: %s",
                 table,
                 index,
-                (len(records) + chunk_size - 1) // chunk_size,
+                len(chunks),
                 exc,
             )
     LOGGER.info("upsert(%s): %d/%d rows written", table, written, len(records))
     return written
+
+
+def _detect_missing_columns(
+    table: str,
+    records: list[dict[str, Any]],
+) -> set[str]:
+    """Which record keys does the live table lack? (PostgREST introspection.)
+
+    The REST root OpenAPI document enumerates every exposed column; missing
+    keys are the record keys absent from it. Empty set on any failure (the
+    caller then keeps the plain log-and-skip path).
+    """
+    try:
+        c = get_client()
+        root = c.rest.session.get(f"{c.supabase_url}/rest/v1/")
+        known = set(
+            root.json()
+            .get("definitions", {})
+            .get(table, {})
+            .get("properties", {})
+            .keys()
+        )
+        if not known:
+            return set()
+        return set(records[0].keys()) - known
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.warning("upsert(%s): column introspection failed: %s", table, exc)
+        return set()
+
+
+def _detect_missing_columns(
+    table: str,
+    records: list[dict[str, Any]],
+) -> set[str]:
+    """Ask PostgREST which of the record keys the live table lacks.
+
+    Probes the table's REST metadata (OpenAPI introspection at the root) -
+    the response enumerates every writable column, so missing keys are the
+    record keys not present there. Returns an empty set on any introspection
+    failure (the caller then just logs-and-skips as before).
+    "r
+    """
+    try:
+        root = client.rest.session.get(f"{get_client().supabase_url}/rest/v1/")
+        spec = root.json()
+        known = set(
+            spec.get("definitions", {}).get(table, {}).get("properties", {}).keys()
+        )
+        if not known:
+            return set()
+        missing = set(records[0].keys()) - known
+        return missing
+    except Exception as exc:  # noqa:  BLE001
+        LOGGER.warning("upsert(%s): column introspection failed: %s", table, exc)
+        return set()
 
 
 PAGE_SIZE = 1000  # PostgREST hard-caps a single response at 1000 rows
@@ -184,14 +279,51 @@ def fetch_recent_offmarket(days: int = 3) -> list[dict[str, Any]]:
 
 
 def fetch_recent_futures(days: int = 7) -> list[dict[str, Any]]:
-    """Load recent XXX-FUT closes for the cash & carry arbitrage desk."""
-    return _paginated_select(
-        "psx_futures_eod",
-        "trade_date,ticker,open_price,high_price,low_price,close_price,volume",
-        order_desc_col="trade_date",
-        order_asc_col="ticker",
-        max_rows=days * 150,
+    """Load recent XXX-FUT closes for the arbitrage desk + DFC scanner.
+
+    oi_shares is read defensively: installs not yet migrated to the column
+    are served the legacy shape (PGRST204 -> retry without it) instead of a
+    hard failure, mirroring the frontend two-tier convention.
+    """
+    try:
+        return _paginated_select(
+            "psx_futures_eod",
+            "trade_date,ticker,open_price,high_price,low_price,close_price,volume,oi_shares",
+            order_desc_col="trade_date",
+            order_asc_col="ticker",
+            max_rows=days * 150,
+        )
+    except Exception:
+        return _paginated_select(
+            "psx_futures_eod",
+            "trade_date,ticker,open_price,high_price,low_price,close_price,volume",
+            order_desc_col="trade_date",
+            order_asc_col="ticker",
+            max_rows=days * 150,
+        )
+
+
+def upsert_futures_rows(rows: list[dict[str, Any]]) -> int:
+    """Upsert futures contract rows, degrading gracefully on legacy tables.
+
+    New installs carry oi_shares (DFC scanner leg). Tables created before the
+    column answer the upsert with PGRST204; we then retry the exact same rows
+    stripped of oi_shares so the pipeline never hard-fails on schema lag and
+    prices still land.
+    """
+    if not rows:
+        return 0
+    written = upsert_records(
+        "psx_futures_eod", rows, on_conflict="trade_date,ticker"
     )
+    if written == 0:
+        stripped = [
+            {k: v for k, v in row.items() if k != "oi_shares"} for row in rows
+        ]
+        written = upsert_records(
+            "psx_futures_eod", stripped, on_conflict="trade_date,ticker"
+        )
+    return written
 
 
 def fetch_recent_insider_trades(days: int = 5) -> list[dict[str, Any]]:
@@ -212,6 +344,17 @@ def fetch_recent_mts(days: int = 6) -> list[dict[str, Any]]:
         order_desc_col="trade_date",
         order_asc_col="ticker",
         max_rows=days * 200,
+    )
+
+
+def fetch_macro_prices(max_rows: int = 30000) -> list[dict[str, Any]]:
+    """All stored macro indicator closes (driver_code, trade_date, close)."""
+    return _paginated_select(
+        "psx_macro_indicator_prices",
+        "driver_code,trade_date,close",
+        order_desc_col="trade_date",
+        order_asc_col="driver_code",
+        max_rows=max_rows,
     )
 
 

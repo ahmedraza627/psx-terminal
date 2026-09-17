@@ -142,12 +142,18 @@ export function DataTable({
   minWidth = 640,
   children,
 }: {
-  columns: { label: string; align?: "left" | "right"; width?: string }[];
+  columns: {
+    label: string;
+    align?: "left" | "right";
+    width?: string;
+    /** Pin this column on mobile (<768px) — use on the ticker/symbol column. */
+    sticky?: boolean;
+  }[];
   minWidth?: number;
   children: ReactNode;
 }) {
   return (
-    <div className="scroll-thin overflow-x-auto">
+    <div className="scroll-thin table-scroll">
       <table
         className="w-full border-collapse text-xs"
         style={{ minWidth: `${minWidth}px` }}
@@ -157,7 +163,9 @@ export function DataTable({
             {columns.map((c, i) => (
               <th
                 key={c.label}
-                className={`px-2 py-1.5 font-medium first:pl-2.5 last:pr-2.5 ${c.align === "right" ? "text-right" : "text-left"}`}
+                className={`px-2 py-1.5 font-medium first:pl-2.5 last:pr-2.5 ${
+                  c.sticky ? "sticky-left-head " : ""
+                }${c.align === "right" ? "text-right" : "text-left"}`}
                 style={c.width ? { width: c.width } : undefined}
               >
                 {c.label}

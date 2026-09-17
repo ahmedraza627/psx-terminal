@@ -38,6 +38,7 @@ from pipeline.scrapers.psx_financials import scrape_financials_for_universe
 from pipeline.scrapers.psx_futures import fetch_futures_contracts
 from pipeline.scrapers.psx_insider import fetch_insider_trades
 from pipeline.scrapers.psx_offmarket import fetch_offmarket_deals
+from pipeline.scrapers.macro_indicators import collect_macro_rows
 
 LOGGER = logging.getLogger("pipeline")
 
@@ -99,6 +100,11 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--skip-kibor",
         action="store_true",
         help="Skip the KIBOR easing sensitivity engine.",
+    )
+    parser.add_argument(
+        "--skip-macro",
+        action="store_true",
+        help="Skip global macro indicator ingestion + correlation engine.",
     )
     parser.add_argument(
         "--skip-signals", action="store_true", help="Skip the quant engine."
@@ -232,6 +238,16 @@ def run(argv: list[str] | None = None) -> int:
         if not eod_records:
             LOGGER.error("EOD snapshot failed; aborting run")
             core_ok = False
+        elif written == 0:
+            # Scrape succeeded but NOTHING committed: the table is rejecting
+            # the payload (schema drift). Fail the run loudly - a silently
+            # stale psx_daily_eod is the worst possible state.
+            LOGGER.error(
+                "psx_daily_eod: scraped %d rows but wrote 0 - schema drift "
+                "or permission failure; apply migrations/002_psx_daily_eod_repair.sql",
+                len(eod_records),
+            )
+            core_ok = False
         else:
             market_active_today = any(
                 (r.get("volume") or 0) > 0 for r in eod_records
@@ -326,9 +342,7 @@ def run(argv: list[str] | None = None) -> int:
         with _step("PSX deliverable futures board"):
             futures = fetch_futures_contracts(trade_date)
             if futures:
-                written = db.upsert_records(
-                    "psx_futures_eod", futures, on_conflict="trade_date,ticker"
-                )
+                written = db.upsert_futures_rows(futures)
                 LOGGER.info("psx_futures_eod: %d rows written", written)
             else:
                 LOGGER.warning(
@@ -497,6 +511,25 @@ def run(argv: list[str] | None = None) -> int:
             from pipeline.analytics.kibor_engine import run_kibor_engine
 
             run_kibor_engine(session_date=target_session_date)
+
+    # ------------------------------------------------------------------
+    # 6e. Global macro & commodity correlation / prediction engine
+    # ------------------------------------------------------------------
+    if not args.skip_macro:
+        with _step("global macro correlation engine"):
+            macro_rows = collect_macro_rows(days=450)
+            if macro_rows:
+                written = db.upsert_records(
+                    "psx_macro_indicator_prices",
+                    macro_rows,
+                    on_conflict="driver_code,trade_date",
+                )
+                LOGGER.info("psx_macro_indicator_prices: %d rows written", written)
+            else:
+                LOGGER.warning("psx_macro_indicator_prices: no macro rows collected")
+            from pipeline.analytics.macro_engine import run_macro_engine
+
+            run_macro_engine(session_date=target_session_date)
 
     if not args.skip_backtest:
         with _step("signal backtester"):
