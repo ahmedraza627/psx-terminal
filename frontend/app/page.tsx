@@ -8,6 +8,8 @@
 // breadth. Certified facts only - the machine displays, the human reads.
 
 import ConsoleRefresh from "@/components/ConsoleRefresh";
+import DivergenceStrip from "@/components/DivergenceStrip";
+import VolumeDislocationStrip from "@/components/VolumeDislocationStrip";
 import {
   BreadthPanel,
   FlowMatrixPanel,
@@ -18,6 +20,9 @@ import {
   fetchLatestEodSession,
   fetchNdmBlocks,
   fetchUniverseBreadth,
+  fetchVolumeDislocation,
+  findIsolatedAccumulation,
+  resolveCertifiedEodPair,
   type BreadthData,
   type FlowMatrixData,
   type NdmBlock,
@@ -36,8 +41,14 @@ export default async function HomePage() {
     fetchNdmBlocks(100_000),
   ]);
 
+  // One certified T/T-1 resolution per render, shared by breadth and the
+  // dislocation scanner (5-date depth covers the insider-trading window).
+  const pair = session != null ? await resolveCertifiedEodPair() : null;
+
   const breadth: BreadthData | null =
-    session != null ? await fetchUniverseBreadth() : null;
+    pair != null ? await fetchUniverseBreadth(pair) : null;
+  const dislocation =
+    pair != null ? await fetchVolumeDislocation(pair) : null;
 
   const sessionLabel =
     breadth?.sessionDate ?? flow?.asOfDate ?? ndm?.[0]?.tradeDate ?? null;
@@ -63,9 +74,23 @@ export default async function HomePage() {
               CERTIFIED PIPELINE DATA · NO SIGNALS GENERATED
             </span>
             <ConsoleRefresh syncing={false} />
+            <a
+              href="/auth/signout"
+              className="border border-hairline px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.2em] text-ghost hover:text-ink"
+            >
+              Sign out
+            </a>
           </div>
         </div>
       </header>
+
+      {/* Factual smart-money divergence read, pinned below the chrome. */}
+      <div className="pt-2.5">
+        <DivergenceStrip names={findIsolatedAccumulation(breadth, ndm)} />
+      </div>
+
+      {/* Volume dislocation: new top-25 inflows with insider/NDM footprints. */}
+      <VolumeDislocationStrip data={dislocation} />
 
       {!hasAnyData ? (
         <p className="px-1 py-16 text-center font-mono text-[11px] uppercase tracking-[0.2em] text-ghost">
