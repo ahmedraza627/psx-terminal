@@ -1,3 +1,4 @@
+import TickerLink from "@/components/TickerLink";
 import type {
   DislocatedTicker,
   VolumeDislocationData,
@@ -46,7 +47,7 @@ function Tag({
 function Name({ n }: { n: DislocatedTicker }) {
   return (
     <span className="whitespace-nowrap">
-      <span className="font-bold text-ink">{n.ticker}</span>
+      <TickerLink ticker={n.ticker} className="font-bold text-ink" />
       <span className="tabular-nums text-muted">
         {` (Vol: ${volM(n.volume)} · Chg: ${chg(n.changePct)})`}
       </span>{" "}

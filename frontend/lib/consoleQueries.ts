@@ -12,6 +12,7 @@
 // structurally impossible here.
 // ---------------------------------------------------------------------------
 
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "./supabase/server";
 
 // --------------------------------------------------------------- //
@@ -685,4 +686,328 @@ export function findIsolatedAccumulation(
       (a, b) =>
         b.facts.length - a.facts.length || (b.changePct ?? 0) - (a.changePct ?? 0),
     );
+}
+
+// --------------------------------------------------------------- //
+// "My Portfolio" watchlist - per-user saved tickers.              //
+// --------------------------------------------------------------- //
+
+export async function fetchUserWatchlist(): Promise<string[]> {
+  try {
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from("user_watchlist")
+      .select("ticker")
+      .order("created_at", { ascending: false })
+      .limit(100);
+    if (error) return []; // RLS denies unauthenticated reads -> empty list
+    return Array.from(
+      new Set(
+        ((data ?? []) as { ticker: string }[])
+          .map((r) => r.ticker.trim().toUpperCase())
+          .filter((t) => t !== ""),
+      ),
+    ).sort();
+  } catch {
+    return [];
+  }
+}
+
+// --------------------------------------------------------------- //
+// Ticker deep-dive - the certified 30-session dossier for ONE     //
+// ticker. EOD bars, NDM block history, insider disclosures are    //
+// per-ticker facts. Institutional flow is NOT published per       //
+// ticker by NCCPL (participant x sector only): when the ticker's  //
+// sector is mapped via psx_fundamentals we show that sector's     //
+// FIPI/MF history and label it SECTOR; otherwise the market-wide  //
+// participant cut, labeled MARKET-WIDE. Never invented.           //
+// --------------------------------------------------------------- //
+
+export interface DeepDiveBar {
+  tradeDate: string;
+  closePrice: number | null;
+  volume: number | null;
+}
+
+export interface FlowHistoryPoint {
+  tradeDate: string;
+  fipiNetPkr: number | null;
+  mutualFundsNetPkr: number | null;
+}
+
+export interface DeepDiveNdmRow {
+  tradeDate: string;
+  quantity: number | null;
+  rate: number | null;
+  marketPrice: number | null;
+  spreadPct: number | null;
+}
+
+export interface DeepDiveInsiderRow {
+  tradeDate: string;
+  insiderName: string;
+  designation: string;
+  tradeType: string;
+  quantity: number | null;
+  rate: number | null;
+}
+
+export interface TickerDeepDiveData {
+  ticker: string;
+  /** Certified EOD sessions used for the 30-day windows. */
+  sessions: string[];
+  /** True when the ticker has stored EOD bars. */
+  known: boolean;
+  closeIdx: number | null;
+  bars: DeepDiveBar[];
+  flow: {
+    /** SECTOR when mapped via psx_fundamentals, else MARKET-WIDE. */
+    kind: "SECTOR" | "MARKET-WIDE";
+    sectorName: string | null;
+    points: FlowHistoryPoint[];
+  };
+  ndm: DeepDiveNdmRow[];
+  insider: DeepDiveInsiderRow[];
+}
+
+const FLOW_PARTICIPANTS = ["FIPI", "MUTUAL FUNDS"];
+
+/**
+ * FIPI + Mutual Funds net per session for one ticker's mapped sector
+ * (psx_fundamentals), or the market-wide cut when unmapped. Exported so
+ * other surfaces can reuse the exact same attribution rules.
+ */
+export async function fetchFlowHistoryForTicker(
+  supabase: SupabaseClient,
+  ticker: string,
+  windowDates: string[],
+): Promise<TickerDeepDiveData["flow"]> {
+  const pointsFor = async (
+    sector: string | null,
+  ): Promise<FlowHistoryPoint[]> => {
+    try {
+      let q = supabase
+        .from("nccpl_fipi_lipi")
+        .select("trade_date,participant_type,net_pkr")
+        .in("participant_type", FLOW_PARTICIPANTS)
+        .in("trade_date", windowDates)
+        .order("trade_date", { ascending: false })
+        .limit(3000);
+      if (sector != null) q = q.eq("sector_name", sector);
+      const { data, error } = await q;
+      if (error) return [];
+      const acc = new Map<
+        string,
+        { f: number | null; m: number | null }
+      >();
+      for (const r of (data ?? []) as {
+        trade_date: string;
+        participant_type: string | null;
+        net_pkr: number | null;
+      }[]) {
+        const p = (r.participant_type ?? "").toUpperCase();
+        if (p !== "FIPI" && p !== "MUTUAL FUNDS") continue;
+        const e = acc.get(r.trade_date) ?? { f: null, m: null };
+        if (p === "FIPI") e.f = (e.f ?? 0) + (r.net_pkr ?? 0);
+        else e.m = (e.m ?? 0) + (r.net_pkr ?? 0);
+        acc.set(r.trade_date, e);
+      }
+      return windowDates
+        .filter((d) => acc.has(d))
+        .map((d) => ({
+          tradeDate: d,
+          fipiNetPkr: acc.get(d)!.f,
+          mutualFundsNetPkr: acc.get(d)!.m,
+        }));
+    } catch {
+      return [];
+    }
+  };
+
+  // Sector attribution: latest stored mapping for this ticker.
+  let sector: string | null = null;
+  try {
+    const { data } = await supabase
+      .from("psx_fundamentals")
+      .select("sector_name")
+      .eq("ticker", ticker)
+      .order("trade_date", { ascending: false })
+      .limit(1);
+    const s = (data as { sector_name: string | null }[] | null)?.[0]
+      ?.sector_name;
+    // 'ALL' rows are NCCPL grand totals, not a sector attribution.
+    if (s != null && s.trim() !== "" && s.toUpperCase() !== "ALL") sector = s;
+  } catch {
+    sector = null;
+  }
+
+  return {
+    kind: sector != null ? "SECTOR" : "MARKET-WIDE",
+    sectorName: sector,
+    points: await pointsFor(sector),
+  };
+}
+
+export async function fetchTickerDeepDive(
+  ticker: string,
+  resolved?: CertifiedEodPair | null,
+): Promise<TickerDeepDiveData | null> {
+  try {
+    const symbol = ticker.trim().toUpperCase();
+    if (symbol === "") return null;
+    const pair =
+      resolved !== undefined ? resolved : await resolveCertifiedEodPair();
+    if (pair == null) return null;
+    const supabase = createClient();
+
+    const closeIdx = pair.todayRows.findIndex(
+      (r) => r.ticker.toUpperCase() === symbol,
+    );
+
+    // 30 certified sessions window (all recentDates are certified).
+    const sessions = pair.recentDates.slice(0, 30);
+    if (sessions.length === 0) return null;
+    const windowStart = sessions[sessions.length - 1];
+
+    // A) per-ticker EOD bars (certified rows only).
+    let bars: DeepDiveBar[] = [];
+    try {
+      const { data, error } = await supabase
+        .from("psx_daily_eod")
+        .select("trade_date,close_price,volume")
+        .eq("ticker", symbol)
+        .gte("trade_date", windowStart)
+        .order("trade_date", { ascending: false })
+        .limit(120);
+      if (!error) {
+        bars = ((data ?? []) as {
+          trade_date: string;
+          close_price: number | null;
+          volume: number | null;
+        }[])
+          .filter(
+            (r) =>
+              r.close_price != null &&
+              r.close_price > 0 &&
+              (r.volume ?? 0) > 0,
+          )
+          .map((r) => ({
+            tradeDate: r.trade_date,
+            closePrice: r.close_price,
+            volume: r.volume,
+          }));
+      }
+    } catch {
+      bars = [];
+    }
+
+    // B) flow history for the mapped sector (or market-wide cut).
+    const flow = await fetchFlowHistoryForTicker(
+      supabase,
+      symbol,
+      sessions,
+    );
+
+    // C) NDM block history + D) insider disclosures, both bounded by the
+    //    same certified window. Spread verified against THIS ticker's own
+    //    stored closes per date (no estimation).
+    const eodCloses = new Map<string, number>();
+    try {
+      const { data, error } = await supabase
+        .from("psx_daily_eod")
+        .select("trade_date,close_price")
+        .eq("ticker", symbol)
+        .gte("trade_date", windowStart)
+        .limit(600);
+      if (!error) {
+        for (const r of (data ?? []) as {
+          trade_date: string;
+          close_price: number | null;
+        }[]) {
+          if (r.close_price != null && r.close_price > 0)
+            eodCloses.set(r.trade_date, r.close_price);
+        }
+      }
+    } catch {
+      eodCloses.clear();
+    }
+
+    let ndm: DeepDiveNdmRow[] = [];
+    try {
+      const { data, error } = await supabase
+        .from("psx_offmarket_deals")
+        .select("trade_date,quantity,rate")
+        .eq("ticker", symbol)
+        .gte("trade_date", windowStart)
+        .order("trade_date", { ascending: false })
+        .limit(300);
+      if (!error) {
+        ndm = ((data ?? []) as {
+          trade_date: string;
+          quantity: number | null;
+          rate: number | null;
+        }[]).map((r) => {
+          const marketPrice = eodCloses.get(r.trade_date) ?? null;
+          const spreadPct =
+            r.rate != null && marketPrice != null && marketPrice > 0
+              ? ((r.rate - marketPrice) / marketPrice) * 100
+              : null;
+          return {
+            tradeDate: r.trade_date,
+            quantity: r.quantity,
+            rate: r.rate,
+            marketPrice,
+            spreadPct,
+          };
+        });
+      }
+    } catch {
+      ndm = [];
+    }
+
+    let insider: DeepDiveInsiderRow[] = [];
+    try {
+      const { data, error } = await supabase
+        .from("psx_insider_trades")
+        .select(
+          "trade_date,insider_name,designation,trade_type,quantity,rate",
+        )
+        .eq("ticker", symbol)
+        .gte("trade_date", windowStart)
+        .order("trade_date", { ascending: false })
+        .limit(100);
+      if (!error) {
+        insider = ((data ?? []) as {
+          trade_date: string;
+          insider_name: string;
+          designation: string;
+          trade_type: string;
+          quantity: number | null;
+          rate: number | null;
+        }[]).map((r) => ({
+          tradeDate: r.trade_date,
+          insiderName: r.insider_name,
+          designation: r.designation,
+          tradeType: r.trade_type,
+          quantity: r.quantity,
+          rate: r.rate,
+        }));
+      }
+    } catch {
+      insider = [];
+    }
+
+    return {
+      ticker: symbol,
+      sessions,
+      known: bars.length > 0,
+      closeIdx: closeIdx >= 0 ? closeIdx : null,
+      bars,
+      flow,
+      ndm,
+      insider,
+    };
+  } catch {
+    return null;
+  }
 }

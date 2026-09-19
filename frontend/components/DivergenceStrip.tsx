@@ -1,3 +1,4 @@
+import TickerLink from "@/components/TickerLink";
 import type { DivergenceName } from "@/lib/consoleQueries";
 
 /**
@@ -26,7 +27,7 @@ export default function DivergenceStrip({ names }: { names: DivergenceName[] }) 
       {names.map((n, i) => (
         <span key={n.ticker}>
           {i > 0 && <span className="text-ghost"> · </span>}
-          <span className="font-bold text-bull">{n.ticker}</span>
+          <TickerLink ticker={n.ticker} className="font-bold text-bull" />
           <span className="tabular-nums">
             {n.changePct != null
               ? ` (${n.changePct > 0 ? "+" : ""}${n.changePct.toFixed(1)}%)`

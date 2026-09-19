@@ -14,9 +14,10 @@ export const metadata = { title: "PSX·DESK — Sign in" };
 export default function LoginPage({
   searchParams,
 }: {
-  searchParams: { e?: string };
+  searchParams: { e?: string; reason?: string };
 }) {
   const failed = searchParams.e != null;
+  const timedOut = searchParams.reason === "timeout";
 
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-sm flex-col items-center justify-center bg-obsidian px-4 text-ink">
@@ -26,6 +27,12 @@ export default function LoginPage({
       <p className="mt-1 mb-6 font-mono text-[9px] uppercase tracking-[0.2em] text-ghost">
         Private institutional terminal · authorized access only
       </p>
+
+      {timedOut && (
+        <p className="mb-4 w-full border border-warn/40 bg-warn/10 px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-wider text-warn">
+          SESSION EXPIRED AFTER 30 MINUTES OF INACTIVITY - SIGN IN AGAIN
+        </p>
+      )}
 
       <form action={signIn} className="w-full space-y-3">
         <label className="block">

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import TickerLink from "@/components/TickerLink";
 import { fmtInt, fmtPct } from "@/components/ui/format";
 import type {
   BreadthData,
@@ -401,7 +402,7 @@ export function NdmTapePanel({
                           : "text-ink"
                     }
                   >
-                    {b.ticker}
+                    <TickerLink ticker={b.ticker} />
                   </Td>
                   <Td
                     bold
@@ -511,7 +512,7 @@ function MoveTable({
             {rows.map((m) => (
               <tr key={m.ticker} className="hover:bg-hoverline">
                 <Td right={false} bold>
-                  {m.ticker}
+                  <TickerLink ticker={m.ticker} />
                 </Td>
                 <Td>{m.close == null ? "—" : m.close.toFixed(2)}</Td>
                 <Td

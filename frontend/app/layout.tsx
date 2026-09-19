@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import SessionTimeout from "@/components/SessionTimeout";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -21,6 +22,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body className="min-h-dvh bg-obsidian font-sans text-ink antialiased">
+        <SessionTimeout />
         {children}
       </body>
     </html>

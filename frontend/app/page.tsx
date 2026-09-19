@@ -10,6 +10,9 @@
 import ConsoleRefresh from "@/components/ConsoleRefresh";
 import DivergenceStrip from "@/components/DivergenceStrip";
 import VolumeDislocationStrip from "@/components/VolumeDislocationStrip";
+import WatchlistPanel from "@/components/WatchlistPanel";
+import { getUserWatchlist } from "@/app/actions/watchlist";
+import { buildWatchlistContext } from "@/lib/watchlistFilter";
 import {
   BreadthPanel,
   FlowMatrixPanel,
@@ -49,6 +52,11 @@ export default async function HomePage() {
     pair != null ? await fetchUniverseBreadth(pair) : null;
   const dislocation =
     pair != null ? await fetchVolumeDislocation(pair) : null;
+
+  // My Portfolio: the operator's saved tickers intersected with the same
+  // certified facts the panels render (server-side, no extra queries).
+  const watchlistTickers = await getUserWatchlist();
+  const watchlist = buildWatchlistContext(watchlistTickers, flow, ndm);
 
   const sessionLabel =
     breadth?.sessionDate ?? flow?.asOfDate ?? ndm?.[0]?.tradeDate ?? null;
@@ -98,6 +106,7 @@ export default async function HomePage() {
         </p>
       ) : (
         <div className="space-y-2.5 pt-2.5">
+          <WatchlistPanel ctx={watchlist} />
           <FlowMatrixPanel data={flow} id="flow-matrix" />
           <NdmTapePanel blocks={ndm} id="ndm-tape" />
           <BreadthPanel
