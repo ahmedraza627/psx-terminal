@@ -1,8 +1,9 @@
-// SINGLE-PAGE INSTITUTIONAL CONSOLE - server component.
+// SINGLE-PAGE INSTITUTIONAL CONSOLE - server component, fully public.
 //
 // Every request re-reads the pipeline's certified data straight from Supabase
 // at render time: no client fetch layer, no signal engines, no hydration of
-// market state. The only client code is a refresh button.
+// market state. No auth wall - anonymous visitors read the same certified
+// facts (migrations/005_public_read_access.sql grants anon SELECT).
 //
 // Panels: A) NCCPL flow matrix, B) NDM block tape, C) verified universe
 // breadth. Certified facts only - the machine displays, the human reads.
@@ -11,8 +12,6 @@ import ConsoleRefresh from "@/components/ConsoleRefresh";
 import DivergenceStrip from "@/components/DivergenceStrip";
 import VolumeDislocationStrip from "@/components/VolumeDislocationStrip";
 import WatchlistPanel from "@/components/WatchlistPanel";
-import { getUserWatchlist } from "@/app/actions/watchlist";
-import { buildWatchlistContext } from "@/lib/watchlistFilter";
 import {
   BreadthPanel,
   FlowMatrixPanel,
@@ -27,7 +26,6 @@ import {
   findIsolatedAccumulation,
   resolveCertifiedEodPair,
   type BreadthData,
-  type FlowMatrixData,
   type NdmBlock,
 } from "@/lib/consoleQueries";
 
@@ -53,11 +51,6 @@ export default async function HomePage() {
   const dislocation =
     pair != null ? await fetchVolumeDislocation(pair) : null;
 
-  // My Portfolio: the operator's saved tickers intersected with the same
-  // certified facts the panels render (server-side, no extra queries).
-  const watchlistTickers = await getUserWatchlist();
-  const watchlist = buildWatchlistContext(watchlistTickers, flow, ndm);
-
   const sessionLabel =
     breadth?.sessionDate ?? flow?.asOfDate ?? ndm?.[0]?.tradeDate ?? null;
   const hasAnyData = breadth != null || flow != null || ndm != null;
@@ -82,12 +75,6 @@ export default async function HomePage() {
               CERTIFIED PIPELINE DATA · NO SIGNALS GENERATED
             </span>
             <ConsoleRefresh syncing={false} />
-            <a
-              href="/auth/signout"
-              className="border border-hairline px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.2em] text-ghost hover:text-ink"
-            >
-              Sign out
-            </a>
           </div>
         </div>
       </header>
@@ -106,7 +93,7 @@ export default async function HomePage() {
         </p>
       ) : (
         <div className="space-y-2.5 pt-2.5">
-          <WatchlistPanel ctx={watchlist} />
+          <WatchlistPanel ndm={ndm} breadth={breadth} />
           <FlowMatrixPanel data={flow} id="flow-matrix" />
           <NdmTapePanel blocks={ndm} id="ndm-tape" />
           <BreadthPanel
@@ -117,7 +104,7 @@ export default async function HomePage() {
               .map((b) => b.ticker)}
             inst1dPkr={flow?.institutions1dPkr ?? null}
           />
-          </div>
+        </div>
       )}
 
       <footer className="px-0.5 pt-2.5">

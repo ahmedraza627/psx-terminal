@@ -13,7 +13,7 @@
 // ---------------------------------------------------------------------------
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { createClient } from "./supabase/server";
+import { createClient } from "./supabase/public";
 
 // --------------------------------------------------------------- //
 // Session anchor: the latest populated EOD session.               //

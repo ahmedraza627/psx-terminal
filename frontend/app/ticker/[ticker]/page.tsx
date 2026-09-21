@@ -5,8 +5,8 @@ import { fetchTickerDeepDive } from "@/lib/consoleQueries";
 /**
  * /ticker/[ticker] - the deep-dive rendered as a slide-over sidebar over
  * the console. Fully server-rendered (RSC, zero client JS beyond the
- * framework): the fetch happens at request time with the operator's auth
- * cookie, and the backdrop + Close are plain links back to "/".
+ * framework): the fetch happens at request time with the public anon client, and the backdrop + Close are plain links
+ * back to "/".
  */
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
