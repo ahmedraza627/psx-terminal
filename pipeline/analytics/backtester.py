@@ -23,7 +23,7 @@ from __future__ import annotations
 import logging
 import os
 from collections import defaultdict
-from datetime import date
+from datetime import date, timedelta
 from typing import Any, Optional
 
 from pipeline import db
@@ -371,7 +371,10 @@ def run_backtester(max_age_days: int = 60, reseed: bool = False) -> int:
     conventions without mixing with legacy rows.
     """
     if reseed:
-        history = db.fetch_recent_eod(days=140)
+        history = db.fetch_recent_eod(
+            days=140,
+            min_date=(date.today() - timedelta(days=140)).isoformat(),
+        )
         sessions = _active_sessions(history)[-SEED_SESSIONS:]
         if sessions:
             db.purge_seed_window([d.isoformat() for d in sessions[:-1]])
@@ -400,7 +403,10 @@ def _seed_walk_forward(max_age_days: int) -> int:
     signal_backtest_performance. This is what populates Edge Lab win rates
     without waiting 20 sessions of live operation.
     """
-    history = db.fetch_recent_eod(days=140)
+    history = db.fetch_recent_eod(
+        days=140,
+        min_date=(date.today() - timedelta(days=140)).isoformat(),
+    )
     sessions = _active_sessions(history)[-SEED_SESSIONS:]
     if len(sessions) < 2:
         LOGGER.info("backtester seed: not enough sessions to simulate")
@@ -522,7 +528,13 @@ def _evaluate_stored(max_age_days: int) -> int:
     lookback_days = 40
     if oldest is not None:
         lookback_days = max(lookback_days, (date.today() - oldest).days + 35)
-    history = db.fetch_recent_eod(days=lookback_days)
+    # Window-bounded read: 35 days of headroom past the oldest signal covers
+    # the 20-session forward window; nothing older than the oldest signal
+    # is ever pulled, so no full-table scan for stale history.
+    history = db.fetch_recent_eod(
+        days=lookback_days,
+        min_date=(oldest - timedelta(days=35)).isoformat() if oldest else None,
+    )
     series = _series_by_ticker(history)
 
     rows: list[dict[str, Any]] = []

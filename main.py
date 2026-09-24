@@ -229,16 +229,14 @@ def run(argv: list[str] | None = None) -> int:
     # ------------------------------------------------------------------ #
     first_run = _table_is_empty("psx_daily_eod")
     if not args.skip_eod:
+        written = 0
         with _step("EOD market snapshot"):
             eod_records = fetch_eod(trade_date)
             written = db.upsert_records(
                 "psx_daily_eod", eod_records, on_conflict="trade_date,ticker"
             )
             LOGGER.info("psx_daily_eod: %d rows written", written)
-        if not eod_records:
-            LOGGER.error("EOD snapshot failed; aborting run")
-            core_ok = False
-        elif written == 0:
+        if eod_records and written == 0:
             # Scrape succeeded but NOTHING committed: the table is rejecting
             # the payload (schema drift). Fail the run loudly - a silently
             # stale psx_daily_eod is the worst possible state.
@@ -248,6 +246,16 @@ def run(argv: list[str] | None = None) -> int:
                 len(eod_records),
             )
             core_ok = False
+        elif not eod_records:
+            # Source unavailable (blocked, down, or the session file is not
+            # published yet). NOT immediately fatal: session resolution
+            # below falls back to the latest verified stored session and
+            # the exit-policy block (1c) decides the exit code.
+            LOGGER.warning(
+                "EOD snapshot unavailable for %s (source down or session "
+                "not yet published) - falling back to stored sessions",
+                trade_date,
+            )
         else:
             market_active_today = any(
                 (r.get("volume") or 0) > 0 for r in eod_records
@@ -287,6 +295,45 @@ def run(argv: list[str] | None = None) -> int:
                 trade_date,
                 target_session_date,
             )
+
+    # ------------------------------------------------------------------ #
+    # 1c. Exit policy: today's EOD file being unavailable is not fatal   #
+    # when a verified stored session exists to process. The run exits    #
+    # non-zero only when there is NOTHING verifiable to compute on.      #
+    # ------------------------------------------------------------------ #
+    if not args.skip_eod and not eod_records:
+        min_verified_rows = int(os.getenv("MIN_VERIFIED_SESSION_ROWS", "50"))
+        try:
+            probe = (
+                db.get_client()
+                .table("psx_daily_eod")
+                .select("volume")
+                .eq("trade_date", target_session_date.isoformat())
+                .execute()
+            )
+            verified_rows = sum(
+                1 for r in (probe.data or []) if (r.get("volume") or 0) > 0
+            )
+        except Exception as exc:  # noqa: BLE001
+            LOGGER.warning("verified-session probe failed: %s", exc)
+            verified_rows = 0
+        if verified_rows >= min_verified_rows:
+            LOGGER.warning(
+                "session-verified mode: today's snapshot unavailable; "
+                "proceeding on stored session %s (%d live rows)",
+                target_session_date,
+                verified_rows,
+            )
+        else:
+            LOGGER.error(
+                "no verified market session available: today's scrape "
+                "failed AND stored session %s has only %d live rows "
+                "(floor %d) - nothing to compute on",
+                target_session_date,
+                verified_rows,
+                min_verified_rows,
+            )
+            core_ok = False
 
     # ------------------------------------------------------------------ #
     # 2. NCCPL participant flows                                         #

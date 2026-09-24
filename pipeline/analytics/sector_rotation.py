@@ -4,8 +4,11 @@ Methodology (daily RRG):
   1. Sector index      : equal-weighted accumulation of member daily
                          returns from stored psx_daily_eod closes.
   2. Benchmark index   : KSE-100 closes fetched live from the DPS
-                         timeseries endpoint (verified 2026-09-12:
-                         /timeseries/eod/KSE100 -> [ts, close, vol, ldcp]).
+                         timeseries endpoint; when that 404s/down, falls
+                         back to index rows stored in psx_daily_eod, then
+                         to an equal-weight close-over-close market proxy
+                         computed from the stored universe (basis labels:
+                         DPS_LIVE / EOD_STORED / MARKET_PROXY).
   3. RS-Ratio          : sector_index / benchmark_index, normalised to a
                          base of 100 over the lookback window.
   4. RS-Momentum       : 100 x (rs_ratio_norm(t) / rs_ratio_norm(t - span)),
@@ -45,7 +48,7 @@ import logging
 import math
 import os
 from collections import defaultdict
-from datetime import date
+from datetime import date, timedelta
 from typing import Any, Optional
 
 from pipeline import db
@@ -79,20 +82,29 @@ CORE_ROTATION_FIELDS = (
 )
 
 _benchmark_cache: dict[str, list[tuple[date, float]]] = {}
+_benchmark_basis: dict[str, str] = {}
+
+# Legacy/alias index rows that may sit in psx_daily_eod depending on the
+# scraper generation that wrote them. Checked in order of preference.
+INDEX_TICKER_CANDIDATES = ("KSE100", "KSE-100", "KSE 100", "100INDEX", "KSE30")
+# Calendar window for local benchmark pulls: covers the 60-session RRG
+# lookback plus the regime SMA20 with margin (65 sessions ~ 95 calendar
+# days; holidays need extra room).
+LOCAL_BENCH_WINDOW_DAYS = 160
+# Minimum chained sessions before an aggregated market proxy is trusted
+# (below this the SMA20/RS baselines would be noise).
+MIN_PROXY_SESSIONS = 21
 
 
-def fetch_benchmark_series(symbol: str = BENCHMARK_SYMBOL) -> list[tuple[date, float]]:
-    """KSE-100 (or any DPS index) closes, newest-first, cached per process."""
-    if symbol in _benchmark_cache:
-        return _benchmark_cache[symbol]
+def _dps_live_series(symbol: str) -> list[tuple[date, float]]:
+    """DPS timeseries closes, or [] when the endpoint is dead (e.g. 404)."""
     url = f"https://dps.psx.com.pk/timeseries/eod/{symbol}"
     try:
         response = http_get(url, timeout=25.0)
         payload = response.json()
-    except Exception as exc:  # noqa: BLE001 - benchmark down = idle desk
-        LOGGER.warning("benchmark series %s unavailable: %s", symbol, exc)
-        _benchmark_cache[symbol] = []
-        return _benchmark_cache[symbol]
+    except Exception as exc:  # noqa: BLE001 - benchmark down = fallback tier
+        LOGGER.warning("benchmark DPS timeseries %s unavailable: %s", symbol, exc)
+        return []
     rows = payload.get("data") if isinstance(payload, dict) else None
     series: list[tuple[date, float]] = []
     for row in rows or []:
@@ -106,8 +118,138 @@ def fetch_benchmark_series(symbol: str = BENCHMARK_SYMBOL) -> list[tuple[date, f
         day = date.fromtimestamp(ts)
         series.append((day, close))
     series.sort()
+    return series
+
+
+def _stored_index_series() -> list[tuple[date, float]]:
+    """Benchmark closes stored in psx_daily_eod under an index ticker.
+
+    One window-bounded query (see db.fetch_recent_eod - no full-table scan);
+    the alias set covers every index-ticker convention the pipeline has
+    ever written. Needs >= MIN_PROXY_SESSIONS live closes to qualify.
+    """
+    alias_filter = "({})".format(",".join(INDEX_TICKER_CANDIDATES))
+    try:
+        rows = db._paginated_select(
+            "psx_daily_eod",
+            "trade_date,ticker,close_price,volume",
+            order_desc_col="trade_date",
+            order_asc_col="ticker",
+            max_rows=400,
+            filters=[
+                ("ticker", "in", alias_filter),
+                ("trade_date", "gte", (
+                    date.today() - timedelta(days=LOCAL_BENCH_WINDOW_DAYS)
+                ).isoformat()),
+            ],
+        )
+    except Exception as exc:  # noqa: BLE001 - degrade to the next tier
+        LOGGER.warning("benchmark stored-index probe failed: %s", exc)
+        return []
+    series: list[tuple[date, float]] = []
+    for row in rows:
+        try:
+            day = date.fromisoformat(str(row["trade_date"])[:10])
+            close = float(row["close_price"])
+        except (TypeError, ValueError, KeyError):
+            continue
+        if close > 0:
+            series.append((day, close))
+    series.sort()
+    # De-dupe (one level per session - keep the first alias hit).
+    deduped: list[tuple[date, float]] = []
+    seen: set[date] = set()
+    for day, close in series:
+        if day in seen:
+            continue
+        seen.add(day)
+        deduped.append((day, close))
+    return deduped
+
+
+def _aggregate_market_proxy() -> list[tuple[date, float]]:
+    """Equal-weight market index chained from stored universe closes.
+
+    The certified last resort: level_t = level_{t-1} x (1 + mean cross-"
+    "sectional close-over-close return), seeded at 100. Uses ONLY stored
+    closes - no invented prices, no forward filling; sessions without a
+    readable prior day are skipped. Requires >= MIN_PROXY_SESSIONS chained
+    sessions, otherwise the SMA20 regime leg is noise and we publish none.
+    """
+    try:
+        history = db.fetch_recent_eod(days=LOCAL_BENCH_WINDOW_DAYS)
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.warning("benchmark market-proxy probe failed: %s", exc)
+        return []
+    by_day: dict[date, dict[str, float]] = {}
+    for row in history:
+        try:
+            day = date.fromisoformat(str(row["trade_date"])[:10])
+            close = float(row["close_price"])
+            ticker = str(row.get("ticker") or "").upper().strip()
+        except (TypeError, ValueError, KeyError):
+            continue
+        if day.weekday() >= 5 or close <= 0 or not ticker:
+            continue
+        by_day.setdefault(day, {})[ticker] = close
+    days = sorted(by_day)
+    levels: list[tuple[date, float]] = []
+    level: Optional[float] = None
+    for prev_day, cur_day in zip(days, days[1:]):
+        prev_map, cur_map = by_day[prev_day], by_day[cur_day]
+        rets = [
+            cur_map[t] / prev_map[t] - 1.0
+            for t in cur_map.keys() & prev_map.keys()
+            if prev_map[t] > 0
+        ]
+        if not rets:
+            continue
+        mean_ret = sum(rets) / len(rets)
+        level = 100.0 if level is None else level * (1.0 + mean_ret)
+        levels.append((cur_day, round(level, 4)))
+    if len(levels) < MIN_PROXY_SESSIONS:
+        return []
+    return levels
+
+
+def get_benchmark_basis(symbol: str = BENCHMARK_SYMBOL) -> str:
+    """How the cached benchmark series was sourced (observability hook)."""
+    return _benchmark_basis.get(symbol, "NO_DATA")
+
+
+def fetch_benchmark_series(symbol: str = BENCHMARK_SYMBOL) -> list[tuple[date, float]]:
+    """KSE-100 (or any DPS index) closes, newest-first, cached per process.
+
+    Fallback chain - a dead DPS endpoint NEVER aborts the run:
+      1. DPS_LIVE    : dps.psx.com.pk/timeseries/eod/<symbol>
+      2. EOD_STORED  : index rows already in psx_daily_eod (ticker aliases)
+      3. MARKET_PROXY: equal-weight close-over-close composite of the whole
+                       stored universe (levels, not PKR prices - honest
+                       basis label so desks know the scale differs)
+    Total failure returns [] (desk idles) exactly as before.
+    """
+    if symbol in _benchmark_cache:
+        return _benchmark_cache[symbol]
+
+    series = _dps_live_series(symbol)
+    basis = "DPS_LIVE"
+    if not series:
+        series = _stored_index_series()
+        basis = "EOD_STORED"
+    if not series:
+        series = _aggregate_market_proxy()
+        basis = "MARKET_PROXY"
+    if not series:
+        basis = "NO_DATA"
+
     _benchmark_cache[symbol] = series
-    LOGGER.info("benchmark %s: %d sessions", symbol, len(series))
+    _benchmark_basis[symbol] = basis
+    if basis == "NO_DATA":
+        LOGGER.warning("benchmark %s: no source produced a usable series", symbol)
+    else:
+        LOGGER.info(
+            "benchmark %s: %d sessions (basis=%s)", symbol, len(series), basis
+        )
     return series
 
 

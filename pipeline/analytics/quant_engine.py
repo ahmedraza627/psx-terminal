@@ -192,23 +192,32 @@ def build_regime_state(
             if day is not None and close is not None and close > 0:
                 bench.append((day, close))
         if len(bench) < REGIME_SMA_SESSIONS + 1:
+            # Stored index rows insufficient: resolve through the benchmark
+            # resolver's full fallback chain (DPS live -> stored alias rows
+            # -> equal-weight market proxy). A dead/404-ing DPS endpoint
+            # therefore degrades the leg instead of crashing the engine.
             bench = []
             try:
-                from pipeline.http_client import http_get
+                from pipeline.analytics.sector_rotation import (
+                    fetch_benchmark_series,
+                    get_benchmark_basis,
+                )
 
-                url = f"https://dps.psx.com.pk/timeseries/eod/{benchmark}"
-                payload = http_get(url, timeout=25.0).json()
-                rows = payload.get("data") if isinstance(payload, dict) else None
-                for r in rows or []:
-                    try:
-                        bench.append((date.fromtimestamp(int(r[0])), float(r[1])))
-                    except (TypeError, ValueError, IndexError):
-                        continue
-                state["benchmark_basis"] = "DPS_LIVE"
+                bench = [
+                    (day, close)
+                    for day, close in fetch_benchmark_series(benchmark)
+                    if close > 0
+                ]
+                if bench:
+                    state["benchmark_basis"] = get_benchmark_basis(benchmark)
             except Exception as exc:  # noqa: BLE001 - optional leg
                 LOGGER.warning(
                     "regime gate: benchmark series unavailable: %s", exc
                 )
+            if bench and len(bench) < REGIME_SMA_SESSIONS + 1:
+                # Same bar the stored-EOD leg enforces: a shorter series
+                # would compute a mislabeled "SMA20" from fewer sessions.
+                bench = []
     if as_of is not None:
         bench = [(day, c) for day, c in bench if day <= as_of]
     if bench:

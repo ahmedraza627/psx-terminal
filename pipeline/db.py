@@ -16,6 +16,11 @@ LOGGER = logging.getLogger(__name__)
 
 CHUNK_SIZE = 500
 
+# Calendar-day floor for EOD history reads. 220 days ≈ 150 trading sessions:
+# keeps 200-SMA baselines, quarterly research and RRG 60-session lookbacks
+# fully fed regardless of the `days` a caller passes.
+EOD_HISTORY_MIN_DAYS = 220
+
 _client: Optional[Client] = None
 
 
@@ -135,13 +140,14 @@ def _detect_missing_columns(
 ) -> set[str]:
     """Which record keys does the live table lack? (PostgREST introspection.)
 
-    The REST root OpenAPI document enumerates every exposed column; missing
-    keys are the record keys absent from it. Empty set on any failure (the
-    caller then keeps the plain log-and-skip path).
+    Probes the table's REST metadata (OpenAPI introspection at the root) -
+    the response enumerates every exposed column, so missing keys are the
+    record keys absent from it. Empty set on any failure (the caller then
+    keeps the plain log-and-skip path).
     """
     try:
-        c = get_client()
-        root = c.rest.session.get(f"{c.supabase_url}/rest/v1/")
+        client = get_client()
+        root = client.rest.session.get(f"{client.supabase_url}/rest/v1/")
         known = set(
             root.json()
             .get("definitions", {})
@@ -153,33 +159,6 @@ def _detect_missing_columns(
             return set()
         return set(records[0].keys()) - known
     except Exception as exc:  # noqa: BLE001
-        LOGGER.warning("upsert(%s): column introspection failed: %s", table, exc)
-        return set()
-
-
-def _detect_missing_columns(
-    table: str,
-    records: list[dict[str, Any]],
-) -> set[str]:
-    """Ask PostgREST which of the record keys the live table lacks.
-
-    Probes the table's REST metadata (OpenAPI introspection at the root) -
-    the response enumerates every writable column, so missing keys are the
-    record keys not present there. Returns an empty set on any introspection
-    failure (the caller then just logs-and-skips as before).
-    "r
-    """
-    try:
-        root = client.rest.session.get(f"{get_client().supabase_url}/rest/v1/")
-        spec = root.json()
-        known = set(
-            spec.get("definitions", {}).get(table, {}).get("properties", {}).keys()
-        )
-        if not known:
-            return set()
-        missing = set(records[0].keys()) - known
-        return missing
-    except Exception as exc:  # noqa:  BLE001
         LOGGER.warning("upsert(%s): column introspection failed: %s", table, exc)
         return set()
 
@@ -234,14 +213,26 @@ def _paginated_select(
     return rows[:max_rows]
 
 
-def fetch_recent_eod(days: int = 90) -> list[dict[str, Any]]:
-    """Load the trailing history the quant engine needs for indicators."""
+def fetch_recent_eod(days: int = 90, min_date: Optional[str] = None) -> list[dict[str, Any]]:
+    """Load the trailing history the quant engines need for indicators.
+
+    Every call is window-bounded: the server filters ``trade_date >= gte``
+    before pagination, so a full-table scan (weeks of unbounded pages) can
+    never happen again. ``min_date`` wins when given (backtester forward
+    windows); otherwise the window is ``max(days, EOD_HISTORY_MIN_DAYS)``
+    calendar days back - the floor keeps 200-SMA/quarterly engines fed even
+    when a caller passes a small ``days``.
+    """
+    if min_date is None:
+        days = max(days, EOD_HISTORY_MIN_DAYS)
+        min_date = (date.today() - timedelta(days=days)).isoformat()
     return _paginated_select(
         "psx_daily_eod",
         "trade_date,ticker,open_price,high_price,low_price,close_price,volume",
         order_desc_col="trade_date",
         order_asc_col="ticker",
         max_rows=days * 800,  # headroom: ~500 traded symbols x days
+        filters=[("trade_date", "gte", min_date)],
     )
 
 
