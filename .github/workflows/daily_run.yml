@@ -62,6 +62,9 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          # Optional WAF-bypass egress for DPS data routes (NDM board).
+          # Without the secret the scrapers degrade to direct requests.
+          SCRAPER_API_KEY: ${{ secrets.SCRAPER_API_KEY }}
           KIBOR_FLOATING_DEBT_MAP: ${{ secrets.KIBOR_FLOATING_DEBT_MAP }}
           OFFMARKET_MIN_VOLUME: "10000"
           OFFMARKET_REQUIRED: "false"
@@ -72,6 +75,11 @@ jobs:
           SESSION_DATE: ${{ github.event.inputs.target_date || steps.session.outputs.date }}
         run: |
           echo "Target Business Session: $SESSION_DATE"
+          if [ -n "$SCRAPER_API_KEY" ]; then
+            echo "NDM egress: ScraperAPI proxy ENABLED"
+          else
+            echo "NDM egress: direct only (SCRAPER_API_KEY secret not set)"
+          fi
           python main.py --date "$SESSION_DATE"
 
       - name: Summarize signals in the job summary

@@ -10,14 +10,23 @@ Remote sources verified live on 2026-09-10:
 - dps.psx.com.pk/sector-summary/sectorwise sector tables
 - scstrade.com/FIPILIPI.aspx (POST JSON) NCCPL FIPI/LIPI participant flows
 - open.er-api.com/v6/latest/USD          free USD/PKR FX rate
+
+STATUS UPDATE (probed live 2026-10-01): every dps.psx.com.pk data route
+above returns 403 with an EMPTY body to this runner's IP class (edge WAF
+- not header- or TLS-fingerprint-fixable), while DPS content pages still
+serve 200. Optional ScraperAPI egress covers exactly these gated targets:
+set SCRAPER_API_KEY and route through http_get_via_scraperapi() so the
+request exits from ScraperAPI's IP pool instead of the runner's.
 """
 
 from __future__ import annotations
 
 import logging
+import os
 import random
 import time
 from typing import Any, Optional
+from urllib.parse import quote
 
 import requests
 
@@ -31,6 +40,12 @@ USER_AGENT = (
 DEFAULT_TIMEOUT = 30.0
 MAX_RETRIES = 3
 BACKOFF_BASE = 1.5
+
+# ScraperAPI egress (optional, env SCRAPER_API_KEY): single-attempt proxied
+# GETs for WAF-gated targets. 60s because the proxy fetches the target
+# server-side; retrying here would burn ScraperAPI credits.
+SCRAPERAPI_ENDPOINT = "http://api.scraperapi.com"
+SCRAPERAPI_TIMEOUT = 60.0
 
 
 def _build_session() -> requests.Session:
@@ -152,3 +167,59 @@ def json_headers(referer: str) -> dict[str, str]:
         "Accept": "application/json, text/javascript, */*; q=0.01",
         "X-Requested-With": "XMLHttpRequest",
     }
+
+
+# ---------------------------------------------------------------------------
+# ScraperAPI proxy egress (optional)
+# ---------------------------------------------------------------------------
+
+
+def scraperapi_key() -> str:
+    """Configured ScraperAPI key ('' when unset) from env SCRAPER_API_KEY."""
+    return os.getenv("SCRAPER_API_KEY", "").strip()
+
+
+def scraperapi_proxied_url(target_url: str, key: Optional[str] = None) -> str:
+    """Wrap a target URL for ScraperAPI egress.
+
+    http://api.scraperapi.com?api_key={KEY}&url={url-encoded target}
+    Both params are percent-encoded (the target carries its own query
+    string); the key must never appear in logs or raised exceptions.
+    """
+    resolved = (key if key is not None else scraperapi_key()).strip()
+    if not resolved:
+        raise ValueError(
+            "ScraperAPI egress requested but SCRAPER_API_KEY is not set"
+        )
+    return (
+        f"{SCRAPERAPI_ENDPOINT}?api_key={quote(resolved, safe='')}"
+        f"&url={quote(target_url, safe='')}"
+    )
+
+
+def http_get_via_scraperapi(
+    target_url: str, *, timeout: float = SCRAPERAPI_TIMEOUT
+) -> requests.Response:
+    """Single-attempt GET through ScraperAPI egress (requires SCRAPER_API_KEY).
+
+    Deliberately NOT raise_for_status and NOT retried: callers classify the
+    target-side status themselves (403-empty WAF block vs retired-route 404
+    vs a healthy board), and every retry would burn ScraperAPI credits.
+    Transport failures raise a sanitized RequestException - the api_key is
+    part of the request URL, so raw exception strings must never surface it.
+    """
+    proxied_url = scraperapi_proxied_url(target_url)
+    try:
+        response = SESSION.get(proxied_url, timeout=timeout)
+    except requests.RequestException as exc:
+        raise requests.RequestException(
+            f"ScraperAPI egress failed for {target_url}: "
+            f"{type(exc).__name__} (transport detail suppressed: carries api_key)"
+        ) from None
+    LOGGER.info(
+        "ScraperAPI egress %s -> HTTP %d (%d bytes)",
+        target_url,
+        response.status_code,
+        len(response.content),
+    )
+    return response

@@ -24,8 +24,10 @@ Two independent failures break ingestion:
 
 This scraper therefore:
 1.  walks a source chain - the corrected /trading-board/NDM/main first,
-    then the legacy pair (in case the WAF relents or a residential
-    egress runs the pipeline),
+    then the legacy pair - over an EGRESS chain: with SCRAPER_API_KEY set
+    each URL routes through ScraperAPI first (its IP pool sits outside the
+    edge gate that 403-blocks the runner's IP class), falling back to
+    direct egress if the proxy tier fails; without a key, direct only,
 2.  classifies each failure with HTTP-status diagnostics (403-empty =
     WAF block, 404 + ~47 kB HTML = route gone) so outages self-diagnose
     in CI logs instead of surfacing as a silently empty table,
@@ -60,11 +62,16 @@ import os
 import re
 import sys
 from datetime import date, datetime, timedelta, timezone
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 from bs4 import BeautifulSoup, Tag
 
-from pipeline.http_client import ajax_headers, http_get
+from pipeline.http_client import (
+    ajax_headers,
+    http_get,
+    http_get_via_scraperapi,
+    scraperapi_key,
+)
 from pipeline.parsing import to_int
 
 LOGGER = logging.getLogger(__name__)
@@ -92,25 +99,52 @@ class SourceBlockedError(RuntimeError):
 
 
 def _fetch_board_html(url: str) -> str:
-    """GET one board URL, translating HTTP outcomes into diagnostics."""
-    try:
-        response = http_get(url, headers=ajax_headers(TRADING_PANEL_URL))
-    except Exception as exc:  # noqa: BLE001 - degrade to next tier
-        raise SourceBlockedError(f"{url} unreachable: {exc}") from exc
-    body = response.text or ""
-    if response.status_code == 403 and not body.strip():
-        raise SourceBlockedError(
-            f"{url} -> 403 EMPTY body (edge WAF block; not header-fixable)"
-        )
-    if response.status_code == 404 and "<html" in body.lower():
-        raise SourceBlockedError(
-            f"{url} -> 404 with HTML shell ({len(body)} bytes, route retired)"
-        )
-    if response.status_code >= 400:
-        raise SourceBlockedError(f"{url} -> HTTP {response.status_code}")
-    if "<table" not in body.lower():
-        raise SourceBlockedError(f"{url} -> 200 but no <table> in payload")
-    return body
+    """GET one board URL, translating HTTP outcomes into diagnostics.
+
+    Egress chain: when SCRAPER_API_KEY is set the request routes through
+    ScraperAPI first (its IP pool is outside the DPS edge gate that
+    403-blocks this runner), then direct as the fallback; without a key
+    only direct egress is attempted. Outcome diagnostics are identical
+    for both paths so outages self-diagnose regardless of egress.
+    """
+    attempts: list[tuple[str, Callable[[], Any]]] = []
+    if scraperapi_key():
+        attempts.append(("scraperapi", lambda: http_get_via_scraperapi(url)))
+    attempts.append(
+        ("direct", lambda: http_get(url, headers=ajax_headers(TRADING_PANEL_URL)))
+    )
+
+    failures: list[str] = []
+    for tier, send in attempts:
+        try:
+            response = send()
+        except Exception as exc:  # noqa: BLE001 - degrade to next egress tier
+            failures.append(f"{tier}: {url} unreachable: {exc}")
+            continue
+        body = response.text or ""
+        if response.status_code == 403 and not body.strip():
+            failures.append(
+                f"{tier}: {url} -> 403 EMPTY body (edge WAF block; not header-fixable)"
+            )
+            continue
+        if response.status_code == 404 and "<html" in body.lower():
+            failures.append(
+                f"{tier}: {url} -> 404 with HTML shell ({len(body)} bytes, route retired)"
+            )
+            continue
+        if response.status_code >= 400:
+            failures.append(f"{tier}: {url} -> HTTP {response.status_code}")
+            continue
+        if "<table" not in body.lower():
+            failures.append(f"{tier}: {url} -> 200 but no <table> in payload")
+            continue
+        if failures:
+            for failure in failures:
+                LOGGER.warning("NDM egress tier degraded before '%s' recovered: %s", tier, failure)
+        return body
+    raise SourceBlockedError(
+        " | ".join(failures) if failures else f"{url}: no egress path configured"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -210,6 +244,12 @@ def fetch_ndm_rows() -> list[dict]:
     empty; raises SourceBlockedError when every tier is unreachable so
     the caller can distinguish "no deals today" from "feed is down".
     """
+    LOGGER.info(
+        "NDM egress: %s",
+        "ScraperAPI proxy first, direct fallback"
+        if scraperapi_key()
+        else "direct only (SCRAPER_API_KEY unset)",
+    )
     failures: list[str] = []
     for url in NDM_BOARD_URLS:
         try:
