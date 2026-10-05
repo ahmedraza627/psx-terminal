@@ -21,6 +21,7 @@ import {
   fetchFlowMatrix,
   fetchLatestEodSession,
   fetchNdmBlocks,
+  fetchNdmSummary,
   fetchUniverseBreadth,
   fetchVolumeDislocation,
   findIsolatedAccumulation,
@@ -35,12 +36,16 @@ export const revalidate = 0;
 export default async function HomePage() {
   const session = await fetchLatestEodSession();
 
-  // The NDM tape may lead or lag EOD: it binds to its own latest session,
-  // so it renders even when EOD is empty. Flow is session-independent.
-  const [flow, ndm] = await Promise.all([
+  // NDM is pinned to ONE certified session per render: the active EOD
+  // session when the aggregate is stamped for it, else the newest
+  // certified summary row's own date (always labeled in the panel).
+  // Individual deal rows are never drawn from history - a silently stale
+  // tape is worse than an honest empty one.
+  const [flow, ndmSummary] = await Promise.all([
     fetchFlowMatrix(),
-    fetchNdmBlocks(100_000),
+    fetchNdmSummary(session),
   ]);
+  const ndm = await fetchNdmBlocks(100_000, ndmSummary?.tradeDate ?? session);
 
   // One certified T/T-1 resolution per render, shared by breadth and the
   // dislocation scanner (5-date depth covers the insider-trading window).
@@ -52,8 +57,16 @@ export default async function HomePage() {
     pair != null ? await fetchVolumeDislocation(pair) : null;
 
   const sessionLabel =
-    breadth?.sessionDate ?? flow?.asOfDate ?? ndm?.[0]?.tradeDate ?? null;
-  const hasAnyData = breadth != null || flow != null || ndm != null;
+    breadth?.sessionDate ??
+    flow?.asOfDate ??
+    ndmSummary?.tradeDate ??
+    ndm?.[0]?.tradeDate ??
+    null;
+  const hasAnyData =
+    breadth != null ||
+    flow != null ||
+    ndmSummary != null ||
+    (ndm ?? []).length > 0;
 
   return (
     <main className="mx-auto min-h-dvh w-full max-w-[1600px] bg-obsidian px-2.5 pb-8 text-ink">
@@ -95,7 +108,7 @@ export default async function HomePage() {
         <div className="space-y-2.5 pt-2.5">
           <WatchlistPanel ndm={ndm} breadth={breadth} />
           <FlowMatrixPanel data={flow} id="flow-matrix" />
-          <NdmTapePanel blocks={ndm} id="ndm-tape" />
+          <NdmTapePanel blocks={ndm} summary={ndmSummary} id="ndm-tape" />
           <BreadthPanel
             data={breadth}
             id="universe-breadth"
@@ -109,7 +122,7 @@ export default async function HomePage() {
 
       <footer className="px-0.5 pt-2.5">
         <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-ghost">
-          {`FLOW ${flow?.asOfDate ?? "—"} · NDM ${ndm?.[0]?.tradeDate ?? "—"} · EOD ${breadth?.sessionDate ?? "—"} · ADV ${breadth?.advancers ?? "—"} / DEC ${breadth?.decliners ?? "—"}`}
+          {`FLOW ${flow?.asOfDate ?? "—"} · NDM ${ndmSummary?.tradeDate ?? ndm?.[0]?.tradeDate ?? "—"} · EOD ${breadth?.sessionDate ?? "—"} · ADV ${breadth?.advancers ?? "—"} / DEC ${breadth?.decliners ?? "—"}`}
         </p>
       </footer>
     </main>

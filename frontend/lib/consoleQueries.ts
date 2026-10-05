@@ -542,16 +542,109 @@ export interface NdmBlock {
   accumulation: boolean;
 }
 
+export interface NdmSummary {
+  tradeDate: string;
+  trades: number | null;
+  volume: number | null;
+  /** PKR turnover for the session (null when not certified). */
+  value: number | null;
+  /** Market state as served, e.g. "Closed". */
+  state: string | null;
+}
+
+/**
+ * The certified NDM session aggregate (pipeline: psx_offmarket_summary).
+ *
+ * PSX retired the per-symbol board, so this summary is the only NDM fact
+ * set that stays current. Resolution order: the exact active-session row
+ * first; when EOD runs ahead of (or behind) the summary stamp, the newest
+ * certified row - its own tradeDate is always displayed in the UI, so a
+ * date skew is visible, never silent.
+ */
+export async function fetchNdmSummary(
+  sessionDate: string | null,
+): Promise<NdmSummary | null> {
+  try {
+    const supabase = createClient();
+    const select = "trade_date,trades,volume,value,state";
+    if (sessionDate != null) {
+      const { data, error } = await supabase
+        .from("psx_offmarket_summary")
+        .select(select)
+        .eq("trade_date", sessionDate)
+        .limit(1);
+      if (!error && data != null && data.length > 0) {
+        const r = data[0] as {
+          trade_date: string;
+          trades: number | null;
+          volume: number | null;
+          value: number | null;
+          state: string | null;
+        };
+        return {
+          tradeDate: r.trade_date,
+          trades: r.trades,
+          volume: r.volume,
+          value: r.value,
+          state: r.state,
+        };
+      }
+    }
+    const { data, error } = await supabase
+      .from("psx_offmarket_summary")
+      .select(select)
+      .order("trade_date", { ascending: false })
+      .limit(1);
+    if (error) throw error;
+    const rows = (data ?? []) as {
+      trade_date: string;
+      trades: number | null;
+      volume: number | null;
+      value: number | null;
+      state: string | null;
+    }[];
+    if (rows.length === 0) return null;
+    const r = rows[0];
+    return {
+      tradeDate: r.trade_date,
+      trades: r.trades,
+      volume: r.volume,
+      value: r.value,
+      state: r.state,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchNdmBlocks(
-  minShares = 100_000
+  minShares = 100_000,
+  sessionDate: string | null = null,
 ): Promise<NdmBlock[] | null> {
   try {
     const supabase = createClient();
+
+    // ONE certified session per render: the active EOD session when known,
+    // else the newest psx_offmarket_summary date (the UI labels whichever
+    // landed). History is never queried - a silently stale tape is worse
+    // than an honest empty one.
+    let asOf = sessionDate;
+    if (asOf == null) {
+      const { data: stamp, error: stampErr } = await supabase
+        .from("psx_offmarket_summary")
+        .select("trade_date")
+        .order("trade_date", { ascending: false })
+        .limit(1);
+      if (stampErr) throw stampErr;
+      asOf = ((stamp ?? []) as { trade_date: string }[])[0]?.trade_date ?? null;
+      if (asOf == null) return null;
+    }
+
     const { data, error } = await supabase
       .from("psx_offmarket_deals")
       .select("trade_date,ticker,quantity,rate,value")
       .gte("quantity", minShares)
-      .order("trade_date", { ascending: false })
+      .eq("trade_date", asOf)
       .order("value", { ascending: false })
       .limit(400);
     if (error) throw error;
@@ -562,14 +655,10 @@ export async function fetchNdmBlocks(
       rate: number | null;
       value: number | null;
     }[];
-    if (rows.length === 0) return null;
-
-    // Bind to the latest NDM session present (the tape may lead or lag EOD).
-    const asOf = rows[0].trade_date;
-    const latest = rows.filter((r) => r.trade_date === asOf);
+    if (rows.length === 0) return []; // honest empty tape for THIS session
 
     // Market closes for the crossed names, from stored EOD (no estimation).
-    const tickers = Array.from(new Set(latest.map((r) => r.ticker.toUpperCase())));
+    const tickers = Array.from(new Set(rows.map((r) => r.ticker.toUpperCase())));
     let closes = new Map<string, number>();
     if (tickers.length > 0) {
       const { data: eod, error: eodErr } = await supabase
@@ -586,7 +675,7 @@ export async function fetchNdmBlocks(
       }
     }
 
-    return latest.map((r) => {
+    return rows.map((r) => {
       const ticker = r.ticker.toUpperCase();
       const marketPrice = closes.get(ticker) ?? null;
       const spreadPct =

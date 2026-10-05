@@ -2,12 +2,18 @@
 
 import { useMemo, useState } from "react";
 import TickerLink from "@/components/TickerLink";
-import { fmtInt, fmtPct } from "@/components/ui/format";
+import {
+  fmtInt,
+  fmtPct,
+  fmtPkrCompact,
+  fmtSharesM,
+} from "@/components/ui/format";
 import type {
   BreadthData,
   EodMove,
   FlowMatrixData,
   NdmBlock,
+  NdmSummary,
 } from "@/lib/consoleQueries";
 
 // ---------------------------------------------------------------- //
@@ -341,15 +347,39 @@ export function FlowMatrixPanel({
 // PANEL B - NDM Block Tape (off-market liquidity >= 100k).         //
 // ---------------------------------------------------------------- //
 
+function HeadlineMetric({
+  label,
+  value,
+  tone = "text-ink",
+}: {
+  label: string;
+  value: string;
+  tone?: string;
+}) {
+  return (
+    <span className="flex items-baseline gap-1.5">
+      <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-ghost">
+        {label}
+      </span>
+      <span className={`font-mono text-[13px] font-bold tabular-nums ${tone}`}>
+        {value}
+      </span>
+    </span>
+  );
+}
+
 export function NdmTapePanel({
   blocks,
+  summary,
   id,
 }: {
   blocks: NdmBlock[] | null;
+  summary: NdmSummary | null;
   id?: string;
 }) {
   const tape = blocks ?? [];
   const distCount = tape.filter((b) => b.distribution).length;
+  const retiredTape = blocks != null && tape.length === 0;
   return (
     <Panel
       id={id}
@@ -358,13 +388,51 @@ export function NdmTapePanel({
       meta={
         blocks == null
           ? undefined
-          : `${tape.length} BLOCKS ≥ 100K · ${distCount} DISTRIBUTION`
+          : retiredTape
+            ? "CERTIFIED AGGREGATES ONLY"
+            : `${tape.length} BLOCKS ≥ 100K · ${distCount} DISTRIBUTION`
       }
     >
+      {/* Certified session aggregates - the NDM headline that stays live
+          after PSX retired the per-symbol board (psx_offmarket_summary). */}
+      {summary != null && (
+        <div className="border-b border-hairline bg-obsidian/40 px-3 py-2">
+          <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+            <HeadlineMetric label="Deals" value={fmtInt(summary.trades)} />
+            <HeadlineMetric
+              label="Shares"
+              value={fmtSharesM(summary.volume)}
+              tone="text-info"
+            />
+            <HeadlineMetric
+              label="Turnover"
+              value={fmtPkrCompact(summary.value)}
+              tone="text-info"
+            />
+            <HeadlineMetric
+              label="State"
+              value={(summary.state ?? "—").toUpperCase()}
+              tone="text-ghost"
+            />
+          </div>
+          <p className="pt-1 font-mono text-[9px] uppercase tracking-[0.2em] text-ghost">
+            {`CERTIFIED NDM SESSION AGGREGATE · ${summary.tradeDate}`}
+          </p>
+        </div>
+      )}
       {blocks == null ? (
         <Idle text="NDM FEED UNAVAILABLE" />
-      ) : tape.length === 0 ? (
-        <Idle text="NO OFF-MARKET BLOCKS ≥ 100K SHARES THIS SESSION" />
+      ) : retiredTape ? (
+        summary != null ? (
+          <div className="px-3 py-4">
+            <p className="border border-info/40 bg-info/10 px-2.5 py-2 font-mono text-[10px] font-bold uppercase leading-relaxed tracking-[0.15em] text-info">
+              Per-symbol ticker tape retired by PSX — showing certified
+              session aggregates
+            </p>
+          </div>
+        ) : (
+          <Idle text="NO CERTIFIED NDM AGGREGATE FOR THIS SESSION" />
+        )
       ) : (
         <>
         <div className="overflow-x-auto">

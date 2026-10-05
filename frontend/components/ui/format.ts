@@ -14,6 +14,23 @@ export function fmtPkrB(value: number | null | undefined, digits = 1): string {
   return `${sign}${b.toFixed(digits)}B`;
 }
 
+/** Shares in millions, e.g. "42.5M" (null-safe, unsigned). */
+export function fmtSharesM(
+  value: number | null | undefined,
+  digits = 1
+): string {
+  if (value == null) return "—";
+  return `${(value / 1e6).toFixed(digits)}M`;
+}
+
+/** PKR compact: B at ≥ 1e9, M at ≥ 1e6, plain below (null-safe, unsigned). */
+export function fmtPkrCompact(value: number | null | undefined): string {
+  if (value == null) return "—";
+  if (Math.abs(value) >= 1e9) return `PKR ${(value / 1e9).toFixed(2)}B`;
+  if (Math.abs(value) >= 1e6) return `PKR ${(value / 1e6).toFixed(1)}M`;
+  return `PKR ${value.toFixed(0)}`;
+}
+
 export function fmtPrice(value: number | null | undefined, digits = 2): string {
   return value == null ? "—" : value.toFixed(digits);
 }
