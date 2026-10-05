@@ -5,6 +5,7 @@ Daily flow (GitHub Actions cron, Mon-Fri 13:30 UTC / 18:30 PKT):
   1. Scrape the full-market EOD snapshot            -> psx_daily_eod
   2. Scrape NCCPL FIPI/LIPI participant flows       -> nccpl_fipi_lipi
   3. Scrape NDM negotiated block deals              -> psx_offmarket_deals
+                                                       + psx_offmarket_summary
   4. Scrape the DPS screener fundamentals           -> psx_fundamentals
   5. Backfill indicator history on the first run    -> psx_daily_eod
   6. Run the quant engine                           -> signals_computed
@@ -37,7 +38,10 @@ from pipeline.scrapers.psx_fundamentals import fetch_screener, fetch_sector_map
 from pipeline.scrapers.psx_financials import scrape_financials_for_universe
 from pipeline.scrapers.psx_futures import fetch_futures_contracts
 from pipeline.scrapers.psx_insider import fetch_insider_trades
-from pipeline.scrapers.psx_offmarket import fetch_offmarket_deals
+from pipeline.scrapers.psx_offmarket import (
+    fetch_ndm_summary_row,
+    fetch_offmarket_deals,
+)
 from pipeline.scrapers.macro_indicators import collect_macro_rows
 
 LOGGER = logging.getLogger("pipeline")
@@ -354,16 +358,36 @@ def run(argv: list[str] | None = None) -> int:
     # ------------------------------------------------------------------ #
     # 3. NDM negotiated block deals (needs today's closes for valuation) #
     # ------------------------------------------------------------------ #
-    if not args.skip_offmarket and eod_records:
+    if not args.skip_offmarket:
         with _step("NDM off-market deals"):
-            close_prices = {
-                r["ticker"]: float(r["close_price"])
-                for r in eod_records
-                if r.get("close_price")
-            }
-            deals = fetch_offmarket_deals(
-                trade_date, close_prices=close_prices, min_volume=min_block_volume
-            )
+            # Session aggregate first: the certified NDM facts PSX still
+            # publishes (trades / volume / turnover) land in
+            # psx_offmarket_summary even when no per-symbol rows or stored
+            # closes exist. One panel GET feeds both this and the deals
+            # fetch below (snapshot memoized per process).
+            summary = fetch_ndm_summary_row(trade_date)
+            if summary is not None:
+                written = db.upsert_records(
+                    "psx_offmarket_summary", [summary], on_conflict="trade_date"
+                )
+                LOGGER.info("psx_offmarket_summary: %d row written", written)
+
+            if eod_records:
+                close_prices = {
+                    r["ticker"]: float(r["close_price"])
+                    for r in eod_records
+                    if r.get("close_price")
+                }
+                deals = fetch_offmarket_deals(
+                    trade_date,
+                    close_prices=close_prices,
+                    min_volume=min_block_volume,
+                )
+            else:
+                LOGGER.info(
+                    "NDM per-deal valuation skipped (no stored closes this session)"
+                )
+                deals = []
             if deals:
                 # The table has no unique key; drop tickers already recorded
                 # for this date so workflow re-runs never duplicate blocks.

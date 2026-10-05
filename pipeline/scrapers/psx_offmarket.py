@@ -1,43 +1,53 @@
 """PSX negotiated / off-market (NDM) deals scraper.
 
-OUTAGE DIAGNOSIS (verified live 2026-10-01, table stuck at 2026-09-22):
-The module previously fetched
-    https://dps.psx.com.pk/trading-board/NDM/NDM
-Two independent failures break ingestion:
+SOURCE AUDIT (verified live 2026-10-06, per-symbol feed gone):
 
-1.  WRONG ROUTE. DPS's own front-end bundle (/static/script.js?v=1.76)
-    calls ``/trading-board/{tab}/{board}`` where the board selector
-    defaults to ``main`` - i.e. the live NDM URL is
-    /trading-board/NDM/main.  The legacy /NDM/NDM pair is gone.
-2.  WAF GATING. Every DPS data route (both NDM pairs, REG, MTS,
-    market-watch, per-symbol timeseries) returns 403 with an EMPTY body
-    to non-browser clients, while DPS content pages (/, /trading-panel)
-    still serve 200.  Verified not header-related: the full browser
-    header set AND curl_cffi chrome/safari/firefox TLS impersonation all
-    still get 403-empty - i.e. the gate is IP-class / edge-level, the
-    same treatment that killed the EOD market-watch scraper and the
-    /historical POST (reCAPTCHA-walled).  Public mirrors of the NDM
-    board are dead (ksestocks.com is a blog, scstrade has no NDM page,
-    jamapunji unreachable) and PSX's official daily PDF carries only
-    breadth + indices, no per-deal rows.  The DPS announcements pages
-    publish no NDM deals notice.
+1.  ROUTE RETIREMENT. The per-symbol NDM board routes
+    (/trading-board/NDM/main, legacy /trading-board/NDM/NDM) return 404
+    with the DPS HTML error shell even through WAF-passing egress
+    (ScraperAPI) - PSX has retired the /trading-board/ routes. The
+    site's own front-end bundle (script.js v1.76) still calls them, so
+    real browser users get a dead NDM tab as well.
+
+2.  WHAT REMAINS PUBLIC. /trading-panel (WAF-free, server-rendered)
+    now carries per-MARKET aggregate panels. Its NDM panel certifies
+    the session facts (e.g. "Negotiable Deal | Closed | 61 trades |
+    42,545,272 shares | PKR 1,324,533,454") but publishes no per-symbol
+    rows. NDM therefore still trades - only the per-deal breakdown is
+    no longer published.
+
+3.  EXHAUSTED SURFACES. data.psx.com.pk and api/mobile/app/services
+    subdomains do not resolve; www.psx.com.pk has no NDM product
+    (sitemap + page audit); scstrade/scstrada/ksestocks have no NDM
+    pages; the Wayback Machine holds zero NDM board captures; the
+    official daily PDF carries only breadth + indices.
+
+4.  LAST UNVERIFIED SURFACE. PSX's own JS populates the dps
+    /daily-downloads table via POST {date: YYYY-MM-DD} - a per-session
+    file listing that is edge-gated from this runner's IP and reachable
+    only through ScraperAPI egress. ``--probe-downloads DATE`` lists
+    what PSX serves there, so an NDM deals file (if one is published)
+    can be discovered and given a parser next.
 
 This scraper therefore:
-1.  walks a source chain - the corrected /trading-board/NDM/main first,
-    then the legacy pair - over an EGRESS chain: with SCRAPER_API_KEY set
-    each URL routes through ScraperAPI first (its IP pool sits outside the
-    edge gate that 403-blocks the runner's IP class), falling back to
-    direct egress if the proxy tier fails; without a key, direct only,
-2.  classifies each failure with HTTP-status diagnostics (403-empty =
-    WAF block, 404 + ~47 kB HTML = route gone) so outages self-diagnose
-    in CI logs instead of surfacing as a silently empty table,
-3.  parses whichever board table appears, tolerantly: the canonical
-    ``#tradingBoardTable`` or any table whose header carries SYMBOL and
-    VOLUME, with the ticker read from the ``a.tbl__symbol`` link or the
-    first symbol-shaped cell and volume taken from the last numeric
-    column (survives column reorder),
-4.  returns [] with a logged explanation when every source is blocked -
-    the NDM tape stays honestly idle, never fabricated.
+1.  walks a tier chain - /trading-panel first (certified aggregate, plus
+    per-symbol rows automatically if PSX ever re-adds board rows inline),
+    then the legacy board pairs for auto-recovery - over an EGRESS chain
+    (ScraperAPI first when SCRAPER_API_KEY is set, direct as fallback;
+    without a key, direct only),
+2.  distinguishes three honest outcomes: per-symbol rows found; session
+    genuinely empty (aggregate certifies 0 trades); or per-symbol feed
+    retired while the market demonstrably traded (SourceRetiredError
+    carrying the certified aggregate),
+3.  parses board tables tolerantly: the canonical ``#tradingBoardTable``
+    or any table whose header carries SYMBOL and VOLUME, with the ticker
+    read from the ``a.tbl__symbol`` link or the first symbol-shaped cell
+    and volume taken from the last numeric column (survives reorder),
+4.  returns [] with a logged explanation when no per-deal rows can be
+    certified - the NDM tape stays honestly idle, never fabricated,
+5.  persists the certified session aggregate (trades / volume / turnover
+    value) to psx_offmarket_summary via fetch_ndm_summary_row() - the
+    headline the NDM tape keeps when per-symbol rows are gone.
 
 Row shape matches psx_offmarket_deals (schema.sql):
     trade_date date, ticker varchar(20), quantity bigint,
@@ -70,6 +80,8 @@ from pipeline.http_client import (
     ajax_headers,
     http_get,
     http_get_via_scraperapi,
+    http_post,
+    http_post_via_scraperapi,
     scraperapi_key,
 )
 from pipeline.parsing import to_int
@@ -93,29 +105,41 @@ class SourceBlockedError(RuntimeError):
     """All NDM sources unreachable (WAF/dead routes) - board not served."""
 
 
+class SourceRetiredError(SourceBlockedError):
+    """Per-symbol NDM routes are retired while the market demonstrably
+    traded (certified via the /trading-panel aggregate). Distinct from a
+    transport block so CI logs name the real condition."""
+
+
 # ---------------------------------------------------------------------------
 # Fetch tier
 # ---------------------------------------------------------------------------
 
 
-def _fetch_board_html(url: str) -> str:
-    """GET one board URL, translating HTTP outcomes into diagnostics.
-
-    Egress chain: when SCRAPER_API_KEY is set the request routes through
-    ScraperAPI first (its IP pool is outside the DPS edge gate that
-    403-blocks this runner), then direct as the fallback; without a key
-    only direct egress is attempted. Outcome diagnostics are identical
-    for both paths so outages self-diagnose regardless of egress.
-    """
+def _egress_attempts_get(url: str) -> list[tuple[str, Callable[[], Any]]]:
+    """Egress chain for one GET: ScraperAPI proxy first (when keyed), direct
+    second. The proxy tier exists because DPS edge-gates data routes by IP
+    class; the panel page itself is WAF-free but shares the same chain for
+    uniform diagnostics."""
     attempts: list[tuple[str, Callable[[], Any]]] = []
     if scraperapi_key():
         attempts.append(("scraperapi", lambda: http_get_via_scraperapi(url)))
     attempts.append(
         ("direct", lambda: http_get(url, headers=ajax_headers(TRADING_PANEL_URL)))
     )
+    return attempts
 
+
+def _http_get_with_egress(url: str) -> tuple[str, str]:
+    """Run the GET egress chain; return (tier, body).
+
+    Body-classification diagnostics (403-empty = WAF, 404+HTML = retired
+    route) are logged per failed tier; raises SourceBlockedError only when
+    no tier yields a usable body. Degraded-but-recovered tiers are logged
+    as warnings so outages stay visible in CI.
+    """
     failures: list[str] = []
-    for tier, send in attempts:
+    for tier, send in _egress_attempts_get(url):
         try:
             response = send()
         except Exception as exc:  # noqa: BLE001 - degrade to next egress tier
@@ -135,16 +159,127 @@ def _fetch_board_html(url: str) -> str:
         if response.status_code >= 400:
             failures.append(f"{tier}: {url} -> HTTP {response.status_code}")
             continue
-        if "<table" not in body.lower():
-            failures.append(f"{tier}: {url} -> 200 but no <table> in payload")
-            continue
         if failures:
             for failure in failures:
-                LOGGER.warning("NDM egress tier degraded before '%s' recovered: %s", tier, failure)
-        return body
+                LOGGER.warning(
+                    "NDM egress tier degraded before '%s' recovered: %s", tier, failure
+                )
+        return tier, body
     raise SourceBlockedError(
         " | ".join(failures) if failures else f"{url}: no egress path configured"
     )
+
+
+def _fetch_board_html(url: str) -> str:
+    """GET one board URL over the egress chain, with table diagnostics."""
+    tier, body = _http_get_with_egress(url)
+    if "<table" not in body.lower():
+        raise SourceBlockedError(f"{tier}: {url} -> 200 but no <table> in payload")
+    return body
+
+
+def _fetch_panel_html() -> str:
+    """GET /trading-panel - the one DPS page still served WAF-free.
+
+    Server-renders per-market aggregate panels (REG/BNB/DFC/.../NDM/MTS).
+    Used as the certified NDM aggregate source AND as a per-symbol source
+    should PSX re-add board rows inline.
+    """
+    tier, body = _http_get_with_egress(TRADING_PANEL_URL)
+    if "tabs__panel" not in body:
+        raise SourceBlockedError(
+            f"{tier}: {TRADING_PANEL_URL} -> 200 but no tabs__panel markup"
+        )
+    return body
+
+
+def _extract_ndm_panel(html: str) -> Optional[str]:
+    """The NDM tabs__panel div (server-rendered), or None when absent."""
+    soup = BeautifulSoup(html, "html.parser")
+    panel = soup.find("div", class_="tabs__panel", attrs={"data-name": "NDM"})
+    if isinstance(panel, Tag):
+        return str(panel)
+    return None
+
+
+def _parse_ndm_aggregate(html: str) -> Optional[dict]:
+    """Certified NDM market aggregate from /trading-panel.
+
+    Row shape: Market | State | Trades | Volume | Value. The aggregate row
+    is identified by its market label ("Negotiable Deal"), never by row
+    position, so added per-symbol rows cannot be misread as the aggregate.
+    Returns None when the panel/row cannot be parsed (layout change).
+    """
+    panel_html = _extract_ndm_panel(html)
+    if panel_html is None:
+        return None
+    soup = BeautifulSoup(panel_html, "html.parser")
+    tbody = soup.find("tbody")
+    rows = tbody.find_all("tr") if isinstance(tbody, Tag) else []
+    for tr in rows:
+        if not isinstance(tr, Tag):
+            continue
+        cells = [td.get_text(" ", strip=True) for td in tr.find_all("td")]
+        if len(cells) >= 5 and "negotia" in cells[0].lower():
+            return {
+                "market": cells[0],
+                "state": cells[1],
+                "trades": to_int(cells[2]) or 0,
+                "volume": to_int(cells[3]) or 0,
+                "value": to_int(cells[4]) or 0,
+            }
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Panel snapshot memo (one /trading-panel GET per process)
+# ---------------------------------------------------------------------------
+
+_PANEL_SNAPSHOT: dict[str, Any] = {}
+
+
+def _load_panel_snapshot() -> tuple[Optional[str], Optional[dict]]:
+    """Fetch /trading-panel ONCE per process; memoize (html, aggregate).
+
+    fetch_ndm_rows() and fetch_ndm_aggregate() both need the panel; the
+    memo keeps the daily pipeline at one GET regardless of call order.
+    """
+    if _PANEL_SNAPSHOT.get("done"):
+        return _PANEL_SNAPSHOT.get("panel"), _PANEL_SNAPSHOT.get("aggregate")
+    panel: Optional[str] = None
+    aggregate: Optional[dict] = None
+    try:
+        panel = _fetch_panel_html()
+    except SourceBlockedError as exc:
+        LOGGER.warning("NDM panel tier failed: %s", exc)
+    else:
+        aggregate = _parse_ndm_aggregate(panel)
+    _PANEL_SNAPSHOT.update(done=True, panel=panel, aggregate=aggregate)
+    return panel, aggregate
+
+
+def fetch_ndm_aggregate() -> Optional[dict]:
+    """Certified NDM session aggregate from /trading-panel (or None).
+
+    The one NDM fact set PSX still publishes after retiring the per-deal
+    board: {"market", "state", "trades", "volume", "value"}. Returns None
+    when the panel is unreachable or its NDM row cannot be parsed - the
+    summary table then honestly skips the session (no zeros guessed).
+    """
+    _, aggregate = _load_panel_snapshot()
+    if aggregate is None:
+        LOGGER.warning(
+            "NDM aggregate unavailable (panel tier down or NDM row unparseable)"
+        )
+    else:
+        LOGGER.info(
+            "NDM aggregate (certified): %d trades | %s shares | PKR %s | state=%s",
+            aggregate["trades"],
+            f"{aggregate['volume']:,}",
+            f"{aggregate['value']:,}",
+            aggregate["state"],
+        )
+    return aggregate
 
 
 # ---------------------------------------------------------------------------
@@ -238,11 +373,19 @@ def _parse_ndm_board(html: str) -> list[dict]:
 
 
 def fetch_ndm_rows() -> list[dict]:
-    """Fetch the NDM board rows via the source chain.
+    """Fetch NDM per-symbol rows via the tier chain (audit: 2026-10-06).
 
-    Returns [] only when a source IS reachable but the board is genuinely
-    empty; raises SourceBlockedError when every tier is unreachable so
-    the caller can distinguish "no deals today" from "feed is down".
+    Tier 0: /trading-panel - server-rendered aggregates; yields per-symbol
+            rows automatically if PSX re-adds board rows inline.
+    Tier 1: legacy /trading-board/NDM/* pairs - retired server-side, kept
+            for auto-recovery if PSX re-enables them.
+
+    Decision tree:
+      - per-symbol rows found on any tier -> returned
+      - aggregate certifies 0 trades      -> [] (genuine empty session)
+      - a board IS reachable but empty    -> [] (genuine empty board)
+      - aggregate proves trading but no per-symbol source -> SourceRetiredError
+      - everything unreachable            -> SourceBlockedError
     """
     LOGGER.info(
         "NDM egress: %s",
@@ -250,7 +393,34 @@ def fetch_ndm_rows() -> list[dict]:
         if scraperapi_key()
         else "direct only (SCRAPER_API_KEY unset)",
     )
+
+    # Tier 0: trading panel (WAF-free, server-rendered); snapshot memoized
+    # per process so fetch_ndm_aggregate()/fetch_ndm_summary_row() reuse it.
+    panel, aggregate = _load_panel_snapshot()
+    if panel is not None:
+        panel_html = _extract_ndm_panel(panel)
+        rows = _parse_ndm_board(panel_html) if panel_html else []
+        if rows:
+            LOGGER.info(
+                "NDM per-symbol rows sourced from /trading-panel (%d symbols)",
+                len(rows),
+            )
+            return rows
+        if aggregate is None:
+            LOGGER.warning(
+                "trading panel reachable but NDM panel not parsed (layout change?)"
+            )
+        elif aggregate["trades"] == 0:
+            LOGGER.info(
+                "NDM session genuinely empty - /trading-panel certifies 0 trades "
+                "(%s)",
+                aggregate["state"],
+            )
+            return []
+
+    # Tier 1: legacy board routes (retired 2026-10; kept for auto-recovery)
     failures: list[str] = []
+    reachable_empty = False
     for url in NDM_BOARD_URLS:
         try:
             html = _fetch_board_html(url)
@@ -260,17 +430,34 @@ def fetch_ndm_rows() -> list[dict]:
         rows = _parse_ndm_board(html)
         if rows:
             return rows
-        # Empty table from a reachable source: treat as a real empty board
-        # but remember the tier in case later tiers disagree.
+        # Empty table from a reachable source: treat as a real empty board.
         failures.append(f"{url} -> 200 with an empty/unparseable board table")
-    if failures:
+        reachable_empty = True
+
+    if reachable_empty:
         for failure in failures:
-            LOGGER.error("NDM source tier failed: %s", failure)
-        raise SourceBlockedError(
-            f"all {len(NDM_BOARD_URLS)} NDM board tiers failed "
-            "(WAF-gated or retired) - NDM tape stays idle this session"
+            LOGGER.warning("NDM board tier: %s", failure)
+        LOGGER.warning(
+            "a board source IS reachable but lists zero symbols - "
+            "treating as a genuinely empty NDM board"
         )
-    return []
+        return []
+
+    for failure in failures:
+        LOGGER.error("NDM source tier failed: %s", failure)
+    if aggregate and aggregate["trades"] > 0:
+        raise SourceRetiredError(
+            "per-symbol NDM board routes are RETIRED and no public per-symbol "
+            "source exists - /trading-panel certifies the market TRADED "
+            f"{aggregate['trades']} deals / {aggregate['volume']:,} shares / "
+            f"PKR {aggregate['value']:,} this session (state: {aggregate['state']}); "
+            "per-deal rows cannot be recovered from any public surface"
+        )
+    raise SourceBlockedError(
+        f"all {len(NDM_BOARD_URLS)} NDM board tiers failed "
+        "(WAF-gated or retired) and the trading-panel aggregate was unreadable "
+        "- NDM tape stays idle this session"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -325,6 +512,11 @@ def fetch_offmarket_deals(
     """
     try:
         rows = fetch_ndm_rows()
+    except SourceRetiredError as exc:
+        LOGGER.error(
+            "off-market deals %s: PER-SYMBOL FEED RETIRED - %s", trade_date, exc
+        )
+        return []
     except SourceBlockedError as exc:
         LOGGER.error("off-market deals %s: feed unavailable - %s", trade_date, exc)
         return []
@@ -337,6 +529,45 @@ def fetch_offmarket_deals(
         sum(1 for d in deals if d["rate"] is not None),
     )
     return deals
+
+
+def build_summary_row(aggregate: dict, trade_date: date) -> dict:
+    """psx_offmarket_summary row from the certified aggregate (pure).
+
+    Schema (schema.sql 3c): trade_date PK, trades integer, volume bigint,
+    value numeric(15,2), state, source. The aggregate is already parsed
+    to ints, so this is a straight shape conversion - no invented numbers.
+    """
+    return {
+        "trade_date": trade_date.isoformat(),
+        "trades": int(aggregate.get("trades") or 0),
+        "volume": int(aggregate.get("volume") or 0),
+        "value": (
+            float(aggregate["value"]) if aggregate.get("value") is not None else None
+        ),
+        "state": (str(aggregate.get("state") or "").strip()[:30]) or None,
+        "source": "trading-panel",
+    }
+
+
+def fetch_ndm_summary_row(trade_date: date) -> Optional[dict]:
+    """Pipeline entry: the certified NDM aggregate as a summary row, or None.
+
+    Reuses the panel GET already performed by fetch_offmarket_deals (the
+    snapshot is memoized per process) - one fetch feeds both tables. None
+    means the panel tier was down or its NDM row unparseable; callers skip
+    the summary rather than write a zeroed guess.
+    """
+    aggregate = fetch_ndm_aggregate()
+    if aggregate is None:
+        LOGGER.error(
+            "off-market summary %s: aggregate unreadable - summary row skipped",
+            trade_date,
+        )
+        return None
+    row = build_summary_row(aggregate, trade_date)
+    LOGGER.info("off-market summary %s: %s", trade_date, row)
+    return row
 
 
 # ---------------------------------------------------------------------------
@@ -409,6 +640,44 @@ def _insert_deals(deals: list[dict], trade_date: date) -> int:
     return len(fresh)
 
 
+def _upsert_summary(trade_date: date) -> None:
+    """Persist the certified NDM aggregate to psx_offmarket_summary.
+
+    Best-effort: the panel snapshot is memoized (no second GET), and a
+    missing table (migration 006 not yet applied) or any upsert failure
+    logs a warning and moves on - the deals write is never blocked by the
+    summary.
+    """
+    from pipeline import db as _db
+
+    row = fetch_ndm_summary_row(trade_date)
+    if row is None:
+        LOGGER.warning(
+            "psx_offmarket_summary: aggregate unavailable for %s - skipped",
+            trade_date,
+        )
+        return
+    try:
+        written = _db.upsert_records(
+            "psx_offmarket_summary", [row], on_conflict="trade_date"
+        )
+    except Exception as exc:  # noqa: BLE001 - summary is secondary to deals
+        LOGGER.warning(
+            "psx_offmarket_summary: upsert failed for %s (%s) - deals kept",
+            trade_date,
+            exc,
+        )
+        return
+    if written:
+        LOGGER.info("psx_offmarket_summary: row upserted for %s", trade_date)
+    else:
+        LOGGER.warning(
+            "psx_offmarket_summary: upsert reported 0 rows for %s - table "
+            "missing (run migration 006) or chunk failed; deals unaffected",
+            trade_date,
+        )
+
+
 def _parse_date_arg(raw: str) -> date:
     try:
         return date.fromisoformat(raw)
@@ -416,11 +685,96 @@ def _parse_date_arg(raw: str) -> date:
         raise SystemExit(f"invalid --date {raw!r}: expected YYYY-MM-DD") from exc
 
 
+def _probe_daily_downloads(raw_date: str) -> int:
+    """POST /daily-downloads {date} over the egress chain, list file links.
+
+    PSX's own front-end (script.js getDailyTable) populates the daily
+    downloads table exactly this way - the last unverified surface that
+    may carry a per-session NDM deals file (edge-gated without egress).
+    Exit 0 = listing retrieved (links logged), 2 = unreachable.
+    """
+    target = f"{BASE_URL}/daily-downloads"
+    attempts: list[tuple[str, Callable[[], Any]]] = []
+    if scraperapi_key():
+        attempts.append(
+            (
+                "scraperapi",
+                lambda: http_post_via_scraperapi(target, data={"date": raw_date}),
+            )
+        )
+    attempts.append(
+        (
+            "direct",
+            lambda: http_post(
+                target,
+                data={"date": raw_date},
+                headers=ajax_headers(TRADING_PANEL_URL),
+            ),
+        )
+    )
+
+    failures: list[str] = []
+    body = ""
+    tier_used = "direct"
+    for tier, send in attempts:
+        try:
+            response = send()
+        except Exception as exc:  # noqa: BLE001 - degrade to next egress tier
+            failures.append(f"{tier}: unreachable: {exc}")
+            continue
+        body = response.text or ""
+        if response.status_code == 403 and not body.strip():
+            failures.append(f"{tier}: 403 EMPTY body (edge WAF block)")
+            continue
+        if response.status_code >= 400:
+            failures.append(f"{tier}: HTTP {response.status_code}")
+            continue
+        tier_used = tier
+        break
+
+    if not body:
+        for failure in failures:
+            LOGGER.error("daily-downloads probe tier failed: %s", failure)
+        return 2
+
+    links = re.findall(
+        r'href="([^"]+\.(?:pdf|xlsx?|csv|zip|txt)[^"]*)"[^>]*>([^<]{0,90})',
+        body,
+        re.I,
+    )
+    LOGGER.info(
+        "daily-downloads %s (tier=%s): %d file links",
+        raw_date,
+        tier_used,
+        len(links),
+    )
+    ndm_hits = 0
+    for file_url, label in links:
+        marker = ""
+        if re.search(r"ndm|negotiat|off.?market|deal", f"{file_url} {label}", re.I):
+            marker = "  <-- NDM CANDIDATE"
+            ndm_hits += 1
+        LOGGER.info("   %s | %s%s", file_url[:110], label.strip()[:70], marker)
+    if not links:
+        LOGGER.warning(
+            "listing retrieved but zero file links - empty session or "
+            "listing layout change; first 500 chars follow"
+        )
+        LOGGER.warning("snippet: %s", body[:500])
+    elif not ndm_hits:
+        LOGGER.info(
+            "no NDM/negotiated file name matched - review the links above "
+            "for renamed NDM products before concluding absence"
+        )
+    return 0
+
+
 def main(argv: Optional[list[str]] = None) -> int:
     """Backfill CLI.
 
     python -m pipeline.scrapers.psx_offmarket --dry-run
     python -m pipeline.scrapers.psx_offmarket --date 2026-09-30
+    python -m pipeline.scrapers.psx_offmarket --probe-downloads 2026-10-05
     """
     import argparse
 
@@ -456,16 +810,32 @@ def main(argv: Optional[list[str]] = None) -> int:
         help="write during 09:30-16:30 PKT even though the board is "
         "still accumulating the live session",
     )
+    parser.add_argument(
+        "--probe-downloads",
+        metavar="YYYY-MM-DD",
+        help="probe the edge-gated dps /daily-downloads listing for a "
+        "session date (needs SCRAPER_API_KEY in CI) and list its files - "
+        "no DB writes, pure source discovery",
+    )
     args = parser.parse_args(argv)
+
+    if args.probe_downloads:
+        return _probe_daily_downloads(args.probe_downloads)
 
     requested = _parse_date_arg(args.date) if args.date else None
     now = datetime.now(PKT)
 
     try:
         rows = fetch_ndm_rows()
+    except SourceRetiredError as exc:
+        LOGGER.error("NDM PER-SYMBOL FEED RETIRED: %s", exc)
+        return 4
     except SourceBlockedError as exc:
         LOGGER.error("NDM FEED UNAVAILABLE: %s", exc)
         return 2
+
+    # Certified aggregate: memoized by the rows fetch above - free here.
+    fetch_ndm_aggregate()
 
     if not rows:
         LOGGER.warning(
@@ -536,6 +906,12 @@ def main(argv: Optional[list[str]] = None) -> int:
         for row in deals[:5]:
             LOGGER.info("  %s", row)
         LOGGER.info("DRY RUN - %d rows validated", len(deals))
+        aggregate = fetch_ndm_aggregate()
+        if aggregate:
+            LOGGER.info(
+                "DRY RUN - summary row would be: %s",
+                build_summary_row(aggregate, session),
+            )
         return 0
 
     closes = _load_closes(session)
@@ -551,6 +927,7 @@ def main(argv: Optional[list[str]] = None) -> int:
             deal["value"] = round(rate * deal["quantity"], 2) if rate is not None else None
 
     written = _insert_deals(deals, session)
+    _upsert_summary(session)
     return 0 if written >= 0 else 1
 
 

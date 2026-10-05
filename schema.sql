@@ -86,6 +86,21 @@ create table if not exists public.psx_futures_eod (
     constraint psx_futures_eod_date_ticker_key unique (trade_date, ticker)
 );
 
+-- ---------------------------------------------------------------------------
+-- 3c. NDM session aggregates. PSX retired the per-deal /trading-board/
+--     routes (verified 404 through WAF-passing egress); /trading-panel
+--     still certifies the market-level facts. One row per session keeps
+--     the NDM tape's headline (trades / volume / turnover) alive.
+-- ---------------------------------------------------------------------------
+create table if not exists public.psx_offmarket_summary (
+    trade_date date          primary key,
+    trades     integer       not null default 0,
+    volume     bigint        not null default 0,
+    value      numeric(15, 2),
+    state      varchar(30),
+    source     varchar(40)   not null default 'trading-panel'
+);
+
 -- Installed tables created before the OI column are migrated forward here.
 alter table public.psx_futures_eod
     add column if not exists oi_shares bigint;
@@ -483,6 +498,7 @@ create index if not exists idx_macro_pred
 alter table public.psx_daily_eod       enable row level security;
 alter table public.nccpl_fipi_lipi     enable row level security;
 alter table public.psx_offmarket_deals enable row level security;
+alter table public.psx_offmarket_summary enable row level security;
 alter table public.psx_futures_eod     enable row level security;
 alter table public.psx_insider_trades  enable row level security;
 alter table public.nccpl_mts_leverage  enable row level security;
@@ -501,6 +517,7 @@ alter table public.psx_macro_prediction      enable row level security;
 drop policy if exists "public read psx_daily_eod"       on public.psx_daily_eod;
 drop policy if exists "public read nccpl_fipi_lipi"     on public.nccpl_fipi_lipi;
 drop policy if exists "public read psx_offmarket_deals" on public.psx_offmarket_deals;
+drop policy if exists "public read psx_offmarket_summary" on public.psx_offmarket_summary;
 drop policy if exists "public read psx_futures_eod"     on public.psx_futures_eod;
 drop policy if exists "public read psx_insider_trades"  on public.psx_insider_trades;
 drop policy if exists "public read nccpl_mts_leverage"  on public.nccpl_mts_leverage;
@@ -519,6 +536,8 @@ create policy "public read nccpl_fipi_lipi"
     on public.nccpl_fipi_lipi for select using (true);
 create policy "public read psx_offmarket_deals"
     on public.psx_offmarket_deals for select using (true);
+create policy "public read psx_offmarket_summary"
+    on public.psx_offmarket_summary for select using (true);
 create policy "public read psx_futures_eod"
     on public.psx_futures_eod for select using (true);
 create policy "public read psx_insider_trades"

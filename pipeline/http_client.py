@@ -223,3 +223,37 @@ def http_get_via_scraperapi(
         len(response.content),
     )
     return response
+
+
+def http_post_via_scraperapi(
+    target_url: str,
+    *,
+    data: Any = None,
+    json_body: Any = None,
+    timeout: float = SCRAPERAPI_TIMEOUT,
+) -> requests.Response:
+    """Single-attempt POST through ScraperAPI egress (requires SCRAPER_API_KEY).
+
+    ScraperAPI forwards the HTTP method and body to the target. Same
+    discipline as http_get_via_scraperapi: no retries (each burns credits),
+    no raise_for_status (callers classify the target-side status), and
+    sanitized transport errors (the api_key is part of the request URL and
+    must never leak into exception strings).
+    """
+    proxied_url = scraperapi_proxied_url(target_url)
+    try:
+        response = SESSION.post(
+            proxied_url, data=data, json=json_body, timeout=timeout
+        )
+    except requests.RequestException as exc:
+        raise requests.RequestException(
+            f"ScraperAPI egress failed for {target_url}: "
+            f"{type(exc).__name__} (transport detail suppressed: carries api_key)"
+        ) from None
+    LOGGER.info(
+        "ScraperAPI POST %s -> HTTP %d (%d bytes)",
+        target_url,
+        response.status_code,
+        len(response.content),
+    )
+    return response
