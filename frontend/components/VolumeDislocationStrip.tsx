@@ -35,8 +35,8 @@ function Tag({
     <span
       className={`rounded-[2px] px-1.5 py-px font-mono text-[9px] font-bold uppercase tracking-widest ${
         kind === "gold"
-          ? "bg-[#d4a017] text-black"
-          : "bg-cyan-400 text-black"
+          ? "bg-warn text-obsidian"
+          : "bg-info text-obsidian"
       }`}
     >
       {text}

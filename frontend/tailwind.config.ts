@@ -3,18 +3,19 @@ import type { Config } from "tailwindcss";
 /**
  * PSX Quant Terminal — institutional design tokens.
  *
- * Palette contract (matte obsidian, zero glow):
- *   obsidian  #090A0C  root background
- *   panel     #111318  surface / panel tiling
- *   hairline  #1E222B  1px borders — the ONLY border color in the app
- *   hoverline #161922  interactive hover fill
- *   ink       #E6EDF3  primary active text
- *   muted     #848E9C  secondary labels (cold stainless)
- *   ghost     #484F58  ghost / inactive badges
- *   bull      #26A69A  smart accumulation (muted emerald; #00D084 accent)
- *   bear      #F23645  distribution / stop violation (brick red)
- *   warn      #E5A93C  transition / caution (amber gold)
- *   info      #388BFD  benchmark / system neutral (Refinitiv cyan)
+ * Palette contract (executive slate navy, machined hairlines):
+ *   obsidian  #0B0F19  root background (deep slate navy)
+ *   panel     #1E293B  surface / panel tiling (refined slate)
+ *   hairline  #334155  1px borders — the ONLY border color in the app
+ *   hoverline #16202F  interactive hover fill (recessed vs panel)
+ *   ink       #F8FAFC  primary active text (off-white)
+ *   muted     #CBD5E1  secondary labels / table data (slate-300)
+ *   ghost     #64748B  ghost / inactive badges (slate-500)
+ *   bull      #10B981  smart accumulation (emerald-500)
+ *   bullbright #34D399 bright emerald accent (emerald-400)
+ *   bear      #EF4444  distribution / stop violation (crimson)
+ *   warn      #F59E0B  transition / caution (amber-500)
+ *   info      #38BDF8  accent / active states (electric sky)
  */
 const config: Config = {
   content: [
@@ -25,18 +26,18 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        obsidian: "#090A0C",
-        panel: "#111318",
-        hairline: "#1E222B",
-        hoverline: "#161922",
-        ink: "#E6EDF3",
-        muted: "#848E9C",
-        ghost: "#484F58",
-        bull: "#26A69A",
-        bullbright: "#00D084",
-        bear: "#F23645",
-        warn: "#E5A93C",
-        info: "#388BFD",
+        obsidian: "#0B0F19",
+        panel: "#1E293B",
+        hairline: "#334155",
+        hoverline: "#16202F",
+        ink: "#F8FAFC",
+        muted: "#CBD5E1",
+        ghost: "#64748B",
+        bull: "#10B981",
+        bullbright: "#34D399",
+        bear: "#EF4444",
+        warn: "#F59E0B",
+        info: "#38BDF8",
       },
       fontFamily: {
         mono: [

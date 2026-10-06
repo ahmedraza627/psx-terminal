@@ -13,7 +13,7 @@
     -webkit-tap-highlight-color: transparent;
   }
   ::selection {
-    background: rgba(56, 139, 253, 0.28);
+    background: rgba(56, 189, 248, 0.28);
   }
 }
 
@@ -24,14 +24,14 @@
   /* Thin machined scrollbars — terminal chrome, not browser chrome */
   .scroll-thin {
     scrollbar-width: thin;
-    scrollbar-color: #1e222b transparent;
+    scrollbar-color: #334155 transparent;
   }
   .scroll-thin::-webkit-scrollbar {
     height: 6px;
     width: 6px;
   }
   .scroll-thin::-webkit-scrollbar-thumb {
-    background: #1e222b;
+    background: #334155;
     border-radius: 0;
   }
   .scroll-thin::-webkit-scrollbar-track {
@@ -66,8 +66,8 @@
     position: sticky;
     left: 0;
     z-index: 10;
-    background-color: #090a0c;
-    box-shadow: 1px 0 0 0 #1e222b;
+    background-color: #0b0f19;
+    box-shadow: 1px 0 0 0 #334155;
   }
   /* Header-cell variant: one step above body pins so the corner cell wins
      diagonal scrolls. bg-panel fill for bg-panel table heads. */
@@ -75,26 +75,26 @@
     position: sticky;
     left: 0;
     z-index: 20;
-    background-color: #111318;
-    box-shadow: 1px 0 0 0 #1e222b;
+    background-color: #1e293b;
+    box-shadow: 1px 0 0 0 #334155;
   }
   /* Header-cell variant for DataTable's obsidian heads. */
   .sticky-left-head {
     position: sticky;
     left: 0;
     z-index: 20;
-    background-color: #090a0c;
-    box-shadow: 1px 0 0 0 #1e222b;
+    background-color: #0b0f19;
+    box-shadow: 1px 0 0 0 #334155;
   }
 }
 
 @keyframes whale-pulse {
   0%,
   100% {
-    background-color: rgba(38, 166, 154, 0.06);
+    background-color: rgba(16, 185, 129, 0.06);
   }
   50% {
-    background-color: rgba(38, 166, 154, 0.16);
+    background-color: rgba(16, 185, 129, 0.16);
   }
 }
 

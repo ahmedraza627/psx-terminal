@@ -16,6 +16,7 @@ import type {
   NdmSummary,
   QuantRadarData,
   QuantSignal,
+  VolumeDislocationData,
 } from "@/lib/consoleQueries";
 
 // ---------------------------------------------------------------- //
@@ -29,7 +30,7 @@ function Panel({
   id,
   children,
 }: {
-  letter: "A" | "B" | "C" | "R";
+  letter: "A" | "B" | "C" | "R" | "V";
   title: string;
   meta?: string;
   id?: string;
@@ -681,6 +682,150 @@ export function QuantRadarPanel({
           })}
         </div>
       )}
+    </Panel>
+  );
+}
+
+// ---------------------------------------------------------------- //
+// PANEL V - Volume Breakouts: top turnover movers + dislocations.  //
+// (Derived strictly from the certified breadth set - no extra fetch.) //
+// ---------------------------------------------------------------- //
+
+export function VolumeBreakoutsPanel({
+  breadth,
+  dislocation,
+  id,
+}: {
+  breadth: BreadthData | null;
+  dislocation: VolumeDislocationData | null;
+  id?: string;
+}) {
+  // Top 12 by session turnover (close x volume, the certified product).
+  const movers = useMemo(() => {
+    if (breadth == null) return [];
+    return [...breadth.moves]
+      .filter((m) => (m.turnoverPkr ?? 0) > 0)
+      .sort((a, b) => (b.turnoverPkr ?? 0) - (a.turnoverPkr ?? 0))
+      .slice(0, 12);
+  }, [breadth]);
+
+  const disloc = dislocation?.names ?? [];
+
+  if (breadth == null) {
+    return (
+      <Panel id={id} letter="V" title="Volume Breakouts">
+        <Idle text="NO EOD SESSIONS STORED" />
+      </Panel>
+    );
+  }
+
+  return (
+    <Panel
+      id={id}
+      letter="V"
+      title="Volume Breakouts"
+      meta={`TOP TURNOVER · ${breadth.sessionDate}`}
+    >
+      <div className="grid grid-cols-1 gap-px bg-hairline xl:grid-cols-2">
+        <div className="bg-panel">
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr>
+                  <Th right={false}>Ticker</Th>
+                  <Th>Close</Th>
+                  <Th>Chg %</Th>
+                  <Th>Volume</Th>
+                  <Th>Turnover (PKR)</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {movers.length === 0 ? (
+                  <tr>
+                    <td colSpan={5}>
+                      <Idle text="NO CERTIFIED TURNOVER ROWS THIS SESSION" />
+                    </td>
+                  </tr>
+                ) : (
+                  movers.map((m) => (
+                    <tr key={m.ticker} className="hover:bg-hoverline">
+                      <Td right={false} bold>
+                        <TickerLink ticker={m.ticker} />
+                      </Td>
+                      <Td>{m.close == null ? "—" : m.close.toFixed(2)}</Td>
+                      <Td
+                        bold
+                        tone={
+                          m.changePct == null
+                            ? "text-ghost"
+                            : m.changePct > 0
+                              ? "text-bull"
+                              : m.changePct < 0
+                                ? "text-bear"
+                                : "text-muted"
+                        }
+                      >
+                        {fmtPct(m.changePct, 2)}
+                      </Td>
+                      <Td tone="text-muted">{fmtInt(m.volume)}</Td>
+                      <Td tone="text-info">
+                        {m.turnoverPkr == null
+                          ? "—"
+                          : `${(m.turnoverPkr / 1e6).toFixed(1)}M`}
+                      </Td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div className="bg-panel">
+          {disloc.length === 0 ? (
+            <Idle text="TOP 25 VOLUME RUNNERS STABLE — NO NEW DISLOCATIONS" />
+          ) : (
+            <div className="divide-y divide-hairline/60">
+              {disloc.map((n) => (
+                <div
+                  key={n.ticker}
+                  className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1 px-3 py-2"
+                >
+                  <span className="font-mono text-[12px] font-bold text-ink">
+                    <TickerLink ticker={n.ticker} />
+                  </span>
+                  <span className="font-mono text-[10px] tabular-nums text-muted">
+                    {`VOL ${n.volume == null ? "—" : fmtInt(n.volume)} · CHG ${
+                      n.changePct == null
+                        ? "—"
+                        : `${n.changePct > 0 ? "+" : ""}${n.changePct.toFixed(1)}%`
+                    }`}
+                  </span>
+                  {n.insiderBuy && (
+                    <span className="rounded-[2px] bg-warn/15 px-1.5 py-px font-mono text-[9px] font-bold uppercase tracking-widest text-warn ring-1 ring-warn/40">
+                      Insider Buy
+                    </span>
+                  )}
+                  {n.ndmAccumulation && (
+                    <span className="rounded-[2px] bg-info/15 px-1.5 py-px font-mono text-[9px] font-bold uppercase tracking-widest text-info ring-1 ring-info/40">
+                      NDM Accumulation
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <PanelFooter
+        text={
+          dislocation != null && dislocation.priorDate != null
+            ? `Dislocation set: new top-25 volume entrants, ${dislocation.sessionDate} vs ${dislocation.priorDate}`
+            : "Dislocation feed unavailable — top-turnover table above is the certified fact"
+        }
+        tone="text-ghost"
+      />
     </Panel>
   );
 }

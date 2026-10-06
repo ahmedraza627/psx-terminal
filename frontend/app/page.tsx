@@ -5,10 +5,14 @@
 // market state. No auth wall - anonymous visitors read the same certified
 // facts (migrations/005_public_read_access.sql grants anon SELECT).
 //
-// Panels: A) NCCPL flow matrix, B) NDM block tape, C) verified universe
-// breadth. Certified facts only - the machine displays, the human reads.
+// Layout: sticky executive TopNav (brand / status pill / four desk tabs /
+// session badge / quick search) over server-rendered sections. Tabs anchor-
+// jump - the page renders every section, so navigation costs zero client
+// data. Sections: RADAR (quant radar + breadth), FLOW (NCCPL matrix +
+// watchlist), BLOCKS (NDM tape), BREAKOUTS (volume movers + dislocations).
+// Certified facts only - the machine displays, the human reads.
 
-import ConsoleRefresh from "@/components/ConsoleRefresh";
+import TopNav from "@/components/TopNav";
 import DivergenceStrip from "@/components/DivergenceStrip";
 import VolumeDislocationStrip from "@/components/VolumeDislocationStrip";
 import WatchlistPanel from "@/components/WatchlistPanel";
@@ -17,6 +21,7 @@ import {
   FlowMatrixPanel,
   NdmTapePanel,
   QuantRadarPanel,
+  VolumeBreakoutsPanel,
 } from "@/components/ConsolePanels";
 import {
   fetchFlowMatrix,
@@ -35,6 +40,25 @@ import {
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+
+function Section({
+  id,
+  kicker,
+  children,
+}: {
+  id: string;
+  kicker: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section id={id} className="scroll-mt-28 space-y-2.5">
+      <p className="px-0.5 font-mono text-[9px] font-bold uppercase tracking-[0.28em] text-ghost">
+        {kicker}
+      </p>
+      {children}
+    </section>
+  );
+}
 
 export default async function HomePage() {
   const session = await fetchLatestEodSession();
@@ -72,66 +96,80 @@ export default async function HomePage() {
     ndmSummary != null ||
     (ndm ?? []).length > 0;
 
+  // Status pill: the certified NDM aggregate carries the exchange's own
+  // market state string ("Closed" etc). Absent state = CLOSED, never guessed.
+  const marketState: "ACTIVE" | "CLOSED" =
+    (ndmSummary?.state ?? "").toLowerCase().includes("open") ||
+    (ndmSummary?.state ?? "").toLowerCase().includes("active")
+      ? "ACTIVE"
+      : "CLOSED";
+
   return (
-    <main className="mx-auto min-h-dvh w-full max-w-[1600px] bg-obsidian px-2.5 pb-8 text-ink">
-      <header className="sticky top-0 z-20 border-b border-hairline bg-panel/95 backdrop-blur">
-        <div className="flex items-center justify-between gap-2 px-0.5 py-1.5">
-          <div className="flex items-center gap-2.5">
-            <h1 className="font-mono text-[13px] font-bold tracking-[0.18em] text-ink">
-              PSX<span className="text-info">·</span>DESK
-            </h1>
-            {sessionLabel && (
-              <span className="rounded-[2px] border border-hairline bg-obsidian px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-info">
-                SESSION {sessionLabel}
-                {breadth?.sessionDate == null ? " (EOD PENDING)" : ""}
-              </span>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="hidden font-mono text-[9px] uppercase tracking-[0.2em] text-ghost md:inline">
-              CERTIFIED PIPELINE DATA · NO SIGNALS GENERATED
-            </span>
-            <ConsoleRefresh syncing={false} />
-          </div>
-        </div>
-      </header>
+    <main className="mx-auto min-h-dvh w-full max-w-[1600px] bg-obsidian px-2.5 pb-10 text-ink">
+      <TopNav sessionLabel={sessionLabel} marketState={marketState} />
 
       {/* Factual smart-money divergence read, pinned below the chrome. */}
-      <div className="pt-2.5">
+      <div className="pt-3">
         <DivergenceStrip names={findIsolatedAccumulation(breadth, ndm)} />
       </div>
 
       {/* Volume dislocation: new top-25 inflows with insider/NDM footprints. */}
-      <VolumeDislocationStrip data={dislocation} />
+      <div className="mt-2">
+        <VolumeDislocationStrip data={dislocation} />
+      </div>
 
       {!hasAnyData ? (
         <p className="px-1 py-16 text-center font-mono text-[11px] uppercase tracking-[0.2em] text-ghost">
           NO PIPELINE DATA STORED - RUN THE SYNC PIPELINE
         </p>
       ) : (
-        <div className="space-y-2.5 pt-2.5">
-          <WatchlistPanel ndm={ndm} breadth={breadth} />
-          <FlowMatrixPanel data={flow} id="flow-matrix" />
-          <NdmTapePanel blocks={ndm} summary={ndmSummary} id="ndm-tape" />
-          <QuantRadarPanel data={quantRadar} id="quant-radar" />
-          <BreadthPanel
-            data={breadth}
-            id="universe-breadth"
-            accumTickers={(ndm ?? [])
-              .filter((b) => b.accumulation)
-              .map((b) => b.ticker)}
-            inst1dPkr={flow?.institutions1dPkr ?? null}
-          />
+        <div className="space-y-5 pt-4">
+          <Section id="radar" kicker="Overview · Quant Action Radar & Breadth">
+            <div className="grid grid-cols-1 gap-2.5 xl:grid-cols-2">
+              <QuantRadarPanel data={quantRadar} id="quant-radar" />
+              <BreadthPanel
+                data={breadth}
+                id="universe-breadth"
+                accumTickers={(ndm ?? [])
+                  .filter((b) => b.accumulation)
+                  .map((b) => b.ticker)}
+                inst1dPkr={flow?.institutions1dPkr ?? null}
+              />
+            </div>
+          </Section>
+
+          <Section id="flow" kicker="Institutional Flow · NCCPL FIPI/LIPI Matrix">
+            <div className="grid grid-cols-1 gap-2.5 xl:grid-cols-2">
+              <FlowMatrixPanel data={flow} id="flow-matrix" />
+              <WatchlistPanel ndm={ndm} breadth={breadth} />
+            </div>
+          </Section>
+
+          <Section id="blocks" kicker="Off-Market & Blocks · NDM Tape & Aggregates">
+            <NdmTapePanel blocks={ndm} summary={ndmSummary} id="ndm-tape" />
+          </Section>
+
+          <Section
+            id="breakouts"
+            kicker="Volume Breakouts · Top Movers & Anomalies"
+          >
+            <VolumeBreakoutsPanel
+              breadth={breadth}
+              dislocation={dislocation}
+              id="volume-breakouts"
+            />
+          </Section>
         </div>
       )}
 
-      <footer className="px-0.5 pt-2.5">
+      <footer className="mt-6 border-t border-hairline px-0.5 pt-2.5">
         <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-ghost">
-          {`FLOW ${flow?.asOfDate ?? "—"} · NDM ${ndmSummary?.tradeDate ?? ndm?.[0]?.tradeDate ?? "—"} · EOD ${breadth?.sessionDate ?? "—"} · ADV ${breadth?.advancers ?? "—"} / DEC ${breadth?.decliners ?? "—"}`}
+          {`FLOW ${flow?.asOfDate ?? "—"} · NDM ${ndmSummary?.tradeDate ?? ndm?.[0]?.tradeDate ?? "—"} · EOD ${breadth?.sessionDate ?? "—"} · ADV ${breadth?.advancers ?? "—"} / DEC ${breadth?.decliners ?? "—"} · QUANT ${quantRadar.sessionDate ?? "—"}`}
         </p>
-      <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-ghost">
-              QUANT {quantRadar.sessionDate ?? "—"}
-            </p>
+        <p className="pt-1 font-mono text-[9px] uppercase tracking-[0.18em] text-ghost/70">
+          CERTIFIED PIPELINE DATA · NO SIGNALS GENERATED · THE MACHINE DISPLAYS,
+          THE HUMAN DECIDES
+        </p>
       </footer>
     </main>
   );
