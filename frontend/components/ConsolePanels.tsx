@@ -2,18 +2,11 @@
 
 import { useMemo, useState } from "react";
 import TickerLink from "@/components/TickerLink";
-import {
-  fmtInt,
-  fmtPct,
-  fmtPkrCompact,
-  fmtSharesM,
-} from "@/components/ui/format";
+import { fmtInt, fmtPct } from "@/components/ui/format";
 import type {
   BreadthData,
   EodMove,
   FlowMatrixData,
-  NdmBlock,
-  NdmSummary,
   QuantRadarData,
   QuantSignal,
   VolumeDislocationData,
@@ -405,206 +398,6 @@ export function FlowMatrixPanel({
 }
 
 // ---------------------------------------------------------------- //
-// PANEL B - NDM Block Tape (off-market liquidity >= 100k).         //
-// ---------------------------------------------------------------- //
-
-function HeadlineMetric({
-  label,
-  value,
-  tone = "text-ink",
-}: {
-  label: string;
-  value: string;
-  tone?: string;
-}) {
-  return (
-    <span className="flex items-baseline gap-1.5">
-      <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-ghost">
-        {label}
-      </span>
-      <span className={`font-mono text-[13px] font-bold tabular-nums ${tone}`}>
-        {value}
-      </span>
-    </span>
-  );
-}
-
-export function NdmTapePanel({
-  blocks,
-  summary,
-  id,
-}: {
-  blocks: NdmBlock[] | null;
-  summary: NdmSummary | null;
-  id?: string;
-}) {
-  const tape = blocks ?? [];
-  const distCount = tape.filter((b) => b.distribution).length;
-  const retiredTape = blocks != null && tape.length === 0;
-  return (
-    <Panel
-      id={id}
-      letter="B"
-      title="NDM Block Tape"
-      meta={
-        blocks == null
-          ? undefined
-          : retiredTape
-            ? "CERTIFIED AGGREGATES ONLY"
-            : `${tape.length} BLOCKS ≥ 100K · ${distCount} DISTRIBUTION`
-      }
-    >
-      {/* Certified session aggregates - the NDM headline that stays live
-          after PSX retired the per-symbol board (psx_offmarket_summary). */}
-      {summary != null && (
-        <div className="border-b border-hairline bg-obsidian/40 px-3 py-2">
-          <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-            <HeadlineMetric label="Deals" value={fmtInt(summary.trades)} />
-            <HeadlineMetric
-              label="Shares"
-              value={fmtSharesM(summary.volume)}
-              tone="text-info"
-            />
-            <HeadlineMetric
-              label="Turnover"
-              value={fmtPkrCompact(summary.value)}
-              tone="text-info"
-            />
-            <HeadlineMetric
-              label="State"
-              value={(summary.state ?? "—").toUpperCase()}
-              tone="text-ghost"
-            />
-          </div>
-          <p className="pt-1 font-mono text-[9px] uppercase tracking-[0.2em] text-ghost">
-            {`CERTIFIED NDM SESSION AGGREGATE · ${summary.tradeDate}`}
-          </p>
-        </div>
-      )}
-      {blocks == null ? (
-        <Idle text="NDM FEED UNAVAILABLE" />
-      ) : retiredTape ? (
-        summary != null ? (
-          <div className="px-3 py-4">
-            <p className="border border-info/40 bg-info/10 px-2.5 py-2 font-mono text-[10px] font-bold uppercase leading-relaxed tracking-[0.15em] text-info">
-              Per-symbol ticker tape retired by PSX — showing certified
-              session aggregates
-            </p>
-          </div>
-        ) : (
-          <Idle text="NO CERTIFIED NDM AGGREGATE FOR THIS SESSION" />
-        )
-      ) : (
-        <>
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse">
-            <thead>
-              <tr>
-                <Th right={false}>Ticker</Th>
-                <Th>Volume</Th>
-                <Th>Negotiated Rate</Th>
-                <Th>Market Price</Th>
-                <Th>Spread %</Th>
-                <Th>Flag</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {tape.map((b, i) => (
-                <tr
-                  key={`${b.ticker}-${b.quantity}-${i}`}
-                  className={
-                    b.distribution
-                      ? "bg-bear/10"
-                      : b.accumulation
-                        ? "bg-bull/10"
-                        : "hover:bg-hoverline"
-                  }
-                >
-                  <Td
-                    right={false}
-                    bold
-                    tone={
-                      b.distribution
-                        ? "text-bear"
-                        : b.accumulation
-                          ? "text-bull"
-                          : "text-ink"
-                    }
-                  >
-                    <TickerLink ticker={b.ticker} />
-                  </Td>
-                  <Td
-                    bold
-                    tone={
-                      b.distribution
-                        ? "text-bear"
-                        : b.accumulation
-                          ? "text-bull"
-                          : undefined
-                    }
-                  >
-                    {fmtInt(b.quantity)}
-                  </Td>
-                  <Td>{b.rate == null ? "—" : b.rate.toFixed(2)}</Td>
-                  <Td tone="text-muted">
-                    {b.marketPrice == null ? "—" : b.marketPrice.toFixed(2)}
-                  </Td>
-                  <Td
-                    bold={b.distribution || b.accumulation}
-                    tone={
-                      b.spreadPct == null
-                        ? "text-ghost"
-                        : b.spreadPct < 0
-                          ? "text-bear"
-                          : b.spreadPct > 0
-                            ? "text-bull"
-                            : "text-muted"
-                    }
-                  >
-                    {fmtPct(b.spreadPct, 1)}
-                  </Td>
-                  <Td>
-                    {b.distribution ? (
-                      <span className="rounded-[2px] bg-bear/20 px-1.5 py-px font-mono text-[9px] font-bold uppercase tracking-widest text-bear ring-1 ring-bear/40">
-                        Distribution
-                      </span>
-                    ) : b.accumulation ? (
-                      <span className="rounded-[2px] bg-bull/20 px-1.5 py-px font-mono text-[9px] font-bold uppercase tracking-widest text-bull ring-1 ring-bull/40">
-                        Accumulation
-                      </span>
-                    ) : (
-                      <span className="font-mono text-[9px] text-ghost">—</span>
-                    )}
-                  </Td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Footer: heaviest accumulation sweep (fact, short-term). */}
-        <PanelFooter
-          text={
-            (() => {
-              const sweeps = tape
-                .filter((b) => b.accumulation)
-                .sort((a, b) => (b.quantity ?? 0) - (a.quantity ?? 0));
-              return sweeps.length > 0
-                ? `Heaviest NDM Accumulation Sweep: ${sweeps[0].ticker} - ${fmtInt(sweeps[0].quantity)} shares @ ${fmtPct(sweeps[0].spreadPct, 1)} premium`
-                : "No major accumulation blocks detected";
-            })()
-          }
-          tone={
-            tape.some((b) => b.accumulation) ? "text-bull/70" : "text-ghost"
-          }
-        />
-        </>
-      )}
-    </Panel>
-  );
-}
-
-// ---------------------------------------------------------------- //
 // QUANT ACTION RADAR — top conviction signals for the active session. //
 // ---------------------------------------------------------------- //
 
@@ -804,11 +597,6 @@ export function VolumeBreakoutsPanel({
                   {n.insiderBuy && (
                     <span className="rounded-[2px] bg-warn/15 px-1.5 py-px font-mono text-[9px] font-bold uppercase tracking-widest text-warn ring-1 ring-warn/40">
                       Insider Buy
-                    </span>
-                  )}
-                  {n.ndmAccumulation && (
-                    <span className="rounded-[2px] bg-info/15 px-1.5 py-px font-mono text-[9px] font-bold uppercase tracking-widest text-info ring-1 ring-info/40">
-                      NDM Accumulation
                     </span>
                   )}
                 </div>

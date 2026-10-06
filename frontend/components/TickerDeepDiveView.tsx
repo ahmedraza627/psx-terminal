@@ -158,61 +158,7 @@ export default function TickerDeepDiveView({
         <FlowHistory data={data.flow} />
       </section>
 
-      {/* C) NDM block history */}
-      <section>
-        <h3 className="pb-1 font-mono text-[10px] font-bold uppercase tracking-[0.18em] text-muted">
-          NDM Block History - last {data.sessions.length} sessions
-        </h3>
-        {data.ndm.length === 0 ? (
-          <p className="font-mono text-[10px] uppercase tracking-widest text-ghost">
-            NO OFF-MARKET BLOCKS ≥ 100K IN THE WINDOW
-          </p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr>
-                  {["Date", "Volume", "Rate", "Market", "Spread %"].map((l, i) => (
-                    <th
-                      key={l}
-                      className={`border-b border-hairline px-2 py-1 font-mono text-[9px] font-semibold uppercase tracking-[0.15em] text-ghost ${i === 0 ? "text-left" : "text-right"}`}
-                    >
-                      {l}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {data.ndm.map((r, i) => (
-                  <tr key={`${r.tradeDate}-${i}`} className="border-b border-hairline/60">
-                    <td className="px-2 py-1 font-mono text-[10px] tabular-nums text-muted">
-                      {r.tradeDate}
-                    </td>
-                    <td className="px-2 py-1 text-right font-mono text-[10px] tabular-nums text-ink">
-                      {fmtInt(r.quantity)}
-                    </td>
-                    <td className="px-2 py-1 text-right font-mono text-[10px] tabular-nums text-ink">
-                      {r.rate == null ? "—" : r.rate.toFixed(2)}
-                    </td>
-                    <td className="px-2 py-1 text-right font-mono text-[10px] tabular-nums text-muted">
-                      {r.marketPrice == null ? "—" : r.marketPrice.toFixed(2)}
-                    </td>
-                    <td
-                      className={`px-2 py-1 text-right font-mono text-[10px] tabular-nums ${r.spreadPct == null ? "text-ghost" : r.spreadPct < 0 ? "text-bear" : r.spreadPct > 0 ? "text-bull" : "text-muted"}`}
-                    >
-                      {r.spreadPct == null
-                        ? "—"
-                        : `${r.spreadPct > 0 ? "+" : ""}${r.spreadPct.toFixed(1)}%`}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
-
-      {/* D) Insider disclosures */}
+      {/* C) Insider disclosures */}
       <section>
         <h3 className="pb-1 font-mono text-[10px] font-bold uppercase tracking-[0.18em] text-muted">
           Insider Disclosures - last {data.sessions.length} sessions

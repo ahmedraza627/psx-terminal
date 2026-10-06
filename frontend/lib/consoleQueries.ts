@@ -246,8 +246,8 @@ export async function fetchUniverseBreadth(
 // --------------------------------------------------------------- //
 // Volume dislocation scanner - today's top-25 volume names that   //
 // were NOT in yesterday's top-25, cross-referenced with insider   //
-// BUY disclosures (trailing 5 certified sessions) and NDM blocks  //
-// on T. Certified facts only; the strip renders what qualifies.   //
+// BUY disclosures (trailing 5 certified sessions). Certified      //
+// facts only; the strip renders what qualifies.                   //
 // --------------------------------------------------------------- //
 
 export interface DislocatedTicker {
@@ -258,8 +258,6 @@ export interface DislocatedTicker {
   changePct: number | null;
   /** Insider BUY disclosure within the trailing 5 certified sessions. */
   insiderBuy: boolean;
-  /** NDM block on T: spread >= 0% vs the T close, or >= 100k shares. */
-  ndmAccumulation: boolean;
 }
 
 export interface VolumeDislocationData {
@@ -292,7 +290,7 @@ export async function fetchVolumeDislocation(
     const priorTop = new Set(top25(priorRows));
     const dislocated = Array.from(todayTop).filter((t) => !priorTop.has(t));
 
-    // T closes (change% + NDM spread math) and T-1 closes (reference).
+    // T closes (change%) and T-1 closes (reference).
     const closes = new Map<string, number>();
     const volumes = new Map<string, number | null>();
     for (const r of todayRows) {
@@ -324,36 +322,7 @@ export async function fetchVolumeDislocation(
       }
     }
 
-    // Step C2 - NDM blocks on T for the dislocated names. A block
-    // qualifies as accumulation evidence ONLY when its spread vs the T
-    // close is verified >= 0% - unverifiable blocks (no stored close)
-    // stay untagged. The >= 100k-share floor is enforced by the query.
-    const ndmSet = new Set<string>();
-    if (dislocated.length > 0) {
-      const { data, error } = await supabase
-        .from("psx_offmarket_deals")
-        .select("ticker,quantity,rate")
-        .eq("trade_date", sessionDate)
-        .gte("quantity", 100_000)
-        .in("ticker", dislocated);
-      if (!error && data != null) {
-        for (const b of data as {
-          ticker: string;
-          quantity: number | null;
-          rate: number | null;
-        }[]) {
-          const t = b.ticker.toUpperCase();
-          const close = closes.get(t) ?? null;
-          const spreadPct =
-            b.rate != null && close != null && close > 0
-              ? ((b.rate - close) / close) * 100
-              : null;
-          if (spreadPct != null && spreadPct >= 0) ndmSet.add(t);
-        }
-      }
-    }
-
-    // Footprints first (insider outranks NDM), then by volume.
+    // Footprints first (insider outranks the rest), then by volume.
     const names: DislocatedTicker[] = dislocated
       .map((t) => {
         const close = closes.get(t) ?? null;
@@ -367,12 +336,11 @@ export async function fetchVolumeDislocation(
           volume: volumes.get(t) ?? null,
           changePct,
           insiderBuy: insiderSet.has(t),
-          ndmAccumulation: ndmSet.has(t),
         };
       })
       .sort((a, b) => {
-        const wa = (a.insiderBuy ? 2 : 0) + (a.ndmAccumulation ? 1 : 0);
-        const wb = (b.insiderBuy ? 2 : 0) + (b.ndmAccumulation ? 1 : 0);
+        const wa = a.insiderBuy ? 1 : 0;
+        const wb = b.insiderBuy ? 1 : 0;
         if (wa !== wb) return wb - wa;
         return (b.volume ?? 0) - (a.volume ?? 0);
       });
@@ -615,210 +583,26 @@ export async function fetchFlowMatrix(): Promise<FlowMatrixData | null> {
     return null;
   }
 }
-
-// --------------------------------------------------------------- //
-// Panel B - NDM Block Tape (off-market liquidity, >= 100k).       //
-// --------------------------------------------------------------- //
-
-export interface NdmBlock {
-  ticker: string;
-  tradeDate: string;
-  quantity: number | null;
-  rate: number | null;
-  value: number | null;
-  /** Market close for the block's session (null = not stored). */
-  marketPrice: number | null;
-  /** (rate - market) / market x 100; negative = block below market. */
-  spreadPct: number | null;
-  /** >= 1M shares crossed below market - distribution evidence. */
-  distribution: boolean;
-  /** >= 1M shares crossed above market - accumulation evidence. */
-  accumulation: boolean;
-}
-
-export interface NdmSummary {
-  tradeDate: string;
-  trades: number | null;
-  volume: number | null;
-  /** PKR turnover for the session (null when not certified). */
-  value: number | null;
-  /** Market state as served, e.g. "Closed". */
-  state: string | null;
-}
-
-/**
- * The certified NDM session aggregate (pipeline: psx_offmarket_summary).
- *
- * PSX retired the per-symbol board, so this summary is the only NDM fact
- * set that stays current. Resolution order: the exact active-session row
- * first; when EOD runs ahead of (or behind) the summary stamp, the newest
- * certified row - its own tradeDate is always displayed in the UI, so a
- * date skew is visible, never silent.
- */
-export async function fetchNdmSummary(
-  sessionDate: string | null,
-): Promise<NdmSummary | null> {
-  try {
-    const supabase = createClient();
-    const select = "trade_date,trades,volume,value,state";
-    if (sessionDate != null) {
-      const { data, error } = await supabase
-        .from("psx_offmarket_summary")
-        .select(select)
-        .eq("trade_date", sessionDate)
-        .limit(1);
-      if (!error && data != null && data.length > 0) {
-        const r = data[0] as {
-          trade_date: string;
-          trades: number | null;
-          volume: number | null;
-          value: number | null;
-          state: string | null;
-        };
-        return {
-          tradeDate: r.trade_date,
-          trades: r.trades,
-          volume: r.volume,
-          value: r.value,
-          state: r.state,
-        };
-      }
-    }
-    const { data, error } = await supabase
-      .from("psx_offmarket_summary")
-      .select(select)
-      .order("trade_date", { ascending: false })
-      .limit(1);
-    if (error) throw error;
-    const rows = (data ?? []) as {
-      trade_date: string;
-      trades: number | null;
-      volume: number | null;
-      value: number | null;
-      state: string | null;
-    }[];
-    if (rows.length === 0) return null;
-    const r = rows[0];
-    return {
-      tradeDate: r.trade_date,
-      trades: r.trades,
-      volume: r.volume,
-      value: r.value,
-      state: r.state,
-    };
-  } catch {
-    return null;
-  }
-}
-
-export async function fetchNdmBlocks(
-  minShares = 100_000,
-  sessionDate: string | null = null,
-): Promise<NdmBlock[] | null> {
-  try {
-    const supabase = createClient();
-
-    // ONE certified session per render: the active EOD session when known,
-    // else the newest psx_offmarket_summary date (the UI labels whichever
-    // landed). History is never queried - a silently stale tape is worse
-    // than an honest empty one.
-    let asOf = sessionDate;
-    if (asOf == null) {
-      const { data: stamp, error: stampErr } = await supabase
-        .from("psx_offmarket_summary")
-        .select("trade_date")
-        .order("trade_date", { ascending: false })
-        .limit(1);
-      if (stampErr) throw stampErr;
-      asOf = ((stamp ?? []) as { trade_date: string }[])[0]?.trade_date ?? null;
-      if (asOf == null) return null;
-    }
-
-    const { data, error } = await supabase
-      .from("psx_offmarket_deals")
-      .select("trade_date,ticker,quantity,rate,value")
-      .gte("quantity", minShares)
-      .eq("trade_date", asOf)
-      .order("value", { ascending: false })
-      .limit(400);
-    if (error) throw error;
-    const rows = (data ?? []) as {
-      trade_date: string;
-      ticker: string;
-      quantity: number | null;
-      rate: number | null;
-      value: number | null;
-    }[];
-    if (rows.length === 0) return []; // honest empty tape for THIS session
-
-    // Market closes for the crossed names, from stored EOD (no estimation).
-    const tickers = Array.from(new Set(rows.map((r) => r.ticker.toUpperCase())));
-    let closes = new Map<string, number>();
-    if (tickers.length > 0) {
-      const { data: eod, error: eodErr } = await supabase
-        .from("psx_daily_eod")
-        .select("ticker,close_price")
-        .eq("trade_date", asOf)
-        .in("ticker", tickers);
-      if (!eodErr && eod != null) {
-        closes = new Map(
-          (eod as { ticker: string; close_price: number | null }[])
-            .filter((r) => r.close_price != null && r.close_price > 0)
-            .map((r) => [r.ticker.toUpperCase(), r.close_price as number]),
-        );
-      }
-    }
-
-    return rows.map((r) => {
-      const ticker = r.ticker.toUpperCase();
-      const marketPrice = closes.get(ticker) ?? null;
-      const spreadPct =
-        r.rate != null && marketPrice != null && marketPrice > 0
-          ? ((r.rate - marketPrice) / marketPrice) * 100
-          : null;
-      return {
-        ticker,
-        tradeDate: r.trade_date,
-        quantity: r.quantity,
-        rate: r.rate,
-        value: r.value,
-        marketPrice,
-        spreadPct,
-        distribution:
-          (r.quantity ?? 0) >= 1_000_000 && spreadPct != null && spreadPct < 0,
-        accumulation:
-          (r.quantity ?? 0) >= 1_000_000 && spreadPct != null && spreadPct > 0,
-      };
-    });
-  } catch {
-    return null;
-  }
-}
-
-// --------------------------------------------------------------- //
 // Smart-money outperformer strip (top-of-page).                   //
 //                                                                 //
-// Pure factual intersection across the SAME certified session the  //
-// three panels already render - no new queries, no scoring, no     //
-// signal language. A ticker qualifies only when it satisfies AT    //
-// LEAST TWO of these three facts:                                  //
-//   1. NDM: on the latest tape, spread flat-or-positive with a     //
-//      known market close (>= 100k blocks arrive pre-filtered).    //
-//   2. BREADTH: a Top-10 Gainer for the certified session.         //
-//   3. VOLUME DIVERGENCE: positive change on >= 2x session-average //
+// Pure factual intersection within the SAME certified session's    //
+// breadth data - no new queries, no scoring, no signal language.   //
+// A ticker qualifies only when it satisfies AT LEAST TWO of these  //
+// two facts:                                                       //
+//   1. BREADTH: a Top-10 Gainer for the certified session.         //
+//   2. VOLUME DIVERGENCE: positive change on >= 2x session-average //
 //      volume while breadth is negative/mixed (A/D ratio <= 1).    //
 // --------------------------------------------------------------- //
 
 export interface DivergenceName {
   ticker: string;
   changePct: number | null;
-  /** Which of the three certified facts matched (2 or 3 of them). */
+  /** Which certified facts matched (both of them). */
   facts: string[];
 }
 
 export function findIsolatedAccumulation(
   breadth: BreadthData | null,
-  ndm: NdmBlock[] | null,
 ): DivergenceName[] {
   if (breadth == null) return [];
 
@@ -832,17 +616,10 @@ export function findIsolatedAccumulation(
     return e;
   };
 
-  // Fact 1 - NDM flat-or-positive blocks (certified market close present).
-  for (const b of ndm ?? []) {
-    if (b.spreadPct != null && b.spreadPct >= 0) {
-      touch(b.ticker).facts.push("NDM");
-    }
-  }
-
-  // Fact 2 - top-10 gainers, straight from the certified move set.
+  // Fact 1 - top-10 gainers, straight from the certified move set.
   for (const g of breadth.gainers) touch(g.ticker).facts.push("TOP10");
 
-  // Fact 3 - positive move on >= 2x avg volume while breadth <= 1.
+  // Fact 2 - positive move on >= 2x avg volume while breadth <= 1.
   const breadthWeak = breadth.ratio == null || breadth.ratio <= 1;
   if (breadthWeak && breadth.avgVolume > 0) {
     for (const mv of breadth.moves) {
@@ -898,7 +675,7 @@ export async function fetchUserWatchlist(): Promise<string[]> {
 
 // --------------------------------------------------------------- //
 // Ticker deep-dive - the certified 30-session dossier for ONE     //
-// ticker. EOD bars, NDM block history, insider disclosures are    //
+// ticker. EOD bars and insider disclosures are per-ticker facts.  //
 // per-ticker facts. Institutional flow is NOT published per       //
 // ticker by NCCPL (participant x sector only): when the ticker's  //
 // sector is mapped via psx_fundamentals we show that sector's     //
@@ -916,14 +693,6 @@ export interface FlowHistoryPoint {
   tradeDate: string;
   fipiNetPkr: number | null;
   mutualFundsNetPkr: number | null;
-}
-
-export interface DeepDiveNdmRow {
-  tradeDate: string;
-  quantity: number | null;
-  rate: number | null;
-  marketPrice: number | null;
-  spreadPct: number | null;
 }
 
 export interface DeepDiveInsiderRow {
@@ -949,7 +718,6 @@ export interface TickerDeepDiveData {
     sectorName: string | null;
     points: FlowHistoryPoint[];
   };
-  ndm: DeepDiveNdmRow[];
   insider: DeepDiveInsiderRow[];
 }
 
@@ -1091,63 +859,7 @@ export async function fetchTickerDeepDive(
       sessions,
     );
 
-    // C) NDM block history + D) insider disclosures, both bounded by the
-    //    same certified window. Spread verified against THIS ticker's own
-    //    stored closes per date (no estimation).
-    const eodCloses = new Map<string, number>();
-    try {
-      const { data, error } = await supabase
-        .from("psx_daily_eod")
-        .select("trade_date,close_price")
-        .eq("ticker", symbol)
-        .gte("trade_date", windowStart)
-        .limit(600);
-      if (!error) {
-        for (const r of (data ?? []) as {
-          trade_date: string;
-          close_price: number | null;
-        }[]) {
-          if (r.close_price != null && r.close_price > 0)
-            eodCloses.set(r.trade_date, r.close_price);
-        }
-      }
-    } catch {
-      eodCloses.clear();
-    }
-
-    let ndm: DeepDiveNdmRow[] = [];
-    try {
-      const { data, error } = await supabase
-        .from("psx_offmarket_deals")
-        .select("trade_date,quantity,rate")
-        .eq("ticker", symbol)
-        .gte("trade_date", windowStart)
-        .order("trade_date", { ascending: false })
-        .limit(300);
-      if (!error) {
-        ndm = ((data ?? []) as {
-          trade_date: string;
-          quantity: number | null;
-          rate: number | null;
-        }[]).map((r) => {
-          const marketPrice = eodCloses.get(r.trade_date) ?? null;
-          const spreadPct =
-            r.rate != null && marketPrice != null && marketPrice > 0
-              ? ((r.rate - marketPrice) / marketPrice) * 100
-              : null;
-          return {
-            tradeDate: r.trade_date,
-            quantity: r.quantity,
-            rate: r.rate,
-            marketPrice,
-            spreadPct,
-          };
-        });
-      }
-    } catch {
-      ndm = [];
-    }
-
+    // C) Insider disclosures, bounded by the same certified window.
     let insider: DeepDiveInsiderRow[] = [];
     try {
       const { data, error } = await supabase
@@ -1187,7 +899,6 @@ export async function fetchTickerDeepDive(
       closeIdx: closeIdx >= 0 ? closeIdx : null,
       bars,
       flow,
-      ndm,
       insider,
     };
   } catch {
