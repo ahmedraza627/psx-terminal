@@ -43,6 +43,7 @@ from pipeline.scrapers.psx_offmarket import (
     fetch_offmarket_deals,
 )
 from pipeline.scrapers.macro_indicators import collect_macro_rows
+from pipeline.analytics.quant_signals import run_daily_quant_signals
 
 LOGGER = logging.getLogger("pipeline")
 
@@ -548,6 +549,17 @@ def run(argv: list[str] | None = None) -> int:
         if core_ok or not args.skip_eod:
             with _step("quant engine"):
                 run_quant_engine(session_date=target_session_date)
+            with _step("daily quant signals"):
+                counts = run_daily_quant_signals(target_session_date)
+                LOGGER.info(
+                    "daily quant signals: volume_expansion=%d institutional_accumulation=%d "
+                    "retail_trap_short=%d market_breadth=%d written=%d",
+                    counts["volume_expansion"],
+                    counts["institutional_accumulation"],
+                    counts["retail_trap_short"],
+                    counts["market_breadth"],
+                    counts["written"],
+                )
         else:
             LOGGER.warning("skipping quant engine: core EOD data unavailable")
     else:

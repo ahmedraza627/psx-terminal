@@ -384,6 +384,100 @@ export async function fetchVolumeDislocation(
 }
 
 // --------------------------------------------------------------- //
+// Quant Action Radar — daily certified-signal snapshot.            //
+//                                                                  //
+// One row per (session, ticker, signal_type) from the pipeline's   //
+// daily screener (pipeline/analytics/quant_signals.py).           //
+// --------------------------------------------------------------- //
+
+export interface QuantSignal {
+  tradeDate: string;
+  ticker: string;
+  signalType: string;
+  confidenceScore: number | null;
+  catalystReason: string | null;
+  sector: string | null;
+  /** Market close for the signal's session (null when not stored). */
+  marketClose: number | null;
+  /** Session volume (shares) for the signal's ticker (null when absent). */
+  volume: number | null;
+}
+
+export interface QuantRadarData {
+  sessionDate: string | null;
+  signals: QuantSignal[];
+}
+
+export async function fetchQuantRadar(
+  sessionDate: string | null,
+  nthHighest = 3,
+): Promise<QuantRadarData> {
+  try {
+    const supabase = createClient();
+    if (sessionDate == null) return { sessionDate: null, signals: [] };
+
+    const { data, error } = await supabase
+      .from("psx_daily_quant_signals")
+      .select(
+        "trade_date,ticker,signal_type,confidence_score,catalyst_reason,sector"
+      )
+      .eq("trade_date", sessionDate)
+      .order("confidence_score", { ascending: false })
+      .limit(nthHighest);
+    if (error) throw error;
+
+    const rows = (data ?? []) as {
+      trade_date: string;
+      ticker: string;
+      signal_type: string;
+      confidence_score: number | null;
+      catalyst_reason: string | null;
+      sector: string | null;
+    }[];
+
+    if (rows.length === 0) return { sessionDate, signals: [] };
+
+    const tickers = Array.from(new Set(rows.map((r) => r.ticker.toUpperCase())));
+    const closeMap = new Map<string, number | null>();
+    const volMap = new Map<string, number | null>();
+    if (tickers.length > 0) {
+      const { data: eod, error: eodErr } = await supabase
+        .from("psx_daily_eod")
+        .select("ticker,close_price,volume")
+        .eq("trade_date", sessionDate)
+        .in("ticker", tickers);
+      if (!eodErr && eod != null) {
+        for (const r of eod as {
+          ticker: string;
+          close_price: number | null;
+          volume: number | null;
+        }[]) {
+          const t = r.ticker.toUpperCase();
+          if (!closeMap.has(t)) closeMap.set(t, r.close_price);
+          if (!volMap.has(t)) volMap.set(t, r.volume);
+        }
+      }
+    }
+
+    return {
+      sessionDate,
+      signals: rows.map((r) => ({
+        tradeDate: r.trade_date,
+        ticker: r.ticker.toUpperCase(),
+        signalType: r.signal_type,
+        confidenceScore: r.confidence_score,
+        catalystReason: r.catalyst_reason,
+        sector: r.sector,
+        marketClose: closeMap.get(r.ticker.toUpperCase()) ?? null,
+        volume: volMap.get(r.ticker.toUpperCase()) ?? null,
+      })),
+    };
+  } catch {
+    return { sessionDate, signals: [] };
+  }
+}
+
+// --------------------------------------------------------------- //
 // Panel A - Institutional Flow Matrix (NCCPL reality).            //
 // --------------------------------------------------------------- //
 

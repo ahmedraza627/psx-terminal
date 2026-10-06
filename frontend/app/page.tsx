@@ -16,18 +16,21 @@ import {
   BreadthPanel,
   FlowMatrixPanel,
   NdmTapePanel,
+  QuantRadarPanel,
 } from "@/components/ConsolePanels";
 import {
   fetchFlowMatrix,
   fetchLatestEodSession,
   fetchNdmBlocks,
   fetchNdmSummary,
+  fetchQuantRadar,
   fetchUniverseBreadth,
   fetchVolumeDislocation,
   findIsolatedAccumulation,
   resolveCertifiedEodPair,
   type BreadthData,
   type NdmBlock,
+  type QuantRadarData,
 } from "@/lib/consoleQueries";
 
 export const dynamic = "force-dynamic";
@@ -41,9 +44,10 @@ export default async function HomePage() {
   // certified summary row's own date (always labeled in the panel).
   // Individual deal rows are never drawn from history - a silently stale
   // tape is worse than an honest empty one.
-  const [flow, ndmSummary] = await Promise.all([
+  const [flow, ndmSummary, quantRadar] = await Promise.all([
     fetchFlowMatrix(),
     fetchNdmSummary(session),
+    fetchQuantRadar(session, 3).then((q) => ({ ...q, sessionDate: session })),
   ]);
   const ndm = await fetchNdmBlocks(100_000, ndmSummary?.tradeDate ?? session);
 
@@ -109,6 +113,7 @@ export default async function HomePage() {
           <WatchlistPanel ndm={ndm} breadth={breadth} />
           <FlowMatrixPanel data={flow} id="flow-matrix" />
           <NdmTapePanel blocks={ndm} summary={ndmSummary} id="ndm-tape" />
+          <QuantRadarPanel data={quantRadar} id="quant-radar" />
           <BreadthPanel
             data={breadth}
             id="universe-breadth"
@@ -124,6 +129,9 @@ export default async function HomePage() {
         <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-ghost">
           {`FLOW ${flow?.asOfDate ?? "—"} · NDM ${ndmSummary?.tradeDate ?? ndm?.[0]?.tradeDate ?? "—"} · EOD ${breadth?.sessionDate ?? "—"} · ADV ${breadth?.advancers ?? "—"} / DEC ${breadth?.decliners ?? "—"}`}
         </p>
+      <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-ghost">
+              QUANT {quantRadar.sessionDate ?? "—"}
+            </p>
       </footer>
     </main>
   );

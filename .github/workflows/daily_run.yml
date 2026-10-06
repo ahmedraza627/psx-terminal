@@ -94,4 +94,8 @@ jobs:
             echo "- Outcome: ${{ job.status }}"
             echo ""
             echo "Check the Supabase Table Editor for \`signals_computed\`."
+      - name: Quant signals table
+        if: success()
+        run: |
+          echo "Check the Supabase Table Editor for \`psx_daily_quant_signals\`."
           } >> "$GITHUB_STEP_SUMMARY"

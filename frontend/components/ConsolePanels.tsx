@@ -14,6 +14,8 @@ import type {
   FlowMatrixData,
   NdmBlock,
   NdmSummary,
+  QuantRadarData,
+  QuantSignal,
 } from "@/lib/consoleQueries";
 
 // ---------------------------------------------------------------- //
@@ -27,7 +29,7 @@ function Panel({
   id,
   children,
 }: {
-  letter: "A" | "B" | "C";
+  letter: "A" | "B" | "C" | "R";
   title: string;
   meta?: string;
   id?: string;
@@ -138,6 +140,18 @@ function Idle({ text }: { text: string }) {
   );
 }
 
+function RadarEmpty({ sessionDate }: { sessionDate: string | null }) {
+  return (
+    <Idle
+      text={
+        sessionDate == null
+          ? "NO SESSION OR SIGNALS STORED"
+          : `NO QUANT SIGNALS COMPUTED FOR ${sessionDate}`
+      }
+    />
+  );
+}
+
 /**
  * Panel footer: single-line factual aggregation of the data already shown
  * above it. NEVER a prediction - only reads what the panel rendered.
@@ -155,6 +169,52 @@ function PanelFooter({
     >
       {text}
     </p>
+  );
+}
+
+function SignalBadge({
+  signalType,
+}: {
+  signalType: string;
+}) {
+  const key = signalType.toUpperCase();
+  const isBull = key.includes("ACCUMULATION") || key.includes("INSTITUTIONAL");
+  const isBear =
+    key.includes("TRAP") ||
+    key.includes("DISTRIBUTION") ||
+    key.includes("SHORT") ||
+    key.includes("TRAP_SHORT");
+  if (isBull) {
+    return (
+      <span className="rounded-[2px] bg-bull/15 px-1.5 py-px font-mono text-[9px] font-bold uppercase tracking-widest text-bull ring-1 ring-bull/40">
+        {(signalType.match(/[A-Z][A-Z0-9_]+/g) || [signalType.toUpperCase()]).pop()}
+      </span>
+    );
+  }
+  if (isBear) {
+    return (
+      <span className="rounded-[2px] bg-bear/15 px-1.5 py-px font-mono text-[9px] font-bold uppercase tracking-widest text-bear ring-1 ring-bear/40">
+        {(signalType.match(/[A-Z][A-Z0-9_]+/g) || [signalType.toUpperCase()]).pop()}
+      </span>
+    );
+  }
+  return (
+    <span className="rounded-[2px] bg-hairline/60 px-1.5 py-px font-mono text-[9px] font-bold uppercase tracking-widest text-ghost ring-1 ring-hairline">
+      {signalType.toUpperCase()}
+    </span>
+  );
+}
+
+function CatalystNode({ signal }: { signal: QuantSignal }) {
+  const lines = (signal.catalystReason ?? "").split("\n");
+  return (
+    <div className="space-y-1">
+      {lines.map((line, i) => (
+        <p key={i} className="font-mono text-[10px] leading-relaxed text-ghost">
+          {line}
+        </p>
+      ))}
+    </div>
   );
 }
 
@@ -538,6 +598,88 @@ export function NdmTapePanel({
           }
         />
         </>
+      )}
+    </Panel>
+  );
+}
+
+// ---------------------------------------------------------------- //
+// QUANT ACTION RADAR — top conviction signals for the active session. //
+// ---------------------------------------------------------------- //
+
+export function QuantRadarPanel({
+  data,
+  id,
+}: {
+  data: QuantRadarData;
+  id?: string;
+}) {
+  const top = data.signals.slice(0, 3);
+  return (
+    <Panel
+      id={id}
+      letter="R"
+      title="Quant Action Radar"
+      meta={data.sessionDate ? `SIGNALS · ${data.sessionDate}` : undefined}
+    >
+      {top.length === 0 ? (
+        <RadarEmpty sessionDate={data.sessionDate} />
+      ) : (
+        <div className="divide-y divide-hairline/60">
+          {top.map((signal) => {
+            const tickerTone =
+              signal.signalType.toUpperCase().includes("ACCUMULATION") ||
+              signal.signalType.toUpperCase().includes("INSTITUTIONAL")
+                ? "text-bull"
+                : signal.signalType.toUpperCase().includes("TRAP") ||
+                  signal.signalType.toUpperCase().includes("DISTRIBUTION") ||
+                  signal.signalType.toUpperCase().includes("SHORT")
+                  ? "text-bear"
+                  : "text-ink";
+            return (
+              <div
+                key={`${signal.tradeDate}-${signal.ticker}-${signal.signalType}`}
+                className="flex min-w-0 flex-col gap-2 px-3 py-2.5 first:pt-0 last:pb-0"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-[13px] font-bold tabular-nums">
+                    <TickerLink ticker={signal.ticker} />
+                  </span>
+                  <span className="flex items-center gap-2">
+                    <SignalBadge signalType={signal.signalType} />
+                    <span className="font-mono text-[10px] tabular-nums text-ghost">
+                      {signal.confidenceScore != null
+                        ? `${signal.confidenceScore}%`
+                        : "—"}
+                    </span>
+                  </span>
+                  <div className="ml-auto flex items-center gap-2">
+                    {signal.sector ? (
+                      <span className="font-mono text-[9px] uppercase tracking-wider text-ghost">
+                        {signal.sector}
+                      </span>
+                    ) : (
+                      <span className="font-mono text-[9px] text-ghost">—</span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                  {signal.marketClose != null && (
+                    <span className="font-mono text-[10px] tabular-nums text-muted">
+                      LTP {signal.marketClose.toFixed(2)}
+                    </span>
+                  )}
+                  {signal.volume != null && (
+                    <span className="font-mono text-[10px] tabular-nums text-muted">
+                      VOL {fmtInt(signal.volume)}
+                    </span>
+                  )}
+                </div>
+                <CatalystNode signal={signal} />
+              </div>
+            );
+          })}
+        </div>
       )}
     </Panel>
   );
