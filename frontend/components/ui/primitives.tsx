@@ -1,7 +1,7 @@
 /**
  * Shared institutional UI primitives — the only badge / pill / cell chrome
  * in the terminal. Machined geometry: rounded-[2px], hairline rings,
- * 10-11px uppercase tracking labels, tabular-nums data.
+ * 10-11px tracked title-case labels, Inter with tabular-nums data.
  */
 import type { ReactNode } from "react";
 
@@ -34,7 +34,7 @@ const TONE_FILL: Record<Tone, string> = {
   ghost: "bg-panel",
 };
 
-/** Compact uppercase badge — the single pill style across every desk. */
+/** Compact title-case badge — the single pill style across every desk. */
 export function Badge({
   tone = "neutral",
   children,
@@ -51,14 +51,14 @@ export function Badge({
     : `text-muted ring-1 ring-hairline bg-panel`;
   return (
     <span
-      className={`inline-block rounded-[2px] px-1.5 py-px font-mono text-[10px] font-semibold uppercase tracking-wider ${cls} ${className}`}
+      className={`inline-block rounded-[2px] px-1.5 py-px font-sans text-[10px] font-semibold tracking-wider ${cls} ${className}`}
     >
       {children}
     </span>
   );
 }
 
-/** Right-aligned monospace numeric cell. */
+/** Right-aligned numeric cell — Inter with tabular figures. */
 export function Num({
   value,
   digits = 2,
@@ -80,7 +80,7 @@ export function Num({
       : `${signed && value > 0 ? "+" : ""}${value.toFixed(digits)}${suffix}`;
   return (
     <span
-      className={`font-mono tabular-nums ${tone ?? (value == null ? "text-ghost" : "text-ink")} ${className}`}
+      className={`font-sans tabular-nums ${tone ?? (value == null ? "text-ghost" : "text-ink")} ${className}`}
     >
       {body}
     </span>
@@ -123,7 +123,7 @@ export function DeskFrame({
   return (
     <section className="border-b border-hairline">
       <div className="flex items-center justify-between gap-2 border-b border-hairline bg-panel px-2.5 py-1.5">
-        <h2 className="font-mono text-[10px] font-medium uppercase tracking-widest text-muted">
+        <h2 className="font-sans text-[10px] font-medium tracking-widest text-muted">
           {title}
         </h2>
         {right}
@@ -159,7 +159,7 @@ export function DataTable({
         style={{ minWidth: `${minWidth}px` }}
       >
         <thead>
-          <tr className="border-b border-hairline bg-obsidian text-[10px] uppercase tracking-widest text-ghost">
+          <tr className="border-b border-hairline bg-obsidian text-[10px] tracking-widest text-ghost">
             {columns.map((c, i) => (
               <th
                 key={c.label}
@@ -206,7 +206,7 @@ export function IdleState({
 }) {
   return (
     <div className="px-2.5 py-5 text-center">
-      <p className={`font-mono text-xs uppercase tracking-widest ${TONE_TEXT[tone]}`}>
+      <p className={`font-sans text-xs tracking-widest ${TONE_TEXT[tone]}`}>
         {headline}
       </p>
       {detail && <p className="mt-1 text-[11px] text-ghost">{detail}</p>}

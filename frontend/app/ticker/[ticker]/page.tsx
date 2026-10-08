@@ -19,31 +19,31 @@ export default async function TickerDeepDivePage({
   const data = await fetchTickerDeepDive(decodeURIComponent(params.ticker));
 
   return (
-    <div className="fixed inset-0 z-30">
+    <div className="fixed inset-0 z-[60]">
       {/* Backdrop: a plain link home - closes without any client JS. */}
       <Link
         href="/"
         aria-label="Close deep-dive"
-        className="absolute inset-0 bg-black/70"
+        className="absolute inset-0 bg-slate-900/50"
       />
 
       <aside className="absolute inset-y-0 right-0 w-full max-w-xl overflow-y-auto border-l border-hairline bg-panel shadow-2xl">
         <header className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b border-hairline bg-panel/95 px-4 py-2 backdrop-blur">
-          <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-ghost">
-            PSX·DESK / DEEP-DIVE
+          <span className="font-sans text-[10px] tracking-[0.2em] text-ghost">
+            PSX Desk / Deep-Dive
           </span>
           <Link
             href="/"
-            className="border border-hairline px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-muted hover:border-info/40 hover:text-info"
+            className="border border-hairline px-2 py-0.5 font-sans text-[10px] tracking-widest text-muted hover:border-info/40 hover:text-info"
           >
-            Close ✕
+            Close
           </Link>
         </header>
 
         <div className="px-4 py-3">
           {data == null ? (
-            <p className="py-16 text-center font-mono text-[11px] uppercase tracking-widest text-ghost">
-              NO CERTIFIED SESSIONS STORED - DEEP-DIVE UNAVAILABLE
+            <p className="py-16 text-center font-sans text-[11px] tracking-widest text-ghost">
+              No certified sessions stored - deep-dive unavailable
             </p>
           ) : (
             <TickerDeepDiveView data={data} />
@@ -51,9 +51,9 @@ export default async function TickerDeepDivePage({
         </div>
 
         <footer className="px-4 pb-4 pt-1">
-          <p className="border-t border-hairline pt-2 font-mono text-[9px] uppercase tracking-[0.18em] text-ghost">
-            CERTIFIED PIPELINE DATA · NO SIGNALS · FLOW SHOWN AT SECTOR OR
-            MARKET-WIDE LEVEL (NCCPL PUBLISHES NO PER-TICKER FLOWS)
+          <p className="border-t border-hairline pt-2 font-sans text-[9px] tracking-[0.18em] text-ghost">
+            Certified pipeline data · no signals · flow shown at sector or
+            market-wide level (NCCPL publishes no per-ticker flows)
           </p>
         </footer>
       </aside>

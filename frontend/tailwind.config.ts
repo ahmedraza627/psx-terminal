@@ -1,21 +1,21 @@
 import type { Config } from "tailwindcss";
 
 /**
- * PSX Quant Terminal — institutional design tokens.
+ * PSX Quant Terminal — design tokens.
  *
- * Palette contract (executive slate navy, machined hairlines):
- *   obsidian  #0B0F19  root background (deep slate navy)
- *   panel     #1E293B  surface / panel tiling (refined slate)
- *   hairline  #334155  1px borders — the ONLY border color in the app
- *   hoverline #16202F  interactive hover fill (recessed vs panel)
- *   ink       #F8FAFC  primary active text (off-white)
- *   muted     #CBD5E1  secondary labels / table data (slate-300)
- *   ghost     #64748B  ghost / inactive badges (slate-500)
- *   bull      #10B981  smart accumulation (emerald-500)
- *   bullbright #34D399 bright emerald accent (emerald-400)
- *   bear      #EF4444  distribution / stop violation (crimson)
- *   warn      #F59E0B  transition / caution (amber-500)
- *   info      #38BDF8  accent / active states (electric sky)
+ * Palette contract (professional light SaaS — Linear / Stripe style):
+ *   obsidian  #F1F5F9  root background (soft slate-blue tint)
+ *   panel     #FFFFFF  surface / card tiling (crisp white)
+ *   hairline  #E2E8F0  1px borders — slate-200, the ONLY border color
+ *   hoverline #F1F5F9  interactive hover fill (recessed vs white cards)
+ *   ink       #0F172A  primary headers (deep charcoal slate-900)
+ *   muted     #475569  secondary text / table data (slate-600)
+ *   ghost     #94A3B8  faint labels / inactive badges (slate-400)
+ *   bull      #059669  bullish verdicts (emerald-600 text)
+ *   bullbright #10B981 bright emerald accent (emerald-500)
+ *   bear      #E11D48  bearish verdicts (rose-600 text)
+ *   warn      #D97706  transition / caution (amber-600)
+ *   info      #2563EB  royal blue — primary actions / active tabs (blue-600)
  */
 const config: Config = {
   content: [
@@ -26,18 +26,18 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        obsidian: "#0B0F19",
-        panel: "#1E293B",
-        hairline: "#334155",
-        hoverline: "#16202F",
-        ink: "#F8FAFC",
-        muted: "#CBD5E1",
-        ghost: "#64748B",
-        bull: "#10B981",
-        bullbright: "#34D399",
-        bear: "#EF4444",
-        warn: "#F59E0B",
-        info: "#38BDF8",
+        obsidian: "#F1F5F9",
+        panel: "#FFFFFF",
+        hairline: "#E2E8F0",
+        hoverline: "#F1F5F9",
+        ink: "#0F172A",
+        muted: "#475569",
+        ghost: "#94A3B8",
+        bull: "#059669",
+        bullbright: "#10B981",
+        bear: "#E11D48",
+        warn: "#D97706",
+        info: "#2563EB",
       },
       fontFamily: {
         mono: [

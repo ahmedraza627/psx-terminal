@@ -5,13 +5,13 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "PSX QUANT - Decision Engine",
   description:
-    "Action-first institutional decision engine: direct short, mid, and long-term verdicts from certified pipeline data.",
+    "Action-first institutional decision engine for PSX: direct short, mid, and long-term verdicts, market pulse, and institutional flow.",
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#0B0F19",
+  themeColor: "#F1F5F9",
 };
 
 export default function RootLayout({
@@ -20,7 +20,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en">
       <body className="min-h-dvh bg-obsidian font-sans text-ink antialiased">
         <div className="flex min-h-dvh">
           <Sidebar />

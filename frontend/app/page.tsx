@@ -1,59 +1,76 @@
-// ACTION-FIRST DECISION ENGINE - Action Desk (Phase 1 dummy surface).
+// ACTION DESK (/) - the decision engine's front door.
 //
-// The pivot: the user should not have to think. This page will render the
-// engine's direct SHORT / MID / LONG verdicts. For Phase 1 the three
-// DecisionCards below are static dummies with the exact final shape, so
-// the UI/UX can be reviewed before the verdict engine is wired (Phase 2).
-// No Supabase fetches on this route yet - zero data, zero pretense.
+// De-cluttered by design: exactly three high-conviction decision cards
+// (Short-Term, Mid-Term, Long-Term) under a clean greeting header with the
+// active session pill and quick search. Zero raw tables, zero legacy
+// strips, zero status noise. Raw data lives on the dedicated sub-routes
+// (/pulse, /flow, /breakouts). Verdicts are static dummies until the
+// engine wiring lands (Phase 2) - labeled as such, never disguised.
 
 import DecisionCard from "@/components/DecisionCard";
+import PageHeader from "@/components/PageHeader";
+import SearchBox from "@/components/SearchBox";
+import SessionPill from "@/components/SessionPill";
+import { fetchLatestEodSession } from "@/lib/consoleQueries";
 
 export const dynamic = "force-dynamic";
 
-export default function ActionDeskPage() {
-  return (
-    <div className="mx-auto w-full max-w-[1600px] px-4 pb-10 pt-5">
-      {/* Desk header */}
-      <header className="flex flex-wrap items-end justify-between gap-3 border-b border-hairline pb-3">
-        <div>
-          <h1 className="font-sans text-[20px] font-bold tracking-tight text-ink">
-            Action Desk
-          </h1>
-          <p className="pt-0.5 font-mono text-[10px] uppercase tracking-[0.22em] text-ghost">
-            Direct verdicts · Short / Mid / Long horizon
-          </p>
-        </div>
-        <span className="rounded-[2px] border border-warn/40 bg-warn/10 px-2 py-0.5 font-mono text-[9px] font-bold uppercase tracking-widest text-warn">
-          Phase 1 · UI Shell · Verdict Engine Not Wired
-        </span>
-      </header>
+/** Greeting from the current Pakistan Standard Time hour. */
+function greeting(hourPkt: number): string {
+  if (hourPkt < 12) return "Good morning";
+  if (hourPkt < 17) return "Good afternoon";
+  return "Good evening";
+}
 
-      {/* Verdict grid: one dummy card per time horizon */}
-      <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+export default async function ActionDeskPage() {
+  const session = await fetchLatestEodSession();
+  const hourPkt = Number(
+    new Date().toLocaleString("en-US", {
+      timeZone: "Asia/Karachi",
+      hour: "numeric",
+      hour12: false,
+    }),
+  );
+
+  return (
+    <div className="mx-auto w-full max-w-6xl px-4 pb-12 pt-6 sm:px-6">
+      <PageHeader
+        title={`${greeting(Number.isNaN(hourPkt) ? 10 : hourPkt)} - here's your desk`}
+        subtitle="Three verdicts, zero noise. The machine reads the tape; you make the call."
+        right={
+          <>
+            <SessionPill session={session} />
+            <SearchBox />
+          </>
+        }
+      />
+
+      {/* Executive verdict grid: one card per time horizon */}
+      <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         <DecisionCard
-          horizon="SHORT-TERM SWING"
+          horizon="Short-Term Swing"
           direction="BUY"
           ticker="HUBC"
-          logic="Institutions buying for 3 days + Volume up 300%."
+          logic="Institutions buying for 3 days straight + volume up 300% over the 20-session average."
         />
         <DecisionCard
-          horizon="MID-TERM ACCUMULATION"
+          horizon="Mid-Term Accumulation"
           direction="BUY"
           ticker="MEBL"
-          logic="FIPI + Mutual Funds net 5-session accumulation while retail distributes."
+          logic="FIPI and Mutual Funds accumulated for 5 sessions while retail kept selling into the tape."
         />
         <DecisionCard
-          horizon="LONG-TERM HOLD"
+          horizon="Long-Term Avoid"
           direction="AVOID"
           ticker="KSE100"
-          logic="Advance/decline ratio 0.62 with institutions net sellers - tape not confirming."
+          logic="Advance/decline ratio at 0.62 with institutions net sellers — the tape is not confirming."
         />
       </div>
 
-      {/* Phase note - honest about the dummy state */}
-      <p className="mt-5 font-mono text-[10px] uppercase tracking-[0.2em] text-ghost">
-        Static dummy verdicts for UI/UX review - the decision engine wiring
-        arrives in Phase 2.
+      <p className="mt-6 text-[12px] text-slate-400">
+        Sample verdicts for UI review - the decision engine wiring arrives in
+        Phase 2. Raw market data lives under Market Pulse, Institutional
+        Flow, and Volume Anomalies.
       </p>
     </div>
   );

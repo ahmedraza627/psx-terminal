@@ -4,16 +4,16 @@
 
 @layer base {
   html {
-    color-scheme: dark;
+    color-scheme: light;
   }
   body {
-    /* Institutional numeric alignment everywhere monospace is used */
+    /* Institutional numeric alignment on every figure, all Inter */
     font-variant-numeric: tabular-nums;
-    /* Kill mobile tap flash — terminal chrome stays matte on touch */
+    /* Kill mobile tap flash — chrome stays clean on touch */
     -webkit-tap-highlight-color: transparent;
   }
   ::selection {
-    background: rgba(56, 189, 248, 0.28);
+    background: rgba(37, 99, 235, 0.15);
   }
 }
 
@@ -21,18 +21,18 @@
   .whale-pulse {
     animation: whale-pulse 2.6s ease-in-out infinite;
   }
-  /* Thin machined scrollbars — terminal chrome, not browser chrome */
+  /* Thin scrollbars — soft slate, not browser chrome */
   .scroll-thin {
     scrollbar-width: thin;
-    scrollbar-color: #334155 transparent;
+    scrollbar-color: #cbd5e1 transparent;
   }
   .scroll-thin::-webkit-scrollbar {
     height: 6px;
     width: 6px;
   }
   .scroll-thin::-webkit-scrollbar-thumb {
-    background: #334155;
-    border-radius: 0;
+    background: #cbd5e1;
+    border-radius: 3px;
   }
   .scroll-thin::-webkit-scrollbar-track {
     background: transparent;
@@ -59,42 +59,42 @@
 }
 
 @media (max-width: 767px) {
-  /* Body-cell variant: sits above panning columns, obsidian fill so cell
-     content never shows through the pinned strip. Hairline shadow marks
+  /* Body-cell variant: sits above panning columns, white fill so cell
+     content never shows through the pinned strip. Slate shadow marks
      the pin boundary. */
   .sticky-left {
     position: sticky;
     left: 0;
     z-index: 10;
-    background-color: #0b0f19;
-    box-shadow: 1px 0 0 0 #334155;
+    background-color: #ffffff;
+    box-shadow: 1px 0 0 0 #e2e8f0;
   }
   /* Header-cell variant: one step above body pins so the corner cell wins
-     diagonal scrolls. bg-panel fill for bg-panel table heads. */
+     diagonal scrolls. Slate-50 fill for tinted table heads. */
   .sticky-left-panel {
     position: sticky;
     left: 0;
     z-index: 20;
-    background-color: #1e293b;
-    box-shadow: 1px 0 0 0 #334155;
+    background-color: #f8fafc;
+    box-shadow: 1px 0 0 0 #e2e8f0;
   }
-  /* Header-cell variant for DataTable's obsidian heads. */
+  /* Header-cell variant for DataTable's tinted heads. */
   .sticky-left-head {
     position: sticky;
     left: 0;
     z-index: 20;
-    background-color: #0b0f19;
-    box-shadow: 1px 0 0 0 #334155;
+    background-color: #f8fafc;
+    box-shadow: 1px 0 0 0 #e2e8f0;
   }
 }
 
 @keyframes whale-pulse {
   0%,
   100% {
-    background-color: rgba(16, 185, 129, 0.06);
+    background-color: rgba(16, 185, 129, 0.08);
   }
   50% {
-    background-color: rgba(16, 185, 129, 0.16);
+    background-color: rgba(16, 185, 129, 0.2);
   }
 }
 
