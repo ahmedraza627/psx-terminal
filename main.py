@@ -30,6 +30,7 @@ from datetime import date, datetime, timedelta
 from typing import Optional
 
 from pipeline import db
+from pipeline.analytics.decision_engine import run_decision_engine
 from pipeline.analytics.quant_engine import run_quant_engine
 from pipeline.scrapers.nccpl_flows import fetch_recent_flows
 from pipeline.scrapers.nccpl_mts import fetch_mts_exposure
@@ -560,6 +561,11 @@ def run(argv: list[str] | None = None) -> int:
                     counts["market_breadth"],
                     counts["written"],
                 )
+            with _step("system decision engine"):
+                verdicts_written = run_decision_engine(
+                    session_date=target_session_date
+                )
+                LOGGER.info("system verdicts: %d rows written", verdicts_written)
         else:
             LOGGER.warning("skipping quant engine: core EOD data unavailable")
     else:

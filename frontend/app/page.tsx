@@ -4,16 +4,27 @@
 // (Short-Term, Mid-Term, Long-Term) under a clean greeting header with the
 // active session pill and quick search. Zero raw tables, zero legacy
 // strips, zero status noise. Raw data lives on the dedicated sub-routes
-// (/pulse, /flow, /breakouts). Verdicts are static dummies until the
-// engine wiring lands (Phase 2) - labeled as such, never disguised.
+// (/pulse, /flow, /breakouts). Verdicts are the certified rows the
+// pipeline's decision engine stores in psx_system_verdicts - never
+// samples; a session without engine output renders an honest clean state.
 
 import DecisionCard from "@/components/DecisionCard";
 import PageHeader from "@/components/PageHeader";
 import SearchBox from "@/components/SearchBox";
 import SessionPill from "@/components/SessionPill";
-import { fetchLatestEodSession } from "@/lib/consoleQueries";
+import {
+  fetchLatestEodSession,
+  fetchSystemVerdicts,
+} from "@/lib/consoleQueries";
 
 export const dynamic = "force-dynamic";
+
+/** Card order and display labels for the engine's three horizons. */
+const HORIZONS: { key: string; label: string }[] = [
+  { key: "SHORT_TERM", label: "Short-Term (1-5 Days)" },
+  { key: "MID_TERM", label: "Mid-Term (2-8 Weeks)" },
+  { key: "LONG_TERM", label: "Long-Term (Avoid / Risk)" },
+];
 
 /** Greeting from the current Pakistan Standard Time hour. */
 function greeting(hourPkt: number): string {
@@ -24,6 +35,7 @@ function greeting(hourPkt: number): string {
 
 export default async function ActionDeskPage() {
   const session = await fetchLatestEodSession();
+  const verdicts = await fetchSystemVerdicts(session);
   const hourPkt = Number(
     new Date().toLocaleString("en-US", {
       timeZone: "Asia/Karachi",
@@ -31,6 +43,15 @@ export default async function ActionDeskPage() {
       hour12: false,
     }),
   );
+
+  // Engine-stamped horizons, rendered in canonical card order. The engine
+  // only stores horizons with a certified candidate, so a partial set
+  // renders fewer cards - never placeholders.
+  const byHorizon = new Map(verdicts.map((v) => [v.horizon, v]));
+  const cards = HORIZONS.flatMap((h) => {
+    const verdict = byHorizon.get(h.key);
+    return verdict ? [{ label: h.label, verdict }] : [];
+  });
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 pb-12 pt-6 sm:px-6">
@@ -45,33 +66,27 @@ export default async function ActionDeskPage() {
         }
       />
 
-      {/* Executive verdict grid: one card per time horizon */}
-      <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-        <DecisionCard
-          horizon="Short-Term Swing"
-          direction="BUY"
-          ticker="HUBC"
-          logic="Institutions buying for 3 days straight + volume up 300% over the 20-session average."
-        />
-        <DecisionCard
-          horizon="Mid-Term Accumulation"
-          direction="BUY"
-          ticker="MEBL"
-          logic="FIPI and Mutual Funds accumulated for 5 sessions while retail kept selling into the tape."
-        />
-        <DecisionCard
-          horizon="Long-Term Avoid"
-          direction="AVOID"
-          ticker="KSE100"
-          logic="Advance/decline ratio at 0.62 with institutions net sellers — the tape is not confirming."
-        />
-      </div>
-
-      <p className="mt-6 text-[12px] text-slate-400">
-        Sample verdicts for UI review - the decision engine wiring arrives in
-        Phase 2. Raw market data lives under Market Pulse, Institutional
-        Flow, and Volume Anomalies.
-      </p>
+      {cards.length === 0 ? (
+        /* Honest clean state: the engine has not stamped this session yet. */
+        <div className="mt-6 rounded-xl border border-slate-200 bg-white px-6 py-12 text-center shadow-sm">
+          <p className="text-[13px] font-medium text-slate-500">
+            Awaiting EOD Decision Engine execution for this session
+          </p>
+        </div>
+      ) : (
+        /* Executive verdict grid: one card per certified horizon */
+        <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {cards.map(({ label, verdict }) => (
+            <DecisionCard
+              key={verdict.horizon}
+              horizon={label}
+              direction={verdict.direction}
+              ticker={verdict.ticker}
+              logic={verdict.logic}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

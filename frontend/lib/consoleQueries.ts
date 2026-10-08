@@ -905,3 +905,56 @@ export async function fetchTickerDeepDive(
     return null;
   }
 }
+
+// --------------------------------------------------------------- //
+// Action Desk - certified system verdicts (psx_system_verdicts).  //
+// --------------------------------------------------------------- //
+
+/** Certified verdict row written by the pipeline's decision engine. */
+export interface SystemVerdict {
+  tradeDate: string;
+  /** SHORT_TERM | MID_TERM | LONG_TERM */
+  horizon: string;
+  /** BUY | AVOID | ACCUMULATE */
+  direction: "BUY" | "AVOID" | "ACCUMULATE";
+  ticker: string;
+  /** The certified system-logic sentence exactly as stored. */
+  logic: string;
+}
+
+/**
+ * The active session's three system verdicts (or fewer - the engine only
+ * stores horizons with a certified candidate, never fabricated rows).
+ * Settle-safe by house convention: failures and a missing session degrade
+ * to [] so the Action Desk renders its honest awaiting state.
+ */
+export async function fetchSystemVerdicts(
+  sessionDate: string | null,
+): Promise<SystemVerdict[]> {
+  if (!sessionDate) return [];
+  try {
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from("psx_system_verdicts")
+      .select("trade_date,horizon,direction,ticker,logic_text")
+      .eq("trade_date", sessionDate);
+    if (error) throw error;
+    // The engine only writes the three documented enums; the cast keeps the
+    // display type honest without mutating stored values.
+    return ((data ?? []) as {
+      trade_date: string;
+      horizon: string;
+      direction: SystemVerdict["direction"];
+      ticker: string;
+      logic_text: string;
+    }[]).map((r) => ({
+      tradeDate: r.trade_date,
+      horizon: r.horizon,
+      direction: r.direction,
+      ticker: r.ticker,
+      logic: r.logic_text,
+    }));
+  } catch {
+    return [];
+  }
+}

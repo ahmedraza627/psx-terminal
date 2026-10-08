@@ -4,16 +4,16 @@ import TickerLink from "@/components/TickerLink";
  * DecisionCard - the Action Desk's atomic verdict unit.
  *
  * One card = one machine verdict: a time horizon, a direction badge
- * (BUY = soft emerald, AVOID/SHORT = soft rose), the target ticker, and a
- * single readable system-logic sentence. Light SaaS styling: white card,
- * rounded-xl, soft shadow. Pure server component; the backend verdict
- * engine wires into the same props shape later (Phase 2).
+ * (BUY/ACCUMULATE = soft emerald, AVOID/SHORT = soft rose), the target
+ * ticker, and a single readable system-logic sentence. Light SaaS styling:
+ * white card, rounded-xl, soft shadow. Pure server component; fed live by
+ * the pipeline's decision engine via psx_system_verdicts.
  */
 
-export type DecisionDirection = "BUY" | "AVOID" | "SHORT";
+export type DecisionDirection = "BUY" | "AVOID" | "SHORT" | "ACCUMULATE";
 
 export interface DecisionCardProps {
-  /** e.g. "SHORT-TERM SWING" | "MID-TERM ACCUMULATION" | "LONG-TERM HOLD" */
+  /** e.g. "Short-Term (1-5 Days)" | "Mid-Term (2-8 Weeks)" */
   horizon: string;
   direction: DecisionDirection;
   /** Target symbol, e.g. "HUBC" or "MEBL". */
@@ -27,6 +27,10 @@ const DIRECTION_STYLE: Record<
   { badge: string; accent: string }
 > = {
   BUY: {
+    badge: "border border-emerald-200 bg-emerald-50 text-emerald-700",
+    accent: "bg-emerald-500",
+  },
+  ACCUMULATE: {
     badge: "border border-emerald-200 bg-emerald-50 text-emerald-700",
     accent: "bg-emerald-500",
   },
