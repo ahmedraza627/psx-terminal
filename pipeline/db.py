@@ -349,15 +349,24 @@ def fetch_macro_prices(max_rows: int = 30000) -> list[dict[str, Any]]:
     )
 
 
-def fetch_recent_fundamentals() -> list[dict[str, Any]]:
-    """Latest screener snapshot per ticker (used by the long-term screen)."""
+def fetch_recent_fundamentals(*, real_sectors_only: bool = False) -> list[dict[str, Any]]:
+    """Latest screener snapshot per ticker (used by the long-term screen).
+
+    With real_sectors_only, rows whose sector_name is the scraper's
+    "UNKNOWN" placeholder are excluded server-side. The DPS sectorwise
+    map has been failing since 2026-09-23, so recent snapshots are 100%
+    UNKNOWN and a plain newest-first window never reaches the last good
+    snapshot; filtering returns only usable labels (~5k rows) instead.
+    """
+    filters = [("sector_name", "neq", "UNKNOWN")] if real_sectors_only else None
     return _paginated_select(
         "psx_fundamentals",
         "trade_date,ticker,sector_name,market_cap_pkr,"
         "close_price,pe_ratio,dividend_yield",
         order_desc_col="trade_date",
         order_asc_col="ticker",
-        max_rows=3000,
+        max_rows=8000 if real_sectors_only else 3000,
+        filters=filters,
     )
 
 

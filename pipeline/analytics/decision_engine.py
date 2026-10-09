@@ -13,16 +13,19 @@ Writes exactly one psx_system_verdicts row per horizon per session
                                  distributed; the leader is that sector's
                                  highest-turnover ticker with positive
                                  5-session performance.
-  LONG_TERM (avoid/risk)  AVOID Breadth trap: advance/decline < 0.8 while
-                                 KSE-100 closed green -> flag KSE100.
-                                 Otherwise the retail-heaviest sector where
+  LONG_TERM (avoid/risk)  AVOID The retail-heaviest sector where
                                  institutions are net negative, flagged via
-                                 its highest-turnover member.
+                                 its highest-turnover priced member. Falls
+                                 back to the breadth trap (advance/decline <
+                                 0.8 while KSE-100 closed green -> KSE100)
+                                 when no trap-sector ticker is priced.
 
-Participant vocabulary: institutions = BANKS + MUTUAL FUNDS + FIPI.
-NCCPL's FIPI aggregate is stored as the "FOREIGN TOTAL" rollup on current
-scraper generations (and as literal "FIPI" on legacy rows), so both labels
-are honoured. Retail = INDIVIDUALS.
+Participant vocabulary: institutions = FOREIGN TOTAL + FIPI + BANKS +
+MUTUAL FUNDS. NCCPL's FIPI aggregate is stored as the "FOREIGN TOTAL"
+rollup on current scraper generations (and as literal "FIPI" on legacy
+rows), so both labels are honoured. Retail is detected by the substring
+"INDIVIDUAL" at the session level (covers both INDIVIDUAL and
+INDIVIDUALS labels).
 
 Honest-data rules (house convention): a horizon with no certified
 candidate is SKIPPED - never fabricated, never defaulted. The frontend
@@ -49,6 +52,10 @@ BREADTH_RED_RATIO = float(os.getenv("VERDICT_BREADTH_RED_RATIO", "0.8"))
 
 INST_FLOW_TYPES = {"BANKS", "MUTUAL FUNDS", "FIPI", "FOREIGN TOTAL"}
 RETAIL_FLOW_TYPES = {"INDIVIDUALS"}
+
+# Non-actionable NCCPL aggregate buckets - they are market rollups, not
+# investable sectors, and would always dominate a raw "largest net" pick.
+AGGREGATE_SECTORS = ("ALL OTHER SECTORS", "TOTAL", "MISCELLANEOUS")
 
 HORIZON_SHORT = "SHORT_TERM"
 HORIZON_MID = "MID_TERM"
@@ -152,10 +159,19 @@ def _flow_sessions_desc(flow_rows: list[dict[str, Any]], session_date: date) -> 
     return sorted(days, reverse=True)
 
 
+def _is_aggregate_sector(label: str) -> bool:
+    """True for NCCPL rollup buckets that name no investable sector."""
+    return any(token in label for token in AGGREGATE_SECTORS)
+
+
 def _sector_flow_totals(
     flow_rows: list[dict[str, Any]], days: list[date]
 ) -> dict[str, dict[str, float]]:
-    """sector -> participant -> cumulative net over the given flow sessions."""
+    """sector -> participant -> cumulative net over the given flow sessions.
+
+    Market-wide rows ("ALL") and non-actionable aggregate buckets are
+    excluded - only real sectors compete for the accumulation / trap picks.
+    """
     wanted = set(days)
     totals: dict[str, dict[str, float]] = defaultdict(lambda: defaultdict(float))
     for row in flow_rows:
@@ -166,26 +182,54 @@ def _sector_flow_totals(
         participant = str(row.get("participant_type") or "").strip().upper()
         if not sector or sector == "ALL" or not participant:
             continue  # market-wide rows belong to no sector
+        if _is_aggregate_sector(sector):
+            continue  # rollup buckets are not investable sectors
         totals[sector][participant] += _net_of(row)
     return totals
 
 
 def _sector_map(fundamental_rows: list[dict[str, Any]]) -> dict[str, str]:
-    """ticker -> sector label (upper) from the newest fundamentals snapshot."""
-    newest: Optional[date] = None
-    for row in fundamental_rows:
-        day = _parse_day(row.get("trade_date"))
-        if day is not None and (newest is None or day > newest):
-            newest = day
+    """ticker -> sector label (upper) from psx_fundamentals.
+
+    Uses the LATEST KNOWN sector per ticker across all stored snapshots,
+    not just the newest date - a stale or missing newest snapshot must not
+    empty the mapping and starve the leader picks. Placeholder labels
+    ("UNKNOWN", written by the scraper when the DPS sectorwise map fetch
+    fails) are skipped too: the 2026-09-23..2026-10-09 snapshots are 100%
+    UNKNOWN and were masking the real labels underneath them.
+    """
     mapping: dict[str, str] = {}
+    best_day: dict[str, date] = {}
     for row in fundamental_rows:
-        day = _parse_day(row.get("trade_date"))
-        if day is None or newest is None or day != newest:
-            continue
+        ticker = row.get("ticker")
         sector = str(row.get("sector_name") or "").strip().upper()
-        if sector:
-            mapping[row["ticker"]] = sector
+        day = _parse_day(row.get("trade_date"))
+        if not ticker or not sector or day is None:
+            continue
+        if sector == "UNKNOWN":
+            continue  # scraper placeholder, not a sector - keep older real label
+        previous = best_day.get(ticker)
+        if previous is None or day >= previous:
+            best_day[ticker] = day
+            mapping[ticker] = sector
     return mapping
+
+
+def _sector_matches(nccpl_sector: str, mapped_sector: str) -> bool:
+    """Tolerant sector join between NCCPL labels and fundamentals labels.
+
+    The two sources drift ("OIL & GAS" vs "OIL & GAS EXPLORATION",
+    "TECH" vs "TECHNOLOGY", NCCPL's "POWER GENERATION AND DISTRIBUTION"
+    vs DPS's "POWER GENERATION & DISTRIBUTION"), so an equality-only
+    join silently drops every member. '&' is normalised to "AND" and
+    whitespace collapsed; exact match wins, otherwise containment on the
+    normalised labels counts as the same sector family.
+    """
+    def norm(s: str) -> str:
+        return " ".join(s.upper().replace("&", " AND ").split())
+
+    a, b = norm(nccpl_sector), norm(mapped_sector)
+    return a == b or a in b or b in a
 
 
 def _inst_retail_nets(nets: dict[str, float]) -> tuple[float, float]:
@@ -248,8 +292,15 @@ def _short_term_verdict(
     if not nets:
         LOGGER.info("decision engine: no session flows for %s; SHORT_TERM skipped", session_date)
         return None
-    inst_net, retail_net = _inst_retail_nets(nets)
-    if inst_net <= 0 or retail_net >= 0:
+    # Participant labels are normalised (upper/strip) by _market_wide_net;
+    # retail is detected by substring so both INDIVIDUAL and INDIVIDUALS
+    # labels count. A missing / zero retail line does NOT block the verdict
+    # (fix for the 2026-10-07 all-skip): institutions net buying carries
+    # the cross-check on its own. Only net RETAIL BUYING falsifies the
+    # "absorbed retail selling" narrative and blocks it.
+    inst_net = sum(nets.get(p, 0.0) for p in INST_FLOW_TYPES)
+    retail_net = sum(v for k, v in nets.items() if "INDIVIDUAL" in k)
+    if inst_net <= 0 or retail_net > 0:
         LOGGER.info(
             "decision engine %s: flow cross-check failed "
             "(inst=%.0f, retail=%.0f); SHORT_TERM skipped",
@@ -312,7 +363,7 @@ def _leader_in_sector(
     best_ticker: Optional[str] = None
     best_turnover = -1.0
     for ticker, mapped in sector_by_ticker.items():
-        if mapped != sector:
+        if not _sector_matches(sector, mapped):
             continue
         points = series.get(ticker)
         if not points:
@@ -374,8 +425,20 @@ def _mid_term_verdict(
         window_start=window_start,
     )
     if leader is None:
+        # Sparse history (no usable 5D window) or no positive performer must
+        # not drop the sector entirely: fall back to the session's top
+        # turnover ticker from psx_daily_eod (fix for the 2026-10-07 skip).
+        leader = _leader_in_sector(
+            best_sector,
+            session_date,
+            series,
+            sector_by_ticker,
+            require_positive_5d=False,
+            window_start=None,
+        )
+    if leader is None:
         LOGGER.info(
-            "decision engine %s: sector %s has no positive-5D turnover leader; "
+            "decision engine %s: sector %s has no priced ticker at the session; "
             "MID_TERM skipped",
             session_date, best_sector,
         )
@@ -389,6 +452,43 @@ def _mid_term_verdict(
     }
 
 
+def _breadth_verdict(
+    session_date: date,
+    prior_date: date,
+    series: dict[str, list[tuple[date, float, float]]],
+) -> Optional[dict[str, Any]]:
+    """Breadth trap: adv/dec < 0.8 while KSE-100 closed green -> KSE100."""
+    adv = dec = 0
+    for ticker, points in series.items():
+        if ticker.upper() in INDEX_TICKERS:
+            continue
+        now = _close_at(points, session_date)
+        before = _close_at(points, prior_date)
+        if now is None or before is None or now <= 0 or before <= 0:
+            continue
+        if now > before:
+            adv += 1
+        elif now < before:
+            dec += 1
+    ratio = (adv / dec) if dec > 0 else None
+    if ratio is None or ratio >= BREADTH_RED_RATIO:
+        return None
+    change = _kse100_change_pct(session_date, prior_date, series)
+    if change is None or change <= 0:
+        return None
+    return {
+        "trade_date": session_date.isoformat(),
+        "horizon": HORIZON_LONG,
+        "direction": "AVOID",
+        "ticker": "KSE100",
+        "logic_text": (
+            f"Breadth trap: advance/decline at {ratio:.2f} while "
+            f"KSE-100 closed green (+{change:.2f}%) - the rally "
+            "is not confirmed by the tape."
+        ),
+    }
+
+
 def _long_term_verdict(
     session_date: date,
     sessions_desc: list[date],
@@ -396,38 +496,12 @@ def _long_term_verdict(
     flow_rows: list[dict[str, Any]],
     sector_by_ticker: dict[str, str],
 ) -> Optional[dict[str, Any]]:
-    """Breadth trap -> KSE100, else the retail-heaviest institution-sold sector."""
-    prior = [d for d in sessions_desc if d < session_date]
-    if prior:
-        prior_date = prior[0]
-        adv = dec = 0
-        for ticker, points in series.items():
-            if ticker.upper() in INDEX_TICKERS:
-                continue
-            now = _close_at(points, session_date)
-            before = _close_at(points, prior_date)
-            if now is None or before is None or now <= 0 or before <= 0:
-                continue
-            if now > before:
-                adv += 1
-            elif now < before:
-                dec += 1
-        ratio = (adv / dec) if dec > 0 else None
-        if ratio is not None and ratio < BREADTH_RED_RATIO:
-            change = _kse100_change_pct(session_date, prior_date, series)
-            if change is not None and change > 0:
-                return {
-                    "trade_date": session_date.isoformat(),
-                    "horizon": HORIZON_LONG,
-                    "direction": "AVOID",
-                    "ticker": "KSE100",
-                    "logic_text": (
-                        f"Breadth trap: advance/decline at {ratio:.2f} while "
-                        f"KSE-100 closed green (+{change:.2f}%) - the rally "
-                        "is not confirmed by the tape."
-                    ),
-                }
+    """Retail-trap sector first; KSE-100 breadth trap as the direct fallback.
 
+    v2 (fix for the 2026-10-07 all-skip): when no trap-sector ticker is
+    priced in psx_daily_eod (or the mapping starves), the horizon falls
+    straight back to the breadth check instead of skipping outright.
+    """
     window_days = _flow_sessions_desc(flow_rows, session_date)[:FLOW_WINDOW_SESSIONS]
     totals = _sector_flow_totals(flow_rows, window_days)
     trap_sector: Optional[str] = None
@@ -439,32 +513,41 @@ def _long_term_verdict(
         if retail_net > most_retail_buying:
             trap_sector = sector
             most_retail_buying = retail_net
-    if trap_sector is None:
-        LOGGER.info(
-            "decision engine %s: no retail-trap sector; LONG_TERM skipped", session_date
+    if trap_sector is not None:
+        leader = _leader_in_sector(
+            trap_sector,
+            session_date,
+            series,
+            sector_by_ticker,
+            require_positive_5d=False,
+            window_start=None,
         )
-        return None
-    leader = _leader_in_sector(
-        trap_sector,
-        session_date,
-        series,
-        sector_by_ticker,
-        require_positive_5d=False,
-        window_start=None,
-    )
-    if leader is None:
+        if leader is not None:
+            return {
+                "trade_date": session_date.isoformat(),
+                "horizon": HORIZON_LONG,
+                "direction": "AVOID",
+                "ticker": leader,
+                "logic_text": "Retail trap active: institutions net distributing into retail liquidity.",
+            }
         LOGGER.info(
-            "decision engine %s: trap sector %s has no priced leader; LONG_TERM skipped",
+            "decision engine %s: trap sector %s has no priced ticker; "
+            "falling back to breadth",
             session_date, trap_sector,
         )
+    else:
+        LOGGER.info(
+            "decision engine %s: no retail-trap sector; checking breadth", session_date
+        )
+
+    prior = [d for d in sessions_desc if d < session_date]
+    if not prior:
+        LOGGER.info("decision engine %s: no prior session; LONG_TERM skipped", session_date)
         return None
-    return {
-        "trade_date": session_date.isoformat(),
-        "horizon": HORIZON_LONG,
-        "direction": "AVOID",
-        "ticker": leader,
-        "logic_text": "Retail trap active: institutions net distributing into retail liquidity.",
-    }
+    breadth = _breadth_verdict(session_date, prior[0], series)
+    if breadth is None:
+        LOGGER.info("decision engine %s: no LONG_TERM candidate certified", session_date)
+    return breadth
 
 
 # --------------------------------------------------------------------------- #
@@ -483,7 +566,11 @@ def run_decision_engine(session_date: Optional[date] = None) -> int:
         LOGGER.warning("decision engine: no EOD history; aborting")
         return 0
     flow_rows = db.fetch_recent_flows(days=FLOW_WINDOW_SESSIONS + 5)
-    fundamentals = db.fetch_recent_fundamentals()
+    # real_sectors_only: the newest snapshots can be a wall of UNKNOWN
+    # placeholders (DPS sectorwise scrape down); ask for the rows that
+    # actually carry a sector so the ticker -> sector map can reach the
+    # last good snapshot.
+    fundamentals = db.fetch_recent_fundamentals(real_sectors_only=True)
 
     series = _session_series(eod_rows)
     sessions_desc = _session_dates_desc(series)
