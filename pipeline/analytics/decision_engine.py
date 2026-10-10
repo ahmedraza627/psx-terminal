@@ -41,6 +41,7 @@ from datetime import date
 from typing import Any, Optional
 
 from pipeline import db
+from pipeline.backtest.engine import run_quick_backtest
 from pipeline.http_client import http_get
 
 LOGGER = logging.getLogger(__name__)
@@ -56,6 +57,12 @@ RETAIL_FLOW_TYPES = {"INDIVIDUALS"}
 # Non-actionable NCCPL aggregate buckets - they are market rollups, not
 # investable sectors, and would always dominate a raw "largest net" pick.
 AGGREGATE_SECTORS = ("ALL OTHER SECTORS", "TOTAL", "MISCELLANEOUS")
+
+# Fundamental gate (strict): a BUY candidate must be profitable on its
+# latest screener snapshot (PE > 0 present). Loss-making or unpriced
+# tickers are skipped and the next best candidate is certified instead.
+FUNDAMENTAL_SCORE_LABEL = "PROFITABLE (PE > 0)"
+FUNDAMENTAL_UNVERIFIED = "UNVERIFIED"
 
 HORIZON_SHORT = "SHORT_TERM"
 HORIZON_MID = "MID_TERM"
@@ -215,6 +222,37 @@ def _sector_map(fundamental_rows: list[dict[str, Any]]) -> dict[str, str]:
     return mapping
 
 
+def _pe_map(fundamentals: list[dict[str, Any]]) -> dict[str, Optional[float]]:
+    """ticker -> pe_ratio from its NEWEST screener snapshot.
+
+    Strict by design: the latest snapshot's value wins even when it is
+    null - the fundamental gate must see "no data" as "no data", not as
+    a stale profitable reading from months ago.
+    """
+    mapping: dict[str, Optional[float]] = {}
+    best_day: dict[str, date] = {}
+    for row in fundamentals:
+        ticker = row.get("ticker")
+        day = _parse_day(row.get("trade_date"))
+        if not ticker or day is None:
+            continue
+        previous = best_day.get(ticker)
+        if previous is None or day >= previous:
+            best_day[ticker] = day
+            pe = row.get("pe_ratio")
+            try:
+                mapping[ticker] = float(pe) if pe is not None else None
+            except (TypeError, ValueError):
+                mapping[ticker] = None
+    return mapping
+
+
+def _is_profitable(pe_map: dict[str, Optional[float]], ticker: str) -> bool:
+    """True only when the latest snapshot proves PE > 0 (strict gate)."""
+    pe = pe_map.get(ticker)
+    return pe is not None and pe > 0
+
+
 def _sector_matches(nccpl_sector: str, mapped_sector: str) -> bool:
     """Tolerant sector join between NCCPL labels and fundamentals labels.
 
@@ -286,6 +324,7 @@ def _short_term_verdict(
     session_date: date,
     series: dict[str, list[tuple[date, float, float]]],
     flow_rows: list[dict[str, Any]],
+    pe_map: dict[str, Optional[float]],
 ) -> Optional[dict[str, Any]]:
     """Volume spike > 2.5x 20D SMA, gated on the session flow cross-check.
 
@@ -313,9 +352,10 @@ def _short_term_verdict(
         )
         return None
 
-    best_ticker: Optional[str] = None
-    best_volume = 0.0
-    best_spike_pct = 0.0
+    # Rank every qualifying spike by volume, then walk down the list to
+    # the BEST FUNDAMENTALLY VERIFIED candidate: loss-making or unpriced
+    # tickers are skipped, never certified (institutional strict rule).
+    candidates: list[tuple[float, float, str]] = []  # (volume, spike_pct, ticker)
     for ticker, points in series.items():
         if ticker.upper() in INDEX_TICKERS:
             continue
@@ -331,13 +371,30 @@ def _short_term_verdict(
         sma = sum(p[2] for p in window) / len(window)
         if sma <= 0 or volume <= VOLUME_SPIKE_RATIO * sma:
             continue
-        if volume > best_volume:
+        candidates.append((volume, (volume / sma - 1.0) * 100.0, ticker))
+
+    best_ticker: Optional[str] = None
+    best_spike_pct = 0.0
+    for volume, spike_pct, ticker in sorted(candidates, reverse=True):
+        if _is_profitable(pe_map, ticker):
             best_ticker = ticker
-            best_volume = volume
-            best_spike_pct = (volume / sma - 1.0) * 100.0
+            best_spike_pct = spike_pct
+            break
+        LOGGER.info(
+            "decision engine %s: fundamental filter skipped %s "
+            "(pe_ratio=%s); next candidate",
+            session_date, ticker, pe_map.get(ticker),
+        )
 
     if best_ticker is None:
-        LOGGER.info("decision engine %s: no 2.5x volume spike; SHORT_TERM skipped", session_date)
+        if candidates:
+            LOGGER.info(
+                "decision engine %s: %d volume spike(s) but none profitable "
+                "(PE > 0); SHORT_TERM skipped",
+                session_date, len(candidates),
+            )
+        else:
+            LOGGER.info("decision engine %s: no 2.5x volume spike; SHORT_TERM skipped", session_date)
         return None
     return {
         "trade_date": session_date.isoformat(),
@@ -359,17 +416,24 @@ def _leader_in_sector(
     *,
     require_positive_5d: bool,
     window_start: Optional[date],
+    pe_map: Optional[dict[str, Optional[float]]] = None,
+    require_profitable: bool = False,
 ) -> Optional[str]:
     """Highest session-turnover ticker mapped to ``sector``.
 
     With require_positive_5d, only members closing above their window-start
     close qualify - the leader must be performing, not just churning.
+    With require_profitable, only PE > 0 members compete (BUY horizons);
+    AVOID verdicts deliberately skip the gate - the trap ticker's
+    fundamentals are irrelevant to the warning.
     """
     best_ticker: Optional[str] = None
     best_turnover = -1.0
     for ticker, mapped in sector_by_ticker.items():
         if not _sector_matches(sector, mapped):
             continue
+        if require_profitable and not _is_profitable(pe_map or {}, ticker):
+            continue  # strict gate: loss-making / unpriced never certified
         points = series.get(ticker)
         if not points:
             continue
@@ -398,6 +462,7 @@ def _mid_term_verdict(
     series: dict[str, list[tuple[date, float, float]]],
     flow_rows: list[dict[str, Any]],
     sector_by_ticker: dict[str, str],
+    pe_map: dict[str, Optional[float]],
 ) -> Optional[dict[str, Any]]:
     """Sector with the largest 5-session institutional absorption while
     retail distributed; leader = highest-turnover member with positive 5D.
@@ -433,6 +498,8 @@ def _mid_term_verdict(
         sector_by_ticker,
         require_positive_5d=True,
         window_start=window_start,
+        pe_map=pe_map,
+        require_profitable=True,
     )
     if leader is None:
         # Sparse history (no usable 5D window) or no positive performer must
@@ -445,6 +512,8 @@ def _mid_term_verdict(
             sector_by_ticker,
             require_positive_5d=False,
             window_start=None,
+            pe_map=pe_map,
+            require_profitable=True,
         )
     if leader is None:
         LOGGER.info(
@@ -705,6 +774,10 @@ def run_decision_engine(session_date: Optional[date] = None) -> int:
     # actually carry a sector so the ticker -> sector map can reach the
     # last good snapshot.
     fundamentals = db.fetch_recent_fundamentals(real_sectors_only=True)
+    # The PE gate reads the NEWEST snapshots, which are often a wall of
+    # UNKNOWN sectors while still carrying fresh PEs - so the gate gets
+    # its own unfiltered fetch (3k newest rows cover every ticker).
+    pe_rows = db.fetch_recent_fundamentals(real_sectors_only=False)
 
     series = _session_series(eod_rows)
     sessions_desc = _session_dates_desc(series)
@@ -714,6 +787,7 @@ def run_decision_engine(session_date: Optional[date] = None) -> int:
         )
         return 0
     sector_by_ticker = _sector_map(fundamentals)
+    pe_map = _pe_map(pe_rows)
 
     # Market regime: the macro gate all execution levels are stamped with.
     prior = [d for d in sessions_desc if d < trade_date]
@@ -723,13 +797,32 @@ def run_decision_engine(session_date: Optional[date] = None) -> int:
         levels = _execution_levels(v, trade_date, series)
         v.update(levels)
         v["regime_status"] = regime
+        # Fundamental gate result + historical edge proof. BUY verdicts
+        # already passed the strict PE gate in candidate selection; AVOID
+        # verdicts are warnings, so they stay UNVERIFIED and unbacktested.
+        profitable = _is_profitable(pe_map, v["ticker"])
+        v["fundamental_score"] = (
+            FUNDAMENTAL_SCORE_LABEL if profitable else FUNDAMENTAL_UNVERIFIED
+        )
+        v["historical_win_rate"] = None
+        if v["direction"] == "BUY" and profitable:
+            try:
+                result = run_quick_backtest(v["ticker"], v["horizon"], trade_date)
+            except Exception as exc:  # noqa: BLE001 - backtest must never kill verdicts
+                LOGGER.warning(
+                    "decision engine %s: backtest %s failed: %s",
+                    trade_date, v["ticker"], exc,
+                )
+                result = None
+            if result is not None:
+                v["historical_win_rate"] = result["win_rate"]
         return v
 
     rows = [
         with_execution(v)
         for v in (
-            _short_term_verdict(trade_date, series, flow_rows),
-            _mid_term_verdict(trade_date, sessions_desc, series, flow_rows, sector_by_ticker),
+            _short_term_verdict(trade_date, series, flow_rows, pe_map),
+            _mid_term_verdict(trade_date, sessions_desc, series, flow_rows, sector_by_ticker, pe_map),
             _long_term_verdict(trade_date, sessions_desc, series, flow_rows, sector_by_ticker),
         )
         if v is not None

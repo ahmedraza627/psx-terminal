@@ -97,6 +97,8 @@ export default async function ActionDeskPage() {
                 targetPrice={verdict.targetPrice}
                 riskReward={verdict.riskReward}
                 regimeStatus={verdict.regimeStatus}
+                historicalWinRate={verdict.historicalWinRate}
+                fundamentalScore={verdict.fundamentalScore}
               />
             ))}
           </div>

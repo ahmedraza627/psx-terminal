@@ -34,6 +34,14 @@ export interface DecisionCardProps {
   riskReward?: number | null;
   /** NORMAL | DEFENSIVE_CASH - the macro regime stamp. */
   regimeStatus?: string | null;
+  /**
+   * 3-year walk-forward win rate (%) of this ticker's own entry/stop/
+   * target logic. Null when history was too thin to simulate, when the
+   * migration carrying it is pending, or for AVOID verdicts.
+   */
+  historicalWinRate?: number | null;
+  /** "PROFITABLE (PE > 0)" once the strict fundamental gate passed. */
+  fundamentalScore?: string | null;
 }
 
 const DIRECTION_STYLE: Record<
@@ -76,6 +84,8 @@ export default function DecisionCard({
   targetPrice,
   riskReward,
   regimeStatus,
+  historicalWinRate = null,
+  fundamentalScore = null,
 }: DecisionCardProps) {
   const s = DIRECTION_STYLE[direction];
   const hasLevels =
@@ -104,8 +114,15 @@ export default function DecisionCard({
           <TickerLink ticker={ticker} title="Open deep-dive" />
         </p>
 
-        {/* System logic - the single readable sentence */}
-        <p className="text-[13px] leading-relaxed text-slate-600">{logic}</p>
+        {/* System logic + historical edge proof */}
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-[13px] leading-relaxed text-slate-600">{logic}</p>
+          {historicalWinRate != null && (
+            <span className="inline-flex shrink-0 items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold tabular-nums text-slate-600">
+              {historicalWinRate.toFixed(0)}% Hist. Win Rate
+            </span>
+          )}
+        </div>
 
         {/* Execution grid - certified risk math (when the engine stored it) */}
         {hasLevels && (
@@ -160,6 +177,15 @@ export default function DecisionCard({
           </div>
         )}
       </div>
+
+      {/* Fundamental gate stamp - the verdict passed the strict PE filter */}
+      {fundamentalScore && (
+        <div className="border-t border-slate-100 px-5 py-2 pl-6">
+          <p className="text-[11px] font-medium tracking-wide text-slate-400">
+            Fundamental filter: {fundamentalScore}
+          </p>
+        </div>
+      )}
     </article>
   );
 }

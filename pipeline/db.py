@@ -248,6 +248,24 @@ def fetch_recent_eod(days: int = 90, min_date: Optional[str] = None) -> list[dic
     )
 
 
+def fetch_eod_for_ticker(ticker: str, days: int = 1100) -> list[dict[str, Any]]:
+    """One ticker's stored EOD history for the quick backtester.
+
+    Filtered server-side on ticker so a 3-year walk-forward costs one
+    symbol's rows (~750), never the whole universe's millions.
+    Includes bar high/low so backtest resolution uses real ranges.
+    """
+    min_date = (date.today() - timedelta(days=days)).isoformat()
+    return _paginated_select(
+        "psx_daily_eod",
+        "trade_date,open_price,high_price,low_price,close_price,volume",
+        order_desc_col="trade_date",
+        order_asc_col="ticker",
+        max_rows=days + 100,
+        filters=[("trade_date", "gte", min_date), ("ticker", "eq", ticker)],
+    )
+
+
 def fetch_recent_flows(days: int = 15) -> list[dict[str, Any]]:
     """Load recent participant flows for the medium-term engine."""
     return _paginated_select(

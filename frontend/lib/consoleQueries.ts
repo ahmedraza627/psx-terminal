@@ -935,6 +935,15 @@ export interface SystemVerdict {
   riskReward: number | null;
   /** NORMAL | DEFENSIVE_CASH - the macro regime stamp. */
   regimeStatus: string | null;
+  // -----------------------------------------------------------------
+  // Institutional proof (decision engine backtest + fundamental gate).
+  // Null while migration 010_backtest_fundamentals.sql is pending, when
+  // history was too thin to simulate, or for AVOID verdicts.
+  // -----------------------------------------------------------------
+  /** 3-year walk-forward win rate (%) of the same entry/stop/target logic. */
+  historicalWinRate: number | null;
+  /** "PROFITABLE (PE > 0)" once the strict PE gate passed, else "UNVERIFIED". */
+  fundamentalScore: string | null;
 }
 
 /**
@@ -965,12 +974,15 @@ export async function fetchSystemVerdicts(
     target_price?: number | null;
     risk_reward_ratio?: number | null;
     regime_status?: string | null;
+    historical_win_rate?: number | null;
+    fundamental_score?: string | null;
   };
 
   const BASE = "trade_date,horizon,direction,ticker,logic_text";
-  const FULL =
+  const RISK =
     BASE +
     ",entry_ref,stop_loss,target_price,risk_reward_ratio,regime_status";
+  const FULL = RISK + ",historical_win_rate,fundamental_score";
 
   // The engine only writes the three documented enums; the cast keeps the
   // display type honest without mutating stored values.
@@ -986,14 +998,17 @@ export async function fetchSystemVerdicts(
       targetPrice: r.target_price ?? null,
       riskReward: r.risk_reward_ratio ?? null,
       regimeStatus: r.regime_status ?? null,
+      historicalWinRate: r.historical_win_rate ?? null,
+      fundamentalScore: r.fundamental_score ?? null,
     }));
 
   try {
     const supabase = createClient();
 
-    // Risk-bearing projection first; when migration 009 is still pending
-    // PostgREST rejects the unknown columns (PGRST204 / 42703), so retry
-    // with the base projection instead of dropping the desk to empty.
+    // Widest projection first; PostgREST rejects unknown columns while a
+    // migration is pending (PGRST204 / 42703), so degrade stepwise
+    // (010 metrics -> 009 risk levels -> base) instead of dropping the
+    // desk's whole execution grid whenever the NEWEST migration lags.
     const forSession = async (select: string): Promise<VerdictRow[] | null> => {
       const { data, error } = await supabase
         .from("psx_system_verdicts")
@@ -1018,11 +1033,16 @@ export async function fetchSystemVerdicts(
     };
 
     if (sessionDate) {
-      const rows = (await forSession(FULL)) ?? (await forSession(BASE));
+      const rows =
+        (await forSession(FULL)) ??
+        (await forSession(RISK)) ??
+        (await forSession(BASE));
       if (rows && rows.length > 0) return mapRows(rows);
     }
     const fallback =
-      (await latestRows(FULL)) ?? (await latestRows(BASE));
+      (await latestRows(FULL)) ??
+      (await latestRows(RISK)) ??
+      (await latestRows(BASE));
     if (!fallback || fallback.length === 0) return [];
     const latest = fallback[0].trade_date;
     return mapRows(fallback.filter((r) => r.trade_date === latest));
