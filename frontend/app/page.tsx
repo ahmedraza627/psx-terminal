@@ -36,6 +36,14 @@ function greeting(hourPkt: number): string {
 export default async function ActionDeskPage() {
   const session = await fetchLatestEodSession();
   const verdicts = await fetchSystemVerdicts(session);
+  // The query falls back to the latest CERTIFIED session when the engine
+  // has not stamped the active one yet, so cards carry their actual
+  // tradeDate - surface the one-session lag honestly instead of getting
+  // stuck on the awaiting state.
+  const verdictDate = verdicts[0]?.tradeDate ?? null;
+  const showingPriorSession = Boolean(
+    session && verdictDate && verdictDate !== session,
+  );
   const hourPkt = Number(
     new Date().toLocaleString("en-US", {
       timeZone: "Asia/Karachi",
@@ -75,17 +83,30 @@ export default async function ActionDeskPage() {
         </div>
       ) : (
         /* Executive verdict grid: one card per certified horizon */
-        <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {cards.map(({ label, verdict }) => (
-            <DecisionCard
-              key={verdict.horizon}
-              horizon={label}
-              direction={verdict.direction}
-              ticker={verdict.ticker}
-              logic={verdict.logic}
-            />
-          ))}
-        </div>
+        <>
+          <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {cards.map(({ label, verdict }) => (
+              <DecisionCard
+                key={verdict.horizon}
+                horizon={label}
+                direction={verdict.direction}
+                ticker={verdict.ticker}
+                logic={verdict.logic}
+                entryRef={verdict.entryRef}
+                stopLoss={verdict.stopLoss}
+                targetPrice={verdict.targetPrice}
+                riskReward={verdict.riskReward}
+                regimeStatus={verdict.regimeStatus}
+              />
+            ))}
+          </div>
+          {showingPriorSession && (
+            <p className="mt-3 text-center text-[13px] text-slate-500">
+              Showing certified verdicts from {verdictDate} - the decision
+              engine has not stamped session {session} yet.
+            </p>
+          )}
+        </>
       )}
     </div>
   );

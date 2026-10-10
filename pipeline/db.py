@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import os
+import urllib.request
 from datetime import date, timedelta
 from typing import Any, Optional
 
@@ -60,7 +62,8 @@ def _strip_unknown_columns(
     """Drop the given (missing) keys from every record (returns a new list)."""
     LOGGER.warning(
         "%s: schema drift detected (missing: %s) - degrading to the live "
-        "columns so the feed keeps flowing; apply migrations/002 to heal.",
+        "columns so the feed keeps flowing; apply the pending migration "
+        "to heal.",
         table,
         ", ".join(sorted(missing_cols)),
     )
@@ -111,7 +114,9 @@ def upsert_records(
             continue
         except Exception as exc:  # noqa: BLE001 - keep the run alive
             message = str(exc)
-            if "PGRST204" in message and degrade is None:
+            # Missing-column drift surfaces as PGRST204 (schema-cache miss)
+            # or as Postgres 42703 passed through by some PostgREST builds.
+            if ("PGRST204" in message or "42703" in message) and degrade is None:
                 degrade = _detect_missing_columns(table, records)
                 if degrade:
                     LOGGER.warning(
@@ -142,18 +147,25 @@ def _detect_missing_columns(
 
     Probes the table's REST metadata (OpenAPI introspection at the root) -
     the response enumerates every exposed column, so missing keys are the
-    record keys absent from it. Empty set on any failure (the caller then
-    keeps the plain log-and-skip path).
+    record keys absent from it. Uses only the stdlib (urllib) so it works
+    on every supabase-py generation - the old ``client.rest`` attribute
+    does not exist on supabase-py 2.x and silently disabled this path.
+    Empty set on any failure (the caller then keeps log-and-skip).
     """
     try:
         client = get_client()
-        root = client.rest.session.get(f"{client.supabase_url}/rest/v1/")
+        request = urllib.request.Request(
+            f"{client.supabase_url}/rest/v1/",
+            headers={
+                "apikey": client.supabase_key,
+                "Authorization": f"Bearer {client.supabase_key}",
+                "Accept": "application/openapi+json",
+            },
+        )
+        with urllib.request.urlopen(request, timeout=30) as response:
+            payload = json.load(response)
         known = set(
-            root.json()
-            .get("definitions", {})
-            .get(table, {})
-            .get("properties", {})
-            .keys()
+            payload.get("definitions", {}).get(table, {}).get("properties", {}).keys()
         )
         if not known:
             return set()

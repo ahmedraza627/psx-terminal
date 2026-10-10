@@ -80,9 +80,15 @@ jobs:
           else
             echo "NDM egress: direct only (SCRAPER_API_KEY secret not set)"
           fi
+          # No --skip flags: the system decision engine runs inside the
+          # signals step, so every completed session gets its verdicts
+          # upserted into psx_system_verdicts (trade_date, horizon).
           python main.py --date "$SESSION_DATE"
 
-      - name: Summarize signals in the job summary
+      # Single always() step: the { } group must open and close within one
+      # run block (it previously spanned two steps, so both failed with a
+      # shell syntax error and turned successful pipeline runs red).
+      - name: Summarize run in the job summary
         if: always()
         env:
           SESSION_DATE: ${{ github.event.inputs.target_date || steps.session.outputs.date }}
@@ -93,9 +99,8 @@ jobs:
             echo "- Session: $SESSION_DATE"
             echo "- Outcome: ${{ job.status }}"
             echo ""
-            echo "Check the Supabase Table Editor for \`signals_computed\`."
-      - name: Quant signals table
-        if: success()
-        run: |
-          echo "Check the Supabase Table Editor for \`psx_daily_quant_signals\`."
+            echo "Decision engine: runs with the signals step (not skipped);"
+            echo "certified verdicts land in \`psx_system_verdicts\`."
+            echo ""
+            echo "Check the Supabase Table Editor for \`signals_computed\`, \`psx_daily_quant_signals\` and \`psx_system_verdicts\`."
           } >> "$GITHUB_STEP_SUMMARY"

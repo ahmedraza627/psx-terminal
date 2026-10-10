@@ -920,40 +920,112 @@ export interface SystemVerdict {
   ticker: string;
   /** The certified system-logic sentence exactly as stored. */
   logic: string;
+  // -----------------------------------------------------------------
+  // Institutional risk math (decision engine execution levels).
+  // Null while migration 009_decision_risk_levels.sql is pending, or for
+  // horizons without a certified entry (LONG_TERM is an AVOID verdict).
+  // -----------------------------------------------------------------
+  /** Entry reference price (PKR) - latest session close. */
+  entryRef: number | null;
+  /** Invalidation / stop-loss level (PKR). */
+  stopLoss: number | null;
+  /** Target zone price (PKR). */
+  targetPrice: number | null;
+  /** Reward-to-risk ratio, e.g. 2.4 -> displayed as 1:2.4 R:R. */
+  riskReward: number | null;
+  /** NORMAL | DEFENSIVE_CASH - the macro regime stamp. */
+  regimeStatus: string | null;
 }
 
 /**
  * The active session's three system verdicts (or fewer - the engine only
  * stores horizons with a certified candidate, never fabricated rows).
- * Settle-safe by house convention: failures and a missing session degrade
- * to [] so the Action Desk renders its honest awaiting state.
+ *
+ * Graceful fallback: when the engine has not stamped the requested
+ * session yet (a new session just opened, or the pipeline has not run),
+ * the latest CERTIFIED session is returned instead of an empty list, so
+ * the Action Desk never sticks on its awaiting state while real verdicts
+ * exist. Every row carries its actual tradeDate - the UI labels the
+ * cards with it and flags the one-session lag honestly.
+ * Settle-safe by house convention: failures degrade to [].
  */
 export async function fetchSystemVerdicts(
   sessionDate: string | null,
 ): Promise<SystemVerdict[]> {
-  if (!sessionDate) return [];
-  try {
-    const supabase = createClient();
-    const { data, error } = await supabase
-      .from("psx_system_verdicts")
-      .select("trade_date,horizon,direction,ticker,logic_text")
-      .eq("trade_date", sessionDate);
-    if (error) throw error;
-    // The engine only writes the three documented enums; the cast keeps the
-    // display type honest without mutating stored values.
-    return ((data ?? []) as {
-      trade_date: string;
-      horizon: string;
-      direction: SystemVerdict["direction"];
-      ticker: string;
-      logic_text: string;
-    }[]).map((r) => ({
+  // Raw row shape: risk columns are optional because they only exist
+  // once migration 009 has been applied to the live table.
+  type VerdictRow = {
+    trade_date: string;
+    horizon: string;
+    direction: SystemVerdict["direction"];
+    ticker: string;
+    logic_text: string;
+    entry_ref?: number | null;
+    stop_loss?: number | null;
+    target_price?: number | null;
+    risk_reward_ratio?: number | null;
+    regime_status?: string | null;
+  };
+
+  const BASE = "trade_date,horizon,direction,ticker,logic_text";
+  const FULL =
+    BASE +
+    ",entry_ref,stop_loss,target_price,risk_reward_ratio,regime_status";
+
+  // The engine only writes the three documented enums; the cast keeps the
+  // display type honest without mutating stored values.
+  const mapRows = (rows: VerdictRow[]): SystemVerdict[] =>
+    rows.map((r) => ({
       tradeDate: r.trade_date,
       horizon: r.horizon,
       direction: r.direction,
       ticker: r.ticker,
       logic: r.logic_text,
+      entryRef: r.entry_ref ?? null,
+      stopLoss: r.stop_loss ?? null,
+      targetPrice: r.target_price ?? null,
+      riskReward: r.risk_reward_ratio ?? null,
+      regimeStatus: r.regime_status ?? null,
     }));
+
+  try {
+    const supabase = createClient();
+
+    // Risk-bearing projection first; when migration 009 is still pending
+    // PostgREST rejects the unknown columns (PGRST204 / 42703), so retry
+    // with the base projection instead of dropping the desk to empty.
+    const forSession = async (select: string): Promise<VerdictRow[] | null> => {
+      const { data, error } = await supabase
+        .from("psx_system_verdicts")
+        .select(select)
+        .eq("trade_date", sessionDate as string)
+        .order("horizon", { ascending: true });
+      // cast: dynamic select string defeats supabase-js's column parser
+      return error ? null : ((data ?? []) as unknown as VerdictRow[]);
+    };
+    // Fallback: latest available trade_date, horizon asc, limit 3. Rows are
+    // trimmed to the newest trade_date present so cards never mix two
+    // sessions when the latest one stored only 1-2 horizons.
+    const latestRows = async (select: string): Promise<VerdictRow[] | null> => {
+      const { data, error } = await supabase
+        .from("psx_system_verdicts")
+        .select(select)
+        .order("trade_date", { ascending: false })
+        .order("horizon", { ascending: true })
+        .limit(3);
+      // cast: dynamic select string defeats supabase-js's column parser
+      return error ? null : ((data ?? []) as unknown as VerdictRow[]);
+    };
+
+    if (sessionDate) {
+      const rows = (await forSession(FULL)) ?? (await forSession(BASE));
+      if (rows && rows.length > 0) return mapRows(rows);
+    }
+    const fallback =
+      (await latestRows(FULL)) ?? (await latestRows(BASE));
+    if (!fallback || fallback.length === 0) return [];
+    const latest = fallback[0].trade_date;
+    return mapRows(fallback.filter((r) => r.trade_date === latest));
   } catch {
     return [];
   }

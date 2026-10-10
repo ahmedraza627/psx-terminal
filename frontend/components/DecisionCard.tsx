@@ -5,9 +5,13 @@ import TickerLink from "@/components/TickerLink";
  *
  * One card = one machine verdict: a time horizon, a direction badge
  * (BUY/ACCUMULATE = soft emerald, AVOID/SHORT = soft rose), the target
- * ticker, and a single readable system-logic sentence. Light SaaS styling:
- * white card, rounded-xl, soft shadow. Pure server component; fed live by
- * the pipeline's decision engine via psx_system_verdicts.
+ * ticker, a single readable system-logic sentence, and - when the engine
+ * certified risk math for the horizon - an execution grid with the entry
+ * reference, invalidation (stop), target zone and reward-to-risk ratio.
+ * A DEFENSIVE_CASH regime stamp surfaces as a small amber sizing warning.
+ * Light SaaS styling: white card, rounded-xl, soft shadow, slate borders,
+ * Inter typography, zero emojis. Pure server component; fed live by the
+ * pipeline's decision engine via psx_system_verdicts.
  */
 
 export type DecisionDirection = "BUY" | "AVOID" | "SHORT" | "ACCUMULATE";
@@ -20,6 +24,16 @@ export interface DecisionCardProps {
   ticker: string;
   /** One highly readable sentence: WHY the engine fired. */
   logic: string;
+  /** Entry reference price in PKR (null = no certified levels). */
+  entryRef?: number | null;
+  /** Invalidation / stop-loss level in PKR. */
+  stopLoss?: number | null;
+  /** Target zone price in PKR. */
+  targetPrice?: number | null;
+  /** Reward-to-risk ratio (2.4 renders as "1:2.4 R:R"). */
+  riskReward?: number | null;
+  /** NORMAL | DEFENSIVE_CASH - the macro regime stamp. */
+  regimeStatus?: string | null;
 }
 
 const DIRECTION_STYLE: Record<
@@ -44,13 +58,29 @@ const DIRECTION_STYLE: Record<
   },
 };
 
+/** PKR price with thousand separators and 2 decimals. */
+function pkr(value: number): string {
+  return value.toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
 export default function DecisionCard({
   horizon,
   direction,
   ticker,
   logic,
+  entryRef,
+  stopLoss,
+  targetPrice,
+  riskReward,
+  regimeStatus,
 }: DecisionCardProps) {
   const s = DIRECTION_STYLE[direction];
+  const hasLevels =
+    entryRef != null || stopLoss != null || targetPrice != null;
+  const defensive = regimeStatus === "DEFENSIVE_CASH";
   return (
     <article className="relative flex min-w-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-md">
       {/* Direction spine - the card's semantic color at a glance */}
@@ -76,6 +106,59 @@ export default function DecisionCard({
 
         {/* System logic - the single readable sentence */}
         <p className="text-[13px] leading-relaxed text-slate-600">{logic}</p>
+
+        {/* Execution grid - certified risk math (when the engine stored it) */}
+        {hasLevels && (
+          <div className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+            <div className="flex flex-col">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                Entry Ref
+              </span>
+              <span className="mt-1 text-[13px] font-semibold tabular-nums text-slate-800">
+                {entryRef != null ? `PKR ${pkr(entryRef)}` : "—"}
+              </span>
+            </div>
+
+            <div className="flex flex-col">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                Invalidation / Stop
+              </span>
+              <span className="mt-1 w-fit rounded-md border border-rose-200 bg-rose-50 px-1.5 py-0.5 text-[13px] font-semibold tabular-nums text-rose-700">
+                {stopLoss != null ? `PKR ${pkr(stopLoss)}` : "—"}
+              </span>
+            </div>
+
+            <div className="flex flex-col">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                Target Zone
+              </span>
+              <span className="mt-1 w-fit rounded-md border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[13px] font-semibold tabular-nums text-emerald-700">
+                {targetPrice != null ? `PKR ${pkr(targetPrice)}` : "—"}
+              </span>
+            </div>
+
+            <div className="flex flex-col">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                Reward : Risk
+              </span>
+              <span className="mt-1 text-[13px] font-semibold tabular-nums text-slate-800">
+                {riskReward != null ? `1:${riskReward} R:R` : "—"}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Macro regime - defensive tape sizing warning */}
+        {defensive && (
+          <div
+            role="status"
+            className="flex items-center justify-center rounded-md border border-amber-200 bg-amber-50 px-3 py-1.5"
+          >
+            <span className="text-[11px] font-semibold tracking-wide text-amber-700">
+              Defensive Tape &middot; Reduce Position Size
+            </span>
+          </div>
+        )}
       </div>
     </article>
   );

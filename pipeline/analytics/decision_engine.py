@@ -287,7 +287,12 @@ def _short_term_verdict(
     series: dict[str, list[tuple[date, float, float]]],
     flow_rows: list[dict[str, Any]],
 ) -> Optional[dict[str, Any]]:
-    """Volume spike > 2.5x 20D SMA, gated on the session flow cross-check."""
+    """Volume spike > 2.5x 20D SMA, gated on the session flow cross-check.
+
+    Institutional execution levels are derived from the certified tape:
+    entry = latest session close; stop = recent 3-day swing low (or
+    1.5x ATR below); target = 2:1 minimum risk/reward.
+    """
     nets = _market_wide_net(flow_rows, session_date)
     if not nets:
         LOGGER.info("decision engine: no session flows for %s; SHORT_TERM skipped", session_date)
@@ -395,7 +400,12 @@ def _mid_term_verdict(
     sector_by_ticker: dict[str, str],
 ) -> Optional[dict[str, Any]]:
     """Sector with the largest 5-session institutional absorption while
-    retail distributed; leader = highest-turnover member with positive 5D."""
+    retail distributed; leader = highest-turnover member with positive 5D.
+
+    Institutional execution levels: entry = latest session close;
+    stop = 20-day SMA or 5% trailing structural support (whichever is
+    tighter); target = trailing-52-week resistance or 2.5:1 minimum R:R.
+    """
     window_days = _flow_sessions_desc(flow_rows, session_date)[:FLOW_WINDOW_SESSIONS]
     if len(window_days) < 2:
         LOGGER.info("decision engine: <2 flow sessions for %s; MID_TERM skipped", session_date)
@@ -551,6 +561,130 @@ def _long_term_verdict(
 
 
 # --------------------------------------------------------------------------- #
+# Market regime (macro gate) + execution levels
+# --------------------------------------------------------------------------- #
+def _regime_status(
+    session_date: date,
+    prior_date: date,
+    series: dict[str, list[tuple[date, float, float]]],
+) -> str:
+    """Macro gate: DEFENSIVE_CASH when the tape is breaking down, else NORMAL.
+
+    Severe breakdown = advance/decline < 0.6 AND KSE-100 below its 20-day
+    SMA. Never fabricates a regime from missing data.
+    """
+    adv = dec = 0
+    # Points are (day, close, volume): the SMA leg must average CLOSES (p[1])
+    # - averaging p[2] would smear volumes into a price test.
+    window = [p for p in series.get("KSE100") or [] if p[0] <= session_date][-20:]
+    sma20 = sum(p[1] for p in window) / len(window) if len(window) == 20 else 0.0
+    for ticker, points in series.items():
+        if ticker.upper() in INDEX_TICKERS:
+            continue
+        now = _close_at(points, session_date)
+        before = _close_at(points, prior_date)
+        if now is None or before is None or now <= 0 or before <= 0:
+            continue
+        if now > before:
+            adv += 1
+        else:
+            dec += 1
+    ratio = (adv / dec) if dec > 0 else None
+    if ratio is None or ratio >= 0.6:
+        return "NORMAL"
+    now = _close_at(series.get("KSE100") or [], session_date)
+    if now is None or sma20 <= 0 or now > sma20:
+        return "NORMAL"
+    return "DEFENSIVE_CASH"
+
+
+def _execution_levels(
+    verdict: dict[str, Any],
+    session_date: date,
+    series: dict[str, list[tuple[date, float, float]]],
+) -> dict[str, Any]:
+    """Precise execution levels per horizon (institutional risk math).
+
+    Points are (day, close, volume) - the stored tape carries no high/low,
+    so the ATR leg is the mean absolute close-to-close change (documented
+    proxy, never a fabricated number).
+
+      SHORT_TERM: entry = session close; stop = the LOWER of the 3-session
+        swing low and 1.5x ATR below close; target = 2.0x the risked
+        distance (minimum 1:2 reward/risk).
+      MID_TERM:   entry = session close; stop = structural support = the
+        lower of the 3-session swing low, the 20-day SMA and close x 0.95
+        (5% trailing); target = trailing 52-week resistance when it pays
+        at least 1:1 on the structural risk, else 2.5x the risked distance.
+      LONG_TERM is an AVOID/risk verdict - it has no entry, so it carries
+        honest null levels (the desk renders no grid for it).
+
+    Missing / unpriced session data -> all-null levels, never invented.
+    """
+    empty = {
+        "entry_ref": None,
+        "stop_loss": None,
+        "target_price": None,
+        "risk_reward_ratio": None,
+    }
+    if verdict["horizon"] not in (HORIZON_SHORT, HORIZON_MID):
+        return empty
+    eod = series.get(verdict["ticker"])
+    if not eod:
+        return dict(empty)
+    session_point = _point_at(eod, session_date)
+    if session_point is None:
+        return dict(empty)
+    close, _ = session_point
+    if close <= 0:
+        return dict(empty)
+
+    window = [p for p in eod if p[0] <= session_date]
+    closes3 = [p[1] for p in window[-3:] if p[1] > 0]
+    if not closes3:
+        return dict(empty)
+    swing_low = min(closes3)
+
+    if verdict["horizon"] == HORIZON_SHORT:
+        # ATR proxy: mean |close-to-close| change over the last 4 sessions.
+        closes = [p[1] for p in window[-4:] if p[1] > 0]
+        changes = [abs(closes[i] - closes[i - 1]) for i in range(1, len(closes))]
+        atr = sum(changes) / len(changes) if changes else 0.0
+        candidates = [swing_low] + ([close - 1.5 * atr] if atr > 0 else [])
+        stop = min(s for s in candidates if s > 0)
+        target = close + 2.0 * (close - stop)
+    else:
+        # MID_TERM structural support: swing low, 20D SMA, 5% trailing.
+        closes20 = [p[1] for p in window[-20:] if p[1] > 0]
+        supports = [swing_low, close * 0.95]
+        if len(closes20) == 20:
+            supports.append(sum(closes20) / 20)
+        stop = min(supports)
+        risk = close - stop
+        # Trailing 52-week resistance as target when it clears 1:1 on the
+        # structural risk; otherwise the 2.5x risked-distance fallback.
+        year_closes = [
+            p[1]
+            for p in window
+            if (session_date - p[0]).days <= 365 and p[1] > 0
+        ]
+        resistance = max(year_closes) if year_closes else 0.0
+        target = (
+            resistance
+            if resistance > close and resistance - close >= risk
+            else close + 2.5 * risk
+        )
+
+    risked = max(close - stop, 0.01)  # spec floor: never divide below 0.01
+    return {
+        "entry_ref": round(close, 2),
+        "stop_loss": round(stop, 2),
+        "target_price": round(target, 2),
+        "risk_reward_ratio": round((target - close) / risked, 2),
+    }
+
+
+# --------------------------------------------------------------------------- #
 # Entry point                                                                 #
 # --------------------------------------------------------------------------- #
 def run_decision_engine(session_date: Optional[date] = None) -> int:
@@ -581,14 +715,24 @@ def run_decision_engine(session_date: Optional[date] = None) -> int:
         return 0
     sector_by_ticker = _sector_map(fundamentals)
 
+    # Market regime: the macro gate all execution levels are stamped with.
+    prior = [d for d in sessions_desc if d < trade_date]
+    regime = _regime_status(trade_date, prior[0] if prior else trade_date, series)
+
+    def with_execution(v: dict[str, Any]) -> dict[str, Any]:
+        levels = _execution_levels(v, trade_date, series)
+        v.update(levels)
+        v["regime_status"] = regime
+        return v
+
     rows = [
-        verdict
-        for verdict in (
+        with_execution(v)
+        for v in (
             _short_term_verdict(trade_date, series, flow_rows),
             _mid_term_verdict(trade_date, sessions_desc, series, flow_rows, sector_by_ticker),
             _long_term_verdict(trade_date, sessions_desc, series, flow_rows, sector_by_ticker),
         )
-        if verdict is not None
+        if v is not None
     ]
     if not rows:
         LOGGER.warning(
@@ -599,10 +743,11 @@ def run_decision_engine(session_date: Optional[date] = None) -> int:
         "psx_system_verdicts", rows, on_conflict="trade_date,horizon"
     )
     LOGGER.info(
-        "decision engine %s: %d/%d verdicts stored (%s)",
+        "decision engine %s: %d/%d verdicts stored (regime=%s) (%s)",
         trade_date,
         written,
         len(rows),
+        regime,
         ", ".join(r["horizon"] for r in rows),
     )
     return written
