@@ -73,6 +73,39 @@ def _strip_unknown_columns(
     ]
 
 
+def purge_verdict_horizons(trade_date: str, horizons: list[str]) -> int:
+    """Delete verdict rows for one session whose horizons were RETIRED.
+
+    The engine SKIPS a horizon when no candidate certifies (never
+    fabricated). Without this, an upsert leaves the prior session's row for
+    that horizon in place, and the frontend's latest-session fallback
+    renders a stale verdict as current. Scope is strictly (trade_date AND
+    horizon in horizons) - never a whole-table wipe. Best-effort: a missing
+    table or permission error logs and returns 0 so the run survives.
+    """
+    if not horizons:
+        return 0
+    try:
+        client = get_client()
+        result = (
+            client.table("psx_system_verdicts")
+            .delete()
+            .eq("trade_date", trade_date)
+            .in_("horizon", horizons)
+            .execute()
+        )
+        purged = len(result.data or [])
+        if purged:
+            LOGGER.info(
+                "psx_system_verdicts: retired %d stale row(s) for %s (%s)",
+                purged, trade_date, ", ".join(sorted(horizons)),
+            )
+        return purged
+    except Exception as exc:  # noqa: BLE001 - purge must never kill the run
+        LOGGER.warning("psx_system_verdicts: horizon purge failed: %s", exc)
+        return 0
+
+
 def upsert_records(
     table: str,
     records: list[dict[str, Any]],

@@ -944,6 +944,19 @@ export interface SystemVerdict {
   historicalWinRate: number | null;
   /** "PROFITABLE (PE > 0)" once the strict PE gate passed, else "UNVERIFIED". */
   fundamentalScore: string | null;
+  // -----------------------------------------------------------------
+  // Institutional alpha (Phase 2): dynamic position sizing from the 1.5%
+  // risk budget + the macro tape state. Null while migration
+  // 011_institutional_alpha_upgrade.sql is pending, for MID_TERM picks
+  // (no fixed-fractional size on a sector-absorption call), and for
+  // AVOID verdicts.
+  // -----------------------------------------------------------------
+  /** Suggested portfolio allocation (%), from the 1.5% risk model, cap 15%. */
+  suggestedAllocPct: number | null;
+  /** Order size capped at 2% of the 20D average volume (exit liquidity). */
+  maxVolumeCapacityShares: number | null;
+  /** RISK_ON | NEUTRAL | DEFENSIVE_CASH - the macro tape gate. */
+  macroTapeState: string | null;
 }
 
 /**
@@ -976,13 +989,19 @@ export async function fetchSystemVerdicts(
     regime_status?: string | null;
     historical_win_rate?: number | null;
     fundamental_score?: string | null;
+    suggested_alloc_pct?: number | null;
+    max_volume_capacity_shares?: number | null;
+    macro_tape_state?: string | null;
   };
 
   const BASE = "trade_date,horizon,direction,ticker,logic_text";
   const RISK =
     BASE +
     ",entry_ref,stop_loss,target_price,risk_reward_ratio,regime_status";
-  const FULL = RISK + ",historical_win_rate,fundamental_score";
+  const ALPHA = RISK + ",historical_win_rate,fundamental_score";
+  const FULL =
+    ALPHA +
+    ",suggested_alloc_pct,max_volume_capacity_shares,macro_tape_state";
 
   // The engine only writes the three documented enums; the cast keeps the
   // display type honest without mutating stored values.
@@ -1000,6 +1019,9 @@ export async function fetchSystemVerdicts(
       regimeStatus: r.regime_status ?? null,
       historicalWinRate: r.historical_win_rate ?? null,
       fundamentalScore: r.fundamental_score ?? null,
+      suggestedAllocPct: r.suggested_alloc_pct ?? null,
+      maxVolumeCapacityShares: r.max_volume_capacity_shares ?? null,
+      macroTapeState: r.macro_tape_state ?? null,
     }));
 
   try {
@@ -1007,8 +1029,9 @@ export async function fetchSystemVerdicts(
 
     // Widest projection first; PostgREST rejects unknown columns while a
     // migration is pending (PGRST204 / 42703), so degrade stepwise
-    // (010 metrics -> 009 risk levels -> base) instead of dropping the
-    // desk's whole execution grid whenever the NEWEST migration lags.
+    // (011 sizing/tape -> 010 metrics -> 009 risk levels -> base) instead of
+    // dropping the desk's whole execution grid whenever the NEWEST
+    // migration lags.
     const forSession = async (select: string): Promise<VerdictRow[] | null> => {
       const { data, error } = await supabase
         .from("psx_system_verdicts")
@@ -1035,12 +1058,14 @@ export async function fetchSystemVerdicts(
     if (sessionDate) {
       const rows =
         (await forSession(FULL)) ??
+        (await forSession(ALPHA)) ??
         (await forSession(RISK)) ??
         (await forSession(BASE));
       if (rows && rows.length > 0) return mapRows(rows);
     }
     const fallback =
       (await latestRows(FULL)) ??
+      (await latestRows(ALPHA)) ??
       (await latestRows(RISK)) ??
       (await latestRows(BASE));
     if (!fallback || fallback.length === 0) return [];

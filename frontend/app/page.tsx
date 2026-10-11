@@ -99,6 +99,9 @@ export default async function ActionDeskPage() {
                 regimeStatus={verdict.regimeStatus}
                 historicalWinRate={verdict.historicalWinRate}
                 fundamentalScore={verdict.fundamentalScore}
+                suggestedAllocPct={verdict.suggestedAllocPct}
+                maxVolumeCapacityShares={verdict.maxVolumeCapacityShares}
+                macroTapeState={verdict.macroTapeState}
               />
             ))}
           </div>

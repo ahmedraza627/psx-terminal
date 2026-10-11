@@ -42,6 +42,12 @@ export interface DecisionCardProps {
   historicalWinRate?: number | null;
   /** "PROFITABLE (PE > 0)" once the strict fundamental gate passed. */
   fundamentalScore?: string | null;
+  /** Suggested portfolio allocation (%) from the 1.5% risk budget. */
+  suggestedAllocPct?: number | null;
+  /** Order size capped at 2% of the 20D average volume (shares). */
+  maxVolumeCapacityShares?: number | null;
+  /** RISK_ON | NEUTRAL | DEFENSIVE_CASH - the macro tape gate. */
+  macroTapeState?: string | null;
 }
 
 const DIRECTION_STYLE: Record<
@@ -86,11 +92,28 @@ export default function DecisionCard({
   regimeStatus,
   historicalWinRate = null,
   fundamentalScore = null,
+  suggestedAllocPct = null,
+  maxVolumeCapacityShares = null,
+  macroTapeState = null,
 }: DecisionCardProps) {
   const s = DIRECTION_STYLE[direction];
   const hasLevels =
     entryRef != null || stopLoss != null || targetPrice != null;
   const defensive = regimeStatus === "DEFENSIVE_CASH";
+  // Macro tape pill: RISK_ON renders emerald, DEFENSIVE_CASH rose, NEUTRAL
+  // slate. Hidden when migration 011 is pending (null) - never fabricated.
+  const tapePill =
+    macroTapeState === "RISK_ON"
+      ? { text: "Tape: RISK_ON", cls: "border-emerald-200 bg-emerald-50 text-emerald-700" }
+      : macroTapeState === "DEFENSIVE_CASH"
+        ? { text: "Tape: DEFENSIVE_CASH", cls: "border-rose-200 bg-rose-50 text-rose-700" }
+        : macroTapeState === "NEUTRAL"
+          ? { text: "Tape: NEUTRAL", cls: "border-slate-200 bg-slate-50 text-slate-600" }
+          : null;
+  // DEFENSIVE_CASH tape overrides the softer sizing warning: the macro
+  // gate blocks new buys, so the card recommends capital preservation.
+  const preserveCapital =
+    macroTapeState === "DEFENSIVE_CASH" || defensive;
   return (
     <article className="relative flex min-w-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-md">
       {/* Direction spine - the card's semantic color at a glance */}
@@ -102,11 +125,20 @@ export default function DecisionCard({
           <p className="text-[11px] font-semibold tracking-[0.14em] text-slate-400">
             {horizon}
           </p>
-          <span
-            className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold tracking-wide ${s.badge}`}
-          >
-            {direction}
-          </span>
+          <div className="flex shrink-0 items-center gap-1.5">
+            {tapePill && (
+              <span
+                className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold tracking-wide ${tapePill.cls}`}
+              >
+                {tapePill.text}
+              </span>
+            )}
+            <span
+              className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold tracking-wide ${s.badge}`}
+            >
+              {direction}
+            </span>
+          </div>
         </div>
 
         {/* Target ticker */}
@@ -114,12 +146,19 @@ export default function DecisionCard({
           <TickerLink ticker={ticker} title="Open deep-dive" />
         </p>
 
-        {/* System logic + historical edge proof */}
+        {/* System logic + historical edge proof + dynamic sizing */}
         <div className="flex flex-wrap items-center gap-2">
           <p className="text-[13px] leading-relaxed text-slate-600">{logic}</p>
           {historicalWinRate != null && (
             <span className="inline-flex shrink-0 items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold tabular-nums text-slate-600">
               {historicalWinRate.toFixed(0)}% Hist. Win Rate
+            </span>
+          )}
+          {suggestedAllocPct != null && (
+            <span className="inline-flex shrink-0 items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold tabular-nums text-slate-600">
+              Max Sizing: {suggestedAllocPct.toFixed(1)}%
+              {maxVolumeCapacityShares != null &&
+                ` \u00b7 ${maxVolumeCapacityShares.toLocaleString("en-US")} sh`}
             </span>
           )}
         </div>
@@ -166,13 +205,15 @@ export default function DecisionCard({
         )}
 
         {/* Macro regime - defensive tape sizing warning */}
-        {defensive && (
+        {preserveCapital && (
           <div
             role="status"
             className="flex items-center justify-center rounded-md border border-amber-200 bg-amber-50 px-3 py-1.5"
           >
             <span className="text-[11px] font-semibold tracking-wide text-amber-700">
-              Defensive Tape &middot; Reduce Position Size
+              {macroTapeState === "DEFENSIVE_CASH"
+                ? "Defensive Tape \u00b7 Preserve Capital, No New Exposure"
+                : "Defensive Tape \u00b7 Reduce Position Size"}
             </span>
           </div>
         )}

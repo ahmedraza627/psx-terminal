@@ -3,11 +3,24 @@
 Writes exactly one psx_system_verdicts row per horizon per session
 (PK trade_date, horizon), idempotently upserted:
 
-  SHORT_TERM (1-5 days)   BUY   Session volume > 2.5x the 20-day SMA,
-                                 cross-checked against the session's NCCPL
-                                 participant flows: institutions net buying
-                                 while individuals net selling. The highest-
-                                 volume qualifying ticker carries the row.
+  SHORT_TERM (1-5 days)   BUY   Institutional Pullback & Dry-up
+                                 Accumulation engine (replaces the 16.9%
+                                 breakout chase). Gate stack, in order:
+                                   A. Liquidity/solvency pre-filter:
+                                      5-day avg turnover >= PKR 20M, PE > 0,
+                                      close >= PKR 10 (no sub-10 penny traps).
+                                   B. Macro tape gate (below) must not be
+                                      DEFENSIVE_CASH.
+                                   C. Trend: close > 20D SMA AND 20D SMA >
+                                      50D SMA (confirmed bull trend).
+                                   D. Sector flow: FIPI + MUTUAL FUNDS +
+                                      BANKS net positive across the 3-session
+                                      window for the ticker's sector.
+                                   E. Trigger: retraced 1-3 sessions from the
+                                      10-day high, within 3.5% of the 20D
+                                      SMA, on volume < 0.85x the 20D average.
+                                 Execution levels + fixed-fractional sizing
+                                 (1.5% portfolio risk) are stamped on the row.
   MID_TERM  (2-8 weeks)   BUY   Sector with the largest 5-session net
                                  institutional absorption while retail
                                  distributed; the leader is that sector's
@@ -19,6 +32,15 @@ Writes exactly one psx_system_verdicts row per horizon per session
                                  back to the breadth trap (advance/decline <
                                  0.8 while KSE-100 closed green -> KSE100)
                                  when no trap-sector ticker is priced.
+
+Macro tape gate (_macro_tape_state) - stamped on every row as
+macro_tape_state and used to block SHORT_TERM buys:
+  RISK_ON        KSE-100 above its 50D SMA and A/D ratio >= 1.0.
+  DEFENSIVE_CASH KSE-100 below its 50D SMA and A/D ratio < 0.7
+                 (blocks new SHORT_TERM buys - cash preservation).
+  NEUTRAL        everything else.
+Honest-data rules: when KSE-100 history is too thin to form a 50D SMA, or
+the A/D ratio is unverifiable, the state is NEUTRAL - never fabricated.
 
 Participant vocabulary: institutions = FOREIGN TOTAL + FIPI + BANKS +
 MUTUAL FUNDS. NCCPL's FIPI aggregate is stored as the "FOREIGN TOTAL"
@@ -46,10 +68,46 @@ from pipeline.http_client import http_get
 
 LOGGER = logging.getLogger(__name__)
 
-VOLUME_SPIKE_RATIO = float(os.getenv("VERDICT_VOLUME_SPIKE_RATIO", "2.5"))
 VOLUME_SMA_WINDOW = int(os.getenv("VERDICT_VOLUME_SMA_WINDOW", "20"))
 FLOW_WINDOW_SESSIONS = int(os.getenv("VERDICT_FLOW_WINDOW_SESSIONS", "5"))
 BREADTH_RED_RATIO = float(os.getenv("VERDICT_BREADTH_RED_RATIO", "0.8"))
+
+# High-Win-Rate Pullback Engine (SHORT_TERM) - institutional swing setup.
+# Buys a quiet pullback into rising support in a confirmed uptrend, aims
+# for a swift TP1 at the recent swing high with tight invalidation.
+PULLBACK_SMA_PROXIMITY = 0.035   # close within 3.5% of 20D SMA = at support
+DRYUP_VOLUME_RATIO = 0.85        # volume < 0.85x 20D avg = seller exhaustion
+SWING_LOW_LOOKBACK = 3           # tight invalidation: 3-session swing low
+TP1_LOOKBACK = 10                # TP1 target = recent 10-day swing high
+SHORT_MIN_RR = 1.2               # TP1 floored to a 1:1.2 reward/risk
+SHORT_MIN_RISK_PCT = 0.005       # sanity floor on stop distance
+SHORT_MAX_RISK_PCT = 0.04        # hard 4% stop cap: a wider stop is tightened
+
+# --------------------------------------------------------------------------- #
+# Phase 2 - Institutional Alpha Engine: liquidity/solvency pre-filter, macro
+# tape gate, and fixed-fractional (1.5% risk) position sizing.
+# --------------------------------------------------------------------------- #
+# Solvency + turnover floor: PSX penny operators (< PKR 10) lock on lower
+# circuits, and a thin book cannot absorb an institutional order - both are
+# un-tradeable at institutional size. 5-day avg turnover is close x volume.
+LIQUIDITY_TURNOVER_FLOOR_PKR = 20_000_000.0
+MIN_PRICE_PKR = 10.0
+TURNOVER_WINDOW = 5
+
+# Fixed-fractional sizing: risk 1.5% of portfolio equity per trade, sized on
+# the stop distance, capped at 15% of the portfolio in any one name.
+RISK_BUDGET_PCT = 1.5
+MAX_ALLOC_PCT = 15.0
+# Order may not exceed 2% of the 20D average volume (clean exit liquidity).
+VOLUME_PARTICIPATION = 0.02
+
+# Macro tape gate thresholds (KSE-100 50D SMA + advance/decline ratio).
+TAPE_RISK_ON = "RISK_ON"
+TAPE_DEFENSIVE = "DEFENSIVE_CASH"
+TAPE_NEUTRAL = "NEUTRAL"
+TAPE_MA_WINDOW = 50
+TAPE_RISK_ON_AD = 1.0
+TAPE_DEFENSIVE_AD = 0.7
 
 INST_FLOW_TYPES = {"BANKS", "MUTUAL FUNDS", "FIPI", "FOREIGN TOTAL"}
 RETAIL_FLOW_TYPES = {"INDIVIDUALS"}
@@ -276,6 +334,35 @@ def _inst_retail_nets(nets: dict[str, float]) -> tuple[float, float]:
     return inst, retail
 
 
+def _institutional_accumulation(
+    flow_rows: list[dict[str, Any]], session_date: date
+) -> bool:
+    """True when institutions net BULLISH on the session or a 3-session window.
+
+    Pullback entries are only valid while smart money is still accumulating:
+    positive net (BANKS + MUTUAL FUNDS + FIPI/FOREIGN TOTAL) on the session
+    itself, or summed over the trailing 3 flow sessions when the single
+    session is flat/absent. Honest: no flow rows at all -> False (skip).
+    """
+    days = _flow_sessions_desc(flow_rows, session_date)[:3]
+    if not days:
+        return False
+    totals: dict[str, float] = defaultdict(float)
+    wanted = set(days)
+    for row in flow_rows:
+        if _parse_day(row.get("trade_date")) not in wanted:
+            continue
+        participant = str(row.get("participant_type") or "").strip().upper()
+        if participant in INST_FLOW_TYPES:
+            totals[participant] += _net_of(row)
+    session_inst = sum(
+        v for k, v in _market_wide_net(flow_rows, session_date).items()
+        if k in INST_FLOW_TYPES
+    )
+    window_inst = sum(totals.values())
+    return session_inst > 0 or window_inst > 0
+
+
 # --------------------------------------------------------------------------- #
 # Benchmark (KSE-100)                                                         #
 # --------------------------------------------------------------------------- #
@@ -317,94 +404,246 @@ def _kse100_change_pct(
     return None
 
 
+# Per-process cache of the DPS KSE-100 timeseries (full history in one
+# GET). None = not fetched yet; [] = source dead this run.
+_kse100_series_cache: Optional[list[tuple[date, float]]] = None
+
+
+def _kse100_index_series(
+    series: dict[str, list[tuple[date, float, float]]],
+) -> list[tuple[date, float]]:
+    """KSE-100 closes (day, close), oldest-first; [] when unverifiable.
+
+    The macro tape gate needs a 50-session baseline, so this resolves the
+    index with the same discipline as _kse100_change_pct, extended with
+    the RRG engine's certified market-proxy fallback:
+      Tier 1: stored index rows in psx_daily_eod (any legacy alias), used
+        when they carry a full TAPE_MA_WINDOW baseline.
+      Tier 2: the live DPS timeseries endpoint - the source the RRG engine
+        and the KSE-100 breadth verdict already trust. (As of 2026-10 the
+        DPS index endpoint 404s, so production lands on Tier 3.)
+      Tier 3: the house equal-weight market proxy - the same certified
+        chain the RRG engine falls back to: level_t = level_{t-1} x (1 +
+        mean cross-sectional close-over-close return) from the stored
+        universe closes already in memory. Real closes only, no forward
+        filling, no invented prices; below TAPE_MA_WINDOW chained
+        sessions it yields [] and the tape gate honestly reports NEUTRAL.
+    """
+    global _kse100_series_cache
+    # Tier 1: stored alias rows with a full 50-session baseline.
+    for candidate in ("KSE100", "KSE-100", "KSE 100", "100INDEX"):
+        points = series.get(candidate)
+        if not points:
+            continue
+        closes = sorted(
+            (day, close) for day, close, _vol in points if close > 0
+        )
+        if len(closes) >= TAPE_MA_WINDOW:
+            LOGGER.info("macro tape: KSE-100 series from stored %s rows", candidate)
+            return closes
+    # Tier 2: live DPS timeseries, cached per process.
+    if _kse100_series_cache is None:
+        try:
+            response = http_get(
+                "https://dps.psx.com.pk/timeseries/eod/KSE100", timeout=25.0
+            )
+            payload = response.json()
+            closes_by_day: dict[date, float] = {}
+            for row in payload.get("data") if isinstance(payload, dict) else []:
+                try:
+                    closes_by_day[date.fromtimestamp(int(row[0]))] = float(row[1])
+                except (TypeError, ValueError, IndexError):
+                    continue
+            _kse100_series_cache = sorted(
+                (day, close) for day, close in closes_by_day.items() if close > 0
+            )
+        except Exception as exc:  # noqa: BLE001 - dead source -> Tier 3
+            LOGGER.warning(
+                "macro tape: KSE100 DPS timeseries unavailable: %s", exc
+            )
+            _kse100_series_cache = []
+    if len(_kse100_series_cache) >= TAPE_MA_WINDOW:
+        LOGGER.info("macro tape: KSE-100 series from DPS live timeseries")
+        return _kse100_series_cache
+    # Tier 3: equal-weight market proxy chained from stored universe
+    # closes (mirror of sector_rotation._aggregate_market_proxy, fed from
+    # the in-memory series so the engine makes no extra DB round-trip).
+    by_day: dict[date, dict[str, float]] = {}
+    for ticker, points in series.items():
+        if ticker.upper() in INDEX_TICKERS:
+            continue
+        for day, close, _vol in points:
+            if close > 0:
+                by_day.setdefault(day, {})[ticker] = close
+    levels: list[tuple[date, float]] = []
+    level: Optional[float] = None
+    days = sorted(by_day)
+    for prev_day, cur_day in zip(days, days[1:]):
+        prev_map, cur_map = by_day[prev_day], by_day[cur_day]
+        rets = [
+            cur_map[t] / prev_map[t] - 1.0
+            for t in cur_map.keys() & prev_map.keys()
+            if prev_map[t] > 0
+        ]
+        if not rets:
+            continue
+        mean_ret = sum(rets) / len(rets)
+        level = 100.0 if level is None else level * (1.0 + mean_ret)
+        levels.append((cur_day, round(level, 4)))
+    if len(levels) >= TAPE_MA_WINDOW:
+        LOGGER.info(
+            "macro tape: KSE-100 series unobtainable; using the certified "
+            "equal-weight market proxy (%d chained sessions)",
+            len(levels),
+        )
+        return levels
+    LOGGER.warning(
+        "macro tape: no KSE-100 series available (stored/DPS/proxy all "
+        "short); tape gate falls back to NEUTRAL"
+    )
+    return []
+
+
 # --------------------------------------------------------------------------- #
 # Horizon verdicts                                                            #
 # --------------------------------------------------------------------------- #
 def _short_term_verdict(
     session_date: date,
+    prior_date: date,
     series: dict[str, list[tuple[date, float, float]]],
     flow_rows: list[dict[str, Any]],
+    sector_by_ticker: dict[str, str],
+    tape_state: str,
     pe_map: dict[str, Optional[float]],
 ) -> Optional[dict[str, Any]]:
-    """Volume spike > 2.5x 20D SMA, gated on the session flow cross-check.
+    """Institutional Pullback & Dry-up Accumulation engine (Phase 2).
 
-    Institutional execution levels are derived from the certified tape:
-    entry = latest session close; stop = recent 3-day swing low (or
-    1.5x ATR below); target = 2:1 minimum risk/reward.
+    Replaces the 16.9% breakout chase with a quiet-dip-into-support setup,
+    gated by liquidity/solvency, the macro tape, a confirmed bull trend and
+    sector-level institutional flow. See the module docstring for the full
+    A-E gate stack. Execution: entry = session close; stop = the LOWER of
+    the 3-session swing low and the 1.0 x ATR floor, hardened to a maximum
+    4% risk; TP1 = the 10-day swing high, floored to a 1:1.2 reward/risk.
     """
-    nets = _market_wide_net(flow_rows, session_date)
-    if not nets:
-        LOGGER.info("decision engine: no session flows for %s; SHORT_TERM skipped", session_date)
-        return None
-    # Participant labels are normalised (upper/strip) by _market_wide_net;
-    # retail is detected by substring so both INDIVIDUAL and INDIVIDUALS
-    # labels count. A missing / zero retail line does NOT block the verdict
-    # (fix for the 2026-10-07 all-skip): institutions net buying carries
-    # the cross-check on its own. Only net RETAIL BUYING falsifies the
-    # "absorbed retail selling" narrative and blocks it.
-    inst_net = sum(nets.get(p, 0.0) for p in INST_FLOW_TYPES)
-    retail_net = sum(v for k, v in nets.items() if "INDIVIDUAL" in k)
-    if inst_net <= 0 or retail_net > 0:
+    if tape_state == TAPE_DEFENSIVE:
         LOGGER.info(
-            "decision engine %s: flow cross-check failed "
-            "(inst=%.0f, retail=%.0f); SHORT_TERM skipped",
-            session_date, inst_net, retail_net,
+            "decision engine %s: macro tape DEFENSIVE_CASH - preserving "
+            "cash, no new SHORT_TERM buys",
+            session_date,
         )
         return None
 
-    # Rank every qualifying spike by volume, then walk down the list to
-    # the BEST FUNDAMENTALLY VERIFIED candidate: loss-making or unpriced
-    # tickers are skipped, never certified (institutional strict rule).
-    candidates: list[tuple[float, float, str]] = []  # (volume, spike_pct, ticker)
+    # Sector -> 3-session institutional net (FIPI + MUTUAL FUNDS + BANKS).
+    window_days = _flow_sessions_desc(flow_rows, session_date)[:3]
+    sector_flows = _sector_flow_totals(flow_rows, window_days) if window_days else {}
+
+    # (proximity, dry_up_pct, ticker) - tightest setup wins; gates run first.
+    candidates: list[tuple[float, float, str]] = []
     for ticker, points in series.items():
         if ticker.upper() in INDEX_TICKERS:
             continue
-        session_point = _point_at(points, session_date)
-        if session_point is None:
-            continue
-        _, volume = session_point
-        if volume <= 0:
-            continue
-        window = [p for p in points if p[0] <= session_date][-VOLUME_SMA_WINDOW:]
+        window = [p for p in points if p[0] <= session_date]
         if len(window) < VOLUME_SMA_WINDOW:
             continue  # honest: no full 20D baseline, no verdict
-        sma = sum(p[2] for p in window) / len(window)
-        if sma <= 0 or volume <= VOLUME_SPIKE_RATIO * sma:
+        closes = [p[1] for p in window]
+        volumes = [p[2] for p in window]
+        close = closes[-1]
+        volume = volumes[-1]
+        if close <= 0 or volume <= 0:
             continue
-        candidates.append((volume, (volume / sma - 1.0) * 100.0, ticker))
 
+        # A. Solvency + liquidity floor (PE is checked at pick time).
+        if not _liquidity_ok(points, session_date):
+            continue
+
+        # C. Confirmed bull trend: close > 20D SMA and 20D SMA > 50D SMA.
+        sma20 = sum(closes[-VOLUME_SMA_WINDOW:]) / VOLUME_SMA_WINDOW
+        if sma20 <= 0 or close <= sma20:
+            continue
+        if len(closes) < 50:
+            continue  # Phase 2: a confirmed trend needs the full 50D leg
+        sma50 = sum(closes[-50:]) / 50
+        if sma50 <= 0 or not sma20 > sma50:
+            continue
+
+        # D. Sector institutional flow positive across the 3-session window.
+        sector = sector_by_ticker.get(ticker)
+        nets = sector_flows.get(sector) if sector else None
+        inst_net = sum(nets.get(p, 0.0) for p in INST_FLOW_TYPES) if nets else 0.0
+        if inst_net <= 0:
+            continue
+
+        # E1. Testing support, not extended: within 3.5% above the 20D SMA.
+        proximity = (close - sma20) / sma20
+        if proximity > PULLBACK_SMA_PROXIMITY:
+            continue
+
+        # E2. Retraced 1-3 sessions from the recent 10-day high.
+        recent = closes[-TP1_LOOKBACK:]
+        peak_offset = max(range(len(recent)), key=lambda k: recent[k])
+        sessions_since_peak = len(recent) - 1 - peak_offset
+        if recent[peak_offset] <= close or not 1 <= sessions_since_peak <= 3:
+            continue  # still at the high (no pullback) or too stale
+
+        # E3. Volume dry-up: exhaustion of selling pressure.
+        vol_sma20 = sum(volumes[-VOLUME_SMA_WINDOW:]) / VOLUME_SMA_WINDOW
+        if vol_sma20 <= 0 or volume >= DRYUP_VOLUME_RATIO * vol_sma20:
+            continue
+        dry_up_pct = (1.0 - volume / vol_sma20) * 100.0
+
+        candidates.append((proximity, dry_up_pct, ticker))
+
+    # A (fundamentals): walk tightest-first to the first strictly profitable
+    # name. A loss-maker or unpriced ticker is skipped, never certified.
     best_ticker: Optional[str] = None
-    best_spike_pct = 0.0
-    for volume, spike_pct, ticker in sorted(candidates, reverse=True):
+    best_dry_up = 0.0
+    for proximity, dry_up, ticker in sorted(candidates):
         if _is_profitable(pe_map, ticker):
             best_ticker = ticker
-            best_spike_pct = spike_pct
+            best_dry_up = dry_up
             break
-        LOGGER.info(
-            "decision engine %s: fundamental filter skipped %s "
-            "(pe_ratio=%s); next candidate",
-            session_date, ticker, pe_map.get(ticker),
-        )
 
     if best_ticker is None:
         if candidates:
             LOGGER.info(
-                "decision engine %s: %d volume spike(s) but none profitable "
-                "(PE > 0); SHORT_TERM skipped",
+                "decision engine %s: %d liquid pullback setup(s) but none "
+                "profitable (PE > 0); SHORT_TERM skipped",
                 session_date, len(candidates),
             )
         else:
-            LOGGER.info("decision engine %s: no 2.5x volume spike; SHORT_TERM skipped", session_date)
+            LOGGER.info(
+                "decision engine %s: no qualifying pullback setup (tape=%s); "
+                "SHORT_TERM skipped",
+                session_date, tape_state,
+            )
         return None
+
+    levels = _execution_levels(
+        {"horizon": HORIZON_SHORT, "ticker": best_ticker}, session_date, series
+    )
+    entry = levels.get("entry_ref")
+    stop = levels.get("stop_loss")
+    sizing: dict[str, Any] = {
+        "suggested_alloc_pct": None,
+        "max_volume_capacity_shares": None,
+    }
+    if entry is not None and stop is not None:
+        points = series.get(best_ticker) or []
+        volumes = [p[2] for p in points if p[0] <= session_date]
+        alloc, capacity = _position_sizing(float(entry), float(stop), volumes)
+        sizing["suggested_alloc_pct"] = alloc
+        sizing["max_volume_capacity_shares"] = capacity
+
     return {
         "trade_date": session_date.isoformat(),
         "horizon": HORIZON_SHORT,
         "direction": "BUY",
         "ticker": best_ticker,
         "logic_text": (
-            "Smart money absorbed retail selling on a "
-            f"+{best_spike_pct:.0f}% volume spike over the 20D average."
+            "Institutional pullback into 20D SMA support with volume "
+            f"dry-up (-{best_dry_up:.0f}% vs 20D avg) in confirmed uptrend."
         ),
+        **sizing,
     }
 
 
@@ -667,6 +906,126 @@ def _regime_status(
     return "DEFENSIVE_CASH"
 
 
+def _advance_decline_ratio(
+    session_date: date,
+    prior_date: date,
+    series: dict[str, list[tuple[date, float, float]]],
+) -> Optional[float]:
+    """Session advance/decline ratio (advancers / decliners), or None.
+
+    None means unverifiable (no comparable prior closes, or zero decliners
+    with an empty advancer set) - the macro gate treats that as NEUTRAL.
+    """
+    adv = dec = 0
+    for ticker, points in series.items():
+        if ticker.upper() in INDEX_TICKERS:
+            continue
+        now = _close_at(points, session_date)
+        before = _close_at(points, prior_date)
+        if now is None or before is None or now <= 0 or before <= 0:
+            continue
+        if now > before:
+            adv += 1
+        elif now < before:
+            dec += 1
+    if adv == 0 and dec == 0:
+        return None
+    if dec == 0:
+        return float("inf")  # pure advance tape: strongly risk-on
+    return adv / dec
+
+
+def _macro_tape_state(
+    session_date: date,
+    prior_date: date,
+    series: dict[str, list[tuple[date, float, float]]],
+) -> str:
+    """Macro tape gate: RISK_ON / NEUTRAL / DEFENSIVE_CASH.
+
+    KSE-100 positioning vs its 50-day SMA, cross-checked with the session
+    advance/decline ratio:
+      RISK_ON        KSE-100 > 50D SMA and A/D >= 1.0
+      DEFENSIVE_CASH KSE-100 < 50D SMA and A/D < 0.7
+      NEUTRAL        otherwise (including any unverifiable leg)
+
+    KSE-100 history resolves via _kse100_index_series: stored index rows
+    when they carry a 50-session baseline, else the live DPS timeseries
+    (the same source the KSE-100 breadth verdict already trusts).
+
+    Honest-data rule: a thin KSE-100 history (< 50 sessions) or an
+    uncomputable A/D ratio yields NEUTRAL - the engine never invents a
+    macro state to force a BUY through.
+    """
+    index = _kse100_index_series(series)
+    window = [close for day, close in index if day <= session_date]
+    now = window[-1] if window else None
+    if now is None or len(window) < TAPE_MA_WINDOW:
+        LOGGER.info(
+            "macro tape: KSE-100 history insufficient for %s (%d sessions "
+            "< %d); state=NEUTRAL",
+            session_date, len(window), TAPE_MA_WINDOW,
+        )
+        return TAPE_NEUTRAL
+    sma50 = sum(window[-TAPE_MA_WINDOW:]) / TAPE_MA_WINDOW
+    ad = _advance_decline_ratio(session_date, prior_date, series)
+    above = now > sma50
+    if ad is None:
+        return TAPE_NEUTRAL
+    if above and ad >= TAPE_RISK_ON_AD:
+        return TAPE_RISK_ON
+    if not above and ad < TAPE_DEFENSIVE_AD:
+        return TAPE_DEFENSIVE
+    return TAPE_NEUTRAL
+
+
+def _liquidity_ok(
+    points: list[tuple[date, float, float]],
+    session_date: date,
+) -> bool:
+    """Solvency + turnover floor: close >= PKR 10 and 5-day avg turnover
+    >= PKR 20M (the institutional exit-liquidity / circuit-lock filter).
+
+    Points are (day, close, volume). Honest: fewer than TURNOVER_WINDOW
+    sessions in the window fails the floor (no certified baseline, no buy).
+    """
+    window = [p for p in points if p[0] <= session_date][-TURNOVER_WINDOW:]
+    if len(window) < TURNOVER_WINDOW:
+        return False
+    close = window[-1][1]
+    if close < MIN_PRICE_PKR:
+        return False
+    turnover = sum(p[1] * p[2] for p in window) / TURNOVER_WINDOW
+    return turnover >= LIQUIDITY_TURNOVER_FLOOR_PKR
+
+
+def _position_sizing(
+    entry: float,
+    stop: float,
+    volumes: list[float],
+) -> tuple[Optional[float], Optional[int]]:
+    """Fixed-fractional sizing from a 1.5% portfolio risk budget.
+
+    risk_per_share = entry - stop. The allocation is the risk budget as a
+    multiple of the risk-per-share as a % of entry, capped at 15% of the
+    portfolio. Volume capacity caps the order at 2% of the 20-day average
+    volume so the exit stays liquid.
+
+    Returns (alloc_pct, capacity_shares). Both None when the stop is at or
+    above entry (no valid risk to size against) - never a fabricated size.
+    """
+    risk_per_share = entry - stop
+    if entry <= 0 or risk_per_share <= 0:
+        return None, None
+    risk_pct = (risk_per_share / entry) * 100.0
+    alloc = (RISK_BUDGET_PCT / max(risk_pct, 1.0)) * 100.0
+    alloc_pct = round(min(MAX_ALLOC_PCT, alloc), 1)
+    if not volumes:
+        return alloc_pct, None
+    avg_vol20 = sum(volumes[-VOLUME_SMA_WINDOW:]) / len(volumes[-VOLUME_SMA_WINDOW:])
+    capacity = int(avg_vol20 * VOLUME_PARTICIPATION)
+    return alloc_pct, (capacity if capacity > 0 else None)
+
+
 def _execution_levels(
     verdict: dict[str, Any],
     session_date: date,
@@ -678,9 +1037,12 @@ def _execution_levels(
     so the ATR leg is the mean absolute close-to-close change (documented
     proxy, never a fabricated number).
 
-      SHORT_TERM: entry = session close; stop = the LOWER of the 3-session
-        swing low and 1.5x ATR below close; target = 2.0x the risked
-        distance (minimum 1:2 reward/risk).
+      SHORT_TERM: entry = session close; stop = the LOWER (structural
+        support) of the 3-session swing low and 1.0 x ATR below close;
+        target = the recent 10-day swing high (TP1), floored so it pays
+        at least 1:1.2 reward/risk. (LOWER, not the tighter/higher leg:
+        a stop hugging entry sends the TP1 floor to an unreachable
+        ~12-177x R:R and collapses the win rate - measured on ZAL.)
       MID_TERM:   entry = session close; stop = structural support = the
         lower of the 3-session swing low, the 20-day SMA and close x 0.95
         (5% trailing); target = trailing 52-week resistance when it pays
@@ -695,6 +1057,8 @@ def _execution_levels(
         "stop_loss": None,
         "target_price": None,
         "risk_reward_ratio": None,
+        "suggested_alloc_pct": None,
+        "max_volume_capacity_shares": None,
     }
     if verdict["horizon"] not in (HORIZON_SHORT, HORIZON_MID):
         return empty
@@ -715,13 +1079,29 @@ def _execution_levels(
     swing_low = min(closes3)
 
     if verdict["horizon"] == HORIZON_SHORT:
-        # ATR proxy: mean |close-to-close| change over the last 4 sessions.
+        # Structural support: the LOWER of the 3-session swing low and the
+        # 1.0 x ATR floor. (The higher leg would pin risk a hair under
+        # entry, sending TP1 out of reach and collapsing the win rate -
+        # measured on ZAL.) Phase 2 hardening: cap total risk at 4% of
+        # entry so a wide swing cannot produce an un-tradeable stop.
         closes = [p[1] for p in window[-4:] if p[1] > 0]
         changes = [abs(closes[i] - closes[i - 1]) for i in range(1, len(closes))]
         atr = sum(changes) / len(changes) if changes else 0.0
-        candidates = [swing_low] + ([close - 1.5 * atr] if atr > 0 else [])
-        stop = min(s for s in candidates if s > 0)
-        target = close + 2.0 * (close - stop)
+        stops = [swing_low] + ([close - atr] if atr > 0 else [])
+        stop = min(s for s in stops if s > 0)
+        floor = close * (1.0 - SHORT_MAX_RISK_PCT)
+        stop = max(stop, floor)  # hard 4% risk cap
+        if close - stop < 0.005 * close:
+            # Flat tape: the swing low hugs the entry. Widen to a 0.5%
+            # structural floor rather than certify a zero-risk stop.
+            stop = close - 0.005 * close
+        risk = close - stop
+        # TP1 = the recent 10-day swing high, floored so it pays 1:1.2.
+        high10 = max(p[1] for p in window[-TP1_LOOKBACK:] if p[1] > 0)
+        target = max(high10, close + SHORT_MIN_RR * risk)
+        # Fixed-fractional sizing from the 1.5% risk budget (2% volume cap).
+        volumes = [p[2] for p in window if p[2] is not None and p[2] > 0]
+        alloc, capacity = _position_sizing(close, stop, volumes)
     else:
         # MID_TERM structural support: swing low, 20D SMA, 5% trailing.
         closes20 = [p[1] for p in window[-20:] if p[1] > 0]
@@ -745,11 +1125,24 @@ def _execution_levels(
         )
 
     risked = max(close - stop, 0.01)  # spec floor: never divide below 0.01
+    if verdict["horizon"] == HORIZON_SHORT:
+        return {
+            "entry_ref": round(close, 2),
+            "stop_loss": round(stop, 2),
+            "target_price": round(target, 2),
+            "risk_reward_ratio": round((target - close) / risked, 2),
+            "suggested_alloc_pct": alloc,
+            "max_volume_capacity_shares": capacity,
+        }
+    # MID_TERM carries no dynamic sizing (sector absorption pick, not a
+    # risk-sized swing) - sizing fields stay honest nulls.
     return {
         "entry_ref": round(close, 2),
         "stop_loss": round(stop, 2),
         "target_price": round(target, 2),
         "risk_reward_ratio": round((target - close) / risked, 2),
+        "suggested_alloc_pct": None,
+        "max_volume_capacity_shares": None,
     }
 
 
@@ -764,6 +1157,8 @@ def run_decision_engine(session_date: Optional[date] = None) -> int:
     Returns the number of rows written.
     """
     trade_date = session_date or date.today()
+    # One process-level DPS probe per run at most; failures fall through to
+    # the equal-weight market proxy inside _kse100_index_series.
     eod_rows = db.fetch_recent_eod()
     if not eod_rows:
         LOGGER.warning("decision engine: no EOD history; aborting")
@@ -789,14 +1184,17 @@ def run_decision_engine(session_date: Optional[date] = None) -> int:
     sector_by_ticker = _sector_map(fundamentals)
     pe_map = _pe_map(pe_rows)
 
-    # Market regime: the macro gate all execution levels are stamped with.
+    # Market regime + macro tape: the gates every row is stamped with.
     prior = [d for d in sessions_desc if d < trade_date]
-    regime = _regime_status(trade_date, prior[0] if prior else trade_date, series)
+    prior_date = prior[0] if prior else trade_date
+    regime = _regime_status(trade_date, prior_date, series)
+    tape_state = _macro_tape_state(trade_date, prior_date, series)
 
     def with_execution(v: dict[str, Any]) -> dict[str, Any]:
         levels = _execution_levels(v, trade_date, series)
         v.update(levels)
         v["regime_status"] = regime
+        v["macro_tape_state"] = tape_state
         # Fundamental gate result + historical edge proof. BUY verdicts
         # already passed the strict PE gate in candidate selection; AVOID
         # verdicts are warnings, so they stay UNVERIFIED and unbacktested.
@@ -818,15 +1216,14 @@ def run_decision_engine(session_date: Optional[date] = None) -> int:
                 v["historical_win_rate"] = result["win_rate"]
         return v
 
-    rows = [
-        with_execution(v)
-        for v in (
-            _short_term_verdict(trade_date, series, flow_rows, pe_map),
-            _mid_term_verdict(trade_date, sessions_desc, series, flow_rows, sector_by_ticker, pe_map),
-            _long_term_verdict(trade_date, sessions_desc, series, flow_rows, sector_by_ticker),
-        )
-        if v is not None
-    ]
+    verdicts = (
+        _short_term_verdict(
+            trade_date, prior_date, series, flow_rows, sector_by_ticker, tape_state, pe_map
+        ),
+        _mid_term_verdict(trade_date, sessions_desc, series, flow_rows, sector_by_ticker, pe_map),
+        _long_term_verdict(trade_date, sessions_desc, series, flow_rows, sector_by_ticker),
+    )
+    rows = [with_execution(v) for v in verdicts if v is not None]
     if not rows:
         LOGGER.warning(
             "decision engine %s: no horizon had a certified candidate", trade_date
@@ -835,12 +1232,21 @@ def run_decision_engine(session_date: Optional[date] = None) -> int:
     written = db.upsert_records(
         "psx_system_verdicts", rows, on_conflict="trade_date,horizon"
     )
+    # Retire horizons that were SKIPPED this run so a prior session's row
+    # for the same horizon is not rendered as current by the fallback. The
+    # purge is scoped to this trade_date only.
+    all_horizons = (HORIZON_SHORT, HORIZON_MID, HORIZON_LONG)
+    written_horizons = {r["horizon"] for r in rows}
+    retired = [h for h in all_horizons if h not in written_horizons]
+    if retired:
+        db.purge_verdict_horizons(trade_date.isoformat(), retired)
     LOGGER.info(
-        "decision engine %s: %d/%d verdicts stored (regime=%s) (%s)",
+        "decision engine %s: %d/%d verdicts stored (regime=%s, tape=%s) (%s)",
         trade_date,
         written,
         len(rows),
         regime,
+        tape_state,
         ", ".join(r["horizon"] for r in rows),
     )
     return written
