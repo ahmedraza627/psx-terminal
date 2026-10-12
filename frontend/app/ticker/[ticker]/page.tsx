@@ -29,12 +29,12 @@ export default async function TickerDeepDivePage({
 
       <aside className="absolute inset-y-0 right-0 w-full max-w-xl overflow-y-auto border-l border-hairline bg-panel shadow-2xl">
         <header className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b border-hairline bg-panel/95 px-4 py-2 backdrop-blur">
-          <span className="font-sans text-[10px] tracking-[0.2em] text-ghost">
+          <span className="font-sans text-[10px] tracking-[0.2em] text-slate-700">
             PSX Desk / Deep-Dive
           </span>
           <Link
             href="/"
-            className="border border-hairline px-2 py-0.5 font-sans text-[10px] tracking-widest text-muted hover:border-info/40 hover:text-info"
+            className="border border-hairline px-2 py-0.5 font-sans text-[10px] tracking-widest text-slate-700 hover:border-info/40 hover:text-blue-700"
           >
             Close
           </Link>
@@ -42,7 +42,7 @@ export default async function TickerDeepDivePage({
 
         <div className="px-4 py-3">
           {data == null ? (
-            <p className="py-16 text-center font-sans text-[11px] tracking-widest text-ghost">
+            <p className="py-16 text-center font-sans text-[11px] tracking-widest text-slate-700">
               No certified sessions stored - deep-dive unavailable
             </p>
           ) : (
@@ -51,7 +51,7 @@ export default async function TickerDeepDivePage({
         </div>
 
         <footer className="px-4 pb-4 pt-1">
-          <p className="border-t border-hairline pt-2 font-sans text-[9px] tracking-[0.18em] text-ghost">
+          <p className="border-t border-hairline pt-2 font-sans text-[9px] tracking-[0.18em] text-slate-700">
             Certified EOD data · No signals · Flow shown at sector or
             market level only (NCCPL publishes no per-ticker flows)
           </p>

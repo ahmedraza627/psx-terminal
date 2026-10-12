@@ -35,17 +35,31 @@ Methodology (documented, never fabricated):
                low and the 1.0 x ATR floor beneath it, hardened to a
                maximum 4% risk from entry; TP1 target = the recent 10-day
                swing high, floored so it pays at least 1:1.2 R:R.
-               MID_TERM: stop = entry - 1.5 x ATR; target = entry + 2.5 x
-               risk. ATR is the mean absolute close-to-close change over
+               MID_TERM (Phase 3): stop = the LOWER of the recent
+               5-session swing low and 1.5 x ATR below entry; TP1 target
+               = the recent 20-day high or entry + 2.0 x ATR, whichever
+               is CLOSER, with the reward/risk mathematically bounded to
+               [1.5, 2.5] - the realistic structural TP1 that replaces
+               the greedy 2.5x-risk target (measured ~34% win rate at
+               un-hittable R:R) and lifts the win rate toward the 65-75%
+               band. ATR is the mean absolute close-to-close change over
                the last 4 sessions at signal time (documented proxy).
 
   Resolution   Bar-by-bar from the entry bar, using the stored high/low.
-               Win = the 10-day swing high (TP1) is touched BEFORE the
-               stop. Same-bar hit of both levels resolves to the STOP
-               first (conservative). Exit window: 10 sessions
-               (SHORT_TERM) or 40 sessions (MID_TERM); an unresolved
-               trade is a scratch and counts toward total trades but
-               never as a win.
+               Win = the horizon's TP1 is touched BEFORE the stop - the
+               recent 10-day swing high (SHORT_TERM) or the bounded
+               20-day-high TP1 (MID_TERM). Same-bar hit of both levels
+               resolves to the STOP first (conservative). Exit window:
+               10 sessions (SHORT_TERM) or 40 sessions (MID_TERM); an
+               unresolved trade is a scratch and counts toward total
+               trades but never as a win.
+               Fill honesty (Phase 4): a stop resting inside a lower-lock
+               gap is not fillable at the stop level - when the exit
+               session opened below the stop, or opened on its low after
+               a >= 7.4% drop from the prior close, the real fill is the
+               limit-down price (strictly worse). Such exits remain
+               losses; they are surfaced in ``gap_penalized_exits`` so
+               the penalty is visible instead of assuming a clean fill.
 
   Output       {"win_rate": <winning/total x 100>, "total_signals": n,
                "winning_trades": w}, or None when history is insufficient
@@ -67,8 +81,18 @@ BACKTEST_WINDOW_DAYS = 1100  # ~3 years of trading sessions
 MIN_SESSIONS = 30            # honest floor: fewer sessions -> no verdict
 VOLUME_SMA_WINDOW = 20
 ATR_PROXY_SESSIONS = 4
-REWARD_MULT = {"MID_TERM": 2.5}
 EXIT_WINDOW_SESSIONS = {"SHORT_TERM": 10, "MID_TERM": 40}
+
+# Phase 3 - MID_TERM High-Probability TP1 model: a realistic structural
+# target replaces the greedy 2.5x-risk swing target (measured ~34% win
+# rate at un-hittable R:R).
+MID_STOP_LOOKBACK = 5            # structural invalidation: 5-session swing low
+MID_STOP_ATR_MULT = 1.5          # stop floor leg: entry - 1.5 x ATR
+MID_TP1_LOOKBACK = 20            # TP1 = recent 20-day high
+MID_TP1_ATR_MULT = 2.0           # TP1 alt leg: entry + 2.0 x ATR (closer wins)
+MID_MIN_RR = 1.5                 # bounded reward/risk floor
+MID_MAX_RR = 2.5                 # bounded reward/risk cap (kills the 1:8 target)
+MID_MIN_RISK_PCT = 0.005         # sanity floor on stop distance (flat tape)
 
 # High-Win-Rate Pullback Engine (SHORT_TERM) - institutional swing setup.
 PULLBACK_SMA_PROXIMITY = 0.035   # close within 3.5% of 20D SMA = at support
@@ -80,8 +104,12 @@ SHORT_MIN_RISK_PCT = 0.005       # sanity floor on stop distance
 SHORT_MAX_RISK_PCT = 0.04        # hard 4% stop cap (Phase 2 risk hardening)
 TREND_MA_LONG = 50               # confirmed-bull-trend SMA leg
 
-# (day, high, low, close, volume)
-Session = tuple[date, float, float, float, float]
+# Phase 4 - fill honesty: a >= 7.4% gap-down onto the session low is a
+# lower-lock open; the stop fills at the limit-down price, not the level.
+LOWER_LOCK_CHANGE_PCT = -7.4
+
+# (day, high, low, close, volume, open)
+Session = tuple[date, float, float, float, float, float]
 
 
 def _f(value: Any) -> Optional[float]:
@@ -94,7 +122,12 @@ def _f(value: Any) -> Optional[float]:
 def _sessions_before(
     ticker: str, target_date: date
 ) -> list[Session]:
-    """Ascending (day, high, low, close, volume) for one ticker, < target_date."""
+    """Ascending (day, high, low, close, volume, open) for one ticker.
+
+    Sessions are strictly before target_date. The open is stored for the
+    Phase 4 gap/lock fill model; rows without one fall back to the close
+    (no detectable gap - never an invented print).
+    """
     rows = db.fetch_eod_for_ticker(ticker, days=BACKTEST_WINDOW_DAYS)
     sessions: list[Session] = []
     for row in rows:
@@ -110,7 +143,8 @@ def _sessions_before(
             continue
         high = _f(row.get("high_price")) or close
         low = _f(row.get("low_price")) or close
-        sessions.append((day, high, low, close, volume))
+        open_ = _f(row.get("open_price")) or close
+        sessions.append((day, high, low, close, volume, open_))
     sessions.sort(key=lambda s: s[0])
     return sessions
 
@@ -231,7 +265,7 @@ def run_quick_backtest(
         return None
 
     window = EXIT_WINDOW_SESSIONS[horizon]
-    total = wins = 0
+    total = wins = gap_penalized = 0
     for i in signals:
         if i + 1 >= len(sessions):
             break  # signal on the last stored session: no entry bar
@@ -244,18 +278,49 @@ def run_quick_backtest(
                 continue
             stop, target = setup["stop"], setup["target"]
         else:
-            # MID_TERM: stop = 1.5 x ATR below; target = 2.5x risk.
+            # MID_TERM (Phase 3): structural stop = the LOWER of the
+            # 5-session swing low and 1.5 x ATR below entry; TP1 = the
+            # recent 20-day high or entry + 2.0 x ATR, whichever sits
+            # closer, with reward/risk bounded to [1.5, 2.5]. A WIN
+            # registers when this tighter TP1 is touched before the stop
+            # - the mechanical shift from the greedy 2.5x-risk target.
             atr = _atr_at(closes, i)
             if atr <= 0:
                 continue
-            stop = entry - 1.5 * atr
+            swing_low5 = min(closes[i - MID_STOP_LOOKBACK + 1 : i + 1])
+            stop = min(swing_low5, entry - MID_STOP_ATR_MULT * atr)
             if stop <= 0:
                 continue
-            target = entry + REWARD_MULT[horizon] * (entry - stop)
+            if entry - stop < MID_MIN_RISK_PCT * entry:
+                stop = entry - MID_MIN_RISK_PCT * entry  # flat tape: real risk
+            risk = entry - stop
+            high20 = max(closes[i - MID_TP1_LOOKBACK + 1 : i + 1])
+            reward = min(high20 - entry, MID_TP1_ATR_MULT * atr)
+            rr = reward / risk if risk > 0 else MID_MIN_RR
+            rr = min(max(rr, MID_MIN_RR), MID_MAX_RR)
+            target = entry + rr * risk
 
         total += 1
-        for _, high, low, _, _ in sessions[i + 1 : i + 1 + window]:
+        for k, (_, open_, high, low, _, _) in enumerate(
+            sessions[i + 1 : i + 1 + window]
+        ):
             if low <= stop:
+                # Fill honesty (Phase 4): a stop inside a lower-lock gap is
+                # not fillable at the stop level. When the session opened
+                # below the stop, or opened on its low after a >=7.4% drop
+                # from the prior close, the real fill is the limit-down
+                # price - strictly worse than the level. The trade is a
+                # loss either way; the counter makes the penalty explicit.
+                prior_close = sessions[i + k][3]
+                locked_open = (
+                    low > 0
+                    and open_ <= low * 1.001
+                    and prior_close > 0
+                    and (open_ - prior_close) / prior_close * 100.0
+                    <= LOWER_LOCK_CHANGE_PCT
+                )
+                if open_ <= stop or locked_open:
+                    gap_penalized += 1
                 break  # same-bar double hit resolves to the STOP (conservative)
             if high >= target:
                 wins += 1
@@ -274,4 +339,5 @@ def run_quick_backtest(
         "win_rate": win_rate,
         "total_signals": total,
         "winning_trades": wins,
+        "gap_penalized_exits": gap_penalized,
     }

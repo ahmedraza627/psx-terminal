@@ -22,7 +22,7 @@ export default function TickerLink({
     <Link
       href={`/ticker/${encodeURIComponent(ticker)}`}
       title={title}
-      className={`hover:text-info ${className}`}
+      className={`hover:text-blue-700 ${className}`}
     >
       {ticker}
     </Link>

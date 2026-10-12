@@ -27,7 +27,7 @@ export default function SearchBox() {
         maxLength={20}
         placeholder="Search ticker…"
         aria-label="Quick ticker search"
-        className="h-9 w-40 rounded-lg border border-slate-200 bg-white px-3 text-[13px] text-slate-900 placeholder:text-slate-400 outline-none transition-shadow focus:border-blue-500 focus:ring-2 focus:ring-blue-100 sm:w-56"
+        className="h-9 w-40 rounded-lg border border-slate-200 bg-white px-3 text-[13px] text-slate-900 placeholder:text-slate-500 outline-none transition-shadow focus:border-blue-500 focus:ring-2 focus:ring-blue-100 sm:w-56"
       />
     </form>
   );

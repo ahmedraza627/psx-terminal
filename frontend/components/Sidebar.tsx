@@ -63,7 +63,7 @@ export default function Sidebar() {
           type="button"
           onClick={() => setMobileOpen(true)}
           aria-label="Open navigation"
-          className="fixed left-3 top-3 z-40 inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm transition-colors hover:text-slate-900 md:hidden"
+          className="fixed left-3 top-3 z-40 inline-flex h-11 w-11 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm transition-colors hover:text-slate-900 md:hidden"
         >
           <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
             <path d="M4 6h16M4 12h16M4 18h16" />
@@ -82,7 +82,7 @@ export default function Sidebar() {
       )}
 
       <aside
-        className={`top-0 z-50 flex h-dvh shrink-0 flex-col border-r border-slate-200 bg-white transition-all duration-200 ${
+        className={`top-0 z-50 flex h-dvh shrink-0 flex-col border-r border-slate-800 bg-slate-900 transition-all duration-200 ${
           collapsed ? "w-[76px]" : "w-60"
         } ${
           mobileOpen
@@ -91,17 +91,17 @@ export default function Sidebar() {
         }`}
       >
         {/* Brand + hamburger */}
-        <div className="flex items-center justify-between gap-2 border-b border-slate-200 px-3.5 py-3.5">
+        <div className="flex items-center justify-between gap-2 border-b border-slate-800 px-3.5 py-3.5">
           {collapsed ? (
-            <span className="mx-auto font-sans text-[13px] font-bold text-blue-600">
+            <span className="mx-auto font-sans text-[13px] font-bold text-sky-400">
               PSX
             </span>
           ) : (
             <Link href="/" className="leading-tight">
-              <span className="block font-sans text-[15px] font-bold tracking-tight text-slate-900">
+              <span className="block font-sans text-[15px] font-bold tracking-tight text-white">
                 PSX Terminal
               </span>
-              <span className="block text-[10px] font-medium tracking-[0.16em] text-slate-400">
+              <span className="block text-[10px] font-medium tracking-[0.16em] text-sky-400">
                 Equity Analytics
               </span>
             </Link>
@@ -115,7 +115,7 @@ export default function Sidebar() {
             }
             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             title={collapsed ? "Expand" : "Collapse"}
-            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-800 hover:text-slate-200"
           >
             <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M4 6h16M4 12h16M4 18h16" />
@@ -136,13 +136,15 @@ export default function Sidebar() {
                 title={item.label}
                 className={`flex items-center gap-3 rounded-lg px-2.5 py-2 text-[13px] font-medium transition-colors ${
                   active
-                    ? "bg-blue-50 font-semibold text-blue-700"
-                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                    ? "bg-sky-700 font-semibold text-white shadow-sm"
+                    : "text-slate-300 hover:bg-slate-800/80 hover:text-white"
                 } ${collapsed ? "justify-center" : ""}`}
               >
                 <svg
                   viewBox="0 0 24 24"
-                  className="h-4 w-4 shrink-0 text-slate-400"
+                  className={`h-4 w-4 shrink-0 ${
+                    active ? "text-white" : "text-slate-300"
+                  }`}
                   fill="none"
                   stroke="currentColor"
                   strokeWidth={1.8}
@@ -192,11 +194,11 @@ export default function Sidebar() {
 
         {/* Footer stamp */}
         <div
-          className={`border-t border-slate-200 px-3.5 py-3 ${
-            collapsed ? "hidden md:block" : ""
+          className={`border-t border-slate-800 px-3.5 py-3 ${
+            collapsed ? "hidden" : ""
           }`}
         >
-          <p className="text-[10px] leading-relaxed tracking-[0.06em] text-slate-400">
+          <p className="text-xs leading-relaxed tracking-[0.06em] text-slate-300">
             Certified EOD &amp; NCCPL Feed · Daily 16:30 PKT
           </p>
         </div>

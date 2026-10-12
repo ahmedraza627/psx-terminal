@@ -63,19 +63,19 @@ const DIRECTION_STYLE: Record<
   { badge: string; accent: string }
 > = {
   BUY: {
-    badge: "border border-emerald-200 bg-emerald-50 text-emerald-700",
-    accent: "bg-emerald-500",
+    badge: "border border-sky-300 bg-sky-100 text-sky-900",
+    accent: "bg-sky-500",
   },
   ACCUMULATE: {
-    badge: "border border-emerald-200 bg-emerald-50 text-emerald-700",
-    accent: "bg-emerald-500",
+    badge: "border border-sky-300 bg-sky-100 text-sky-900",
+    accent: "bg-sky-500",
   },
   AVOID: {
-    badge: "border border-rose-200 bg-rose-50 text-rose-700",
+    badge: "border border-rose-300 bg-rose-100 text-rose-900",
     accent: "bg-rose-500",
   },
   SHORT: {
-    badge: "border border-rose-200 bg-rose-50 text-rose-700",
+    badge: "border border-rose-300 bg-rose-100 text-rose-900",
     accent: "bg-rose-500",
   },
 };
@@ -110,21 +110,20 @@ export default function DecisionCard({
   // card reads as capital preservation rather than a weak signal.
   if (cashState || direction == null || ticker == null || logic == null) {
     return (
-      <article className="relative flex min-w-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-md">
-        <span aria-hidden className="absolute inset-y-0 left-0 w-1 bg-slate-300" />
-        <div className="flex flex-col gap-3 p-4 pl-5 sm:px-5 sm:pl-6">
+      <article className="relative flex min-w-0 flex-col overflow-hidden rounded-xl border-2 border-dashed border-slate-300 bg-slate-50/80 shadow-sm">
+        <div className="flex flex-col gap-3 p-5">
           <div className="flex items-center justify-between gap-2">
-            <p className="text-[11px] font-semibold tracking-[0.14em] text-slate-400">
+            <p className="text-[11px] font-semibold tracking-[0.14em] text-slate-700">
               {horizon}
             </p>
-            <span className="shrink-0 rounded-full border border-slate-200 bg-slate-100 px-2.5 py-0.5 text-[11px] font-bold tracking-wide text-slate-500">
+            <span className="shrink-0 rounded-full border border-slate-300 bg-slate-200 px-2.5 py-0.5 text-[11px] font-semibold tracking-wide text-slate-800">
               CASH / NO SETUP
             </span>
           </div>
-          <p className="text-[26px] font-bold leading-none tracking-tight text-slate-400">
+          <p className="text-[26px] font-bold leading-none tracking-tight text-slate-800">
             CASH
           </p>
-          <p className="text-[13px] leading-relaxed text-slate-500">
+          <p className="text-[13px] font-bold leading-relaxed text-slate-700">
             No qualifying pullback setup meeting institutional criteria.
             Preserving capital in cash.
           </p>
@@ -136,15 +135,16 @@ export default function DecisionCard({
   const hasLevels =
     entryRef != null || stopLoss != null || targetPrice != null;
   const defensive = regimeStatus === "DEFENSIVE_CASH";
-  // Macro tape pill: RISK_ON renders emerald, DEFENSIVE_CASH rose, NEUTRAL
-  // slate. Hidden when migration 011 is pending (null) - never fabricated.
+  // Macro tape pill: RISK_ON renders emerald, DEFENSIVE_CASH amber, NEUTRAL
+  // slate - all high-contrast (WCAG AA) fills. Hidden when migration 011 is
+  // pending (null) - never fabricated.
   const tapePill =
     macroTapeState === "RISK_ON"
-      ? { text: "Tape: RISK_ON", cls: "border-emerald-200 bg-emerald-50 text-emerald-700" }
+      ? { text: "Tape: RISK_ON", cls: "border-emerald-300 bg-emerald-100 text-emerald-900" }
       : macroTapeState === "DEFENSIVE_CASH"
-        ? { text: "Tape: DEFENSIVE_CASH", cls: "border-rose-200 bg-rose-50 text-rose-700" }
+        ? { text: "Tape: DEFENSIVE_CASH", cls: "border-amber-300 bg-amber-100 text-amber-900" }
         : macroTapeState === "NEUTRAL"
-          ? { text: "Tape: NEUTRAL", cls: "border-slate-200 bg-slate-50 text-slate-600" }
+          ? { text: "Tape: NEUTRAL", cls: "border-slate-300 bg-slate-200 text-slate-800" }
           : null;
   // DEFENSIVE_CASH tape overrides the softer sizing warning: the macro
   // gate blocks new buys, so the card recommends capital preservation.
@@ -164,14 +164,14 @@ export default function DecisionCard({
       : null;
   const hasExec = hasLevels || suggestedAllocPct != null;
   return (
-    <article className="relative flex min-w-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-md">
+    <article className="relative flex min-w-0 flex-col overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm transition-all duration-150 hover:shadow-md">
       {/* Direction spine - the card's semantic color at a glance */}
       <span aria-hidden className={`absolute inset-y-0 left-0 w-1 ${s.accent}`} />
 
       <div className="flex flex-col gap-3 p-4 pl-5 sm:px-5 sm:pl-6">
         {/* Horizon + direction */}
         <div className="flex items-center justify-between gap-2">
-          <p className="text-[11px] font-semibold tracking-[0.14em] text-slate-400">
+          <p className="text-[11px] font-semibold tracking-[0.14em] text-slate-700">
             {horizon}
           </p>
           <div className="flex shrink-0 items-center gap-1.5">
@@ -197,9 +197,9 @@ export default function DecisionCard({
 
         {/* System logic + historical edge proof + dynamic sizing */}
         <div className="flex flex-wrap items-center gap-2">
-          <p className="text-[13px] leading-relaxed text-slate-600">{logic}</p>
+          <p className="text-[13px] leading-relaxed text-slate-700">{logic}</p>
           {historicalWinRate != null && (
-            <span className="inline-flex shrink-0 items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold tabular-nums text-slate-600">
+            <span className="inline-flex shrink-0 items-center rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 text-[11px] font-semibold tabular-nums text-slate-700">
               {historicalWinRate.toFixed(0)}% Hist. Win Rate
             </span>
           )}
@@ -207,50 +207,50 @@ export default function DecisionCard({
 
         {/* Execution grid - certified risk math (when the engine stored it) */}
         {hasExec && (
-          <div className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 sm:grid-cols-3">
+          <div className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-lg border border-slate-100 bg-slate-50 px-4 py-3 sm:grid-cols-3">
             <div className="flex flex-col">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+              <span className="text-xs font-semibold uppercase tracking-wider text-slate-700">
                 Entry Ref
               </span>
-              <span className="mt-1 text-[13px] font-semibold tabular-nums text-slate-800">
+              <span className="mt-1 whitespace-nowrap font-mono text-base font-bold text-slate-950">
                 {entryRef != null ? `PKR ${pkr(entryRef)}` : "—"}
               </span>
             </div>
 
             <div className="flex flex-col">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+              <span className="text-xs font-semibold uppercase tracking-wider text-slate-700">
                 Invalidation / Stop
               </span>
-              <span className="mt-1 w-fit rounded-md border border-rose-200 bg-rose-50 px-1.5 py-0.5 text-[13px] font-semibold tabular-nums text-rose-700">
+              <span className="mt-1 w-fit whitespace-nowrap rounded-md border border-rose-200 bg-rose-50 px-1.5 py-0.5 font-mono text-base font-bold text-rose-700">
                 {stopLoss != null ? `PKR ${pkr(stopLoss)}` : "—"}
               </span>
             </div>
 
             <div className="flex flex-col">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+              <span className="text-xs font-semibold uppercase tracking-wider text-slate-700">
                 Target Zone
               </span>
-              <span className="mt-1 w-fit rounded-md border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[13px] font-semibold tabular-nums text-emerald-700">
+              <span className="mt-1 w-fit whitespace-nowrap rounded-md border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 font-mono text-base font-bold text-emerald-800">
                 {targetPrice != null ? `PKR ${pkr(targetPrice)}` : "—"}
               </span>
             </div>
 
             <div className="flex flex-col">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+              <span className="text-xs font-semibold uppercase tracking-wider text-slate-700">
                 Reward : Risk
               </span>
-              <span className="mt-1 text-[13px] font-semibold tabular-nums text-slate-800">
+              <span className="mt-1 whitespace-nowrap font-mono text-base font-bold text-slate-950">
                 {riskReward != null ? `1:${riskReward} R:R` : "—"}
               </span>
             </div>
 
             {allocLabel != null && (
               <div className="flex flex-col col-span-2 sm:col-span-1">
-                <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-700">
                   Position Size
                 </span>
                 <span
-                  className="mt-1 w-fit rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[13px] font-semibold tabular-nums text-slate-700"
+                  className="mt-1 w-fit rounded border border-slate-300 bg-slate-200/80 px-2 py-0.5 font-mono font-bold text-slate-900"
                   title={
                     maxVolumeCapacityShares != null
                       ? `Order capped at ${maxVolumeCapacityShares.toLocaleString("en-US")} shares (2% of 20D avg volume)`
@@ -268,9 +268,9 @@ export default function DecisionCard({
         {preserveCapital && (
           <div
             role="status"
-            className="flex items-center justify-center rounded-md border border-amber-200 bg-amber-50 px-3 py-1.5"
+            className="flex items-center justify-center rounded-md border border-amber-300 bg-amber-100 px-3 py-1.5"
           >
-            <span className="text-[11px] font-semibold tracking-wide text-amber-700">
+            <span className="text-[11px] font-semibold tracking-wide text-amber-900">
               {macroTapeState === "DEFENSIVE_CASH"
                 ? "Defensive Tape \u00b7 Preserve Capital, No New Exposure"
                 : "Defensive Tape \u00b7 Reduce Position Size"}
@@ -282,7 +282,7 @@ export default function DecisionCard({
       {/* Fundamental gate stamp - the verdict passed the strict PE filter */}
       {fundamentalScore && (
         <div className="border-t border-slate-100 px-4 py-2 pl-5 sm:px-5 sm:pl-6">
-          <p className="text-[11px] font-medium tracking-wide text-slate-400">
+          <p className="text-[11px] font-medium tracking-wide text-slate-700">
             Fundamental filter: {fundamentalScore}
           </p>
         </div>

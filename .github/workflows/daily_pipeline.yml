@@ -1,0 +1,70 @@
+name: Daily PSX Pipeline
+
+# 11:45 UTC = 16:45 PKT, Mon-Fri: 15 minutes after the PSX 16:30 PKT close,
+# leaving time for DPS to publish the certified EOD snapshot and NCCPL to
+# upload the participant flows.
+on:
+  schedule:
+    - cron: "45 11 * * 1-5"
+  workflow_dispatch:
+
+jobs:
+  daily-pipeline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Scrape EOD data
+        run: python -m pipeline.scrapers.psx_eod
+
+      # NCCPL uploads lag the market close some evenings; a missing or
+      # partial upload must never abort the certified EOD dispatch.
+      - name: Scrape NCCPL flows (non-fatal)
+        continue-on-error: true
+        run: |
+          python - <<'EOF'
+          import logging
+          try:
+              from datetime import date
+              from pipeline import db
+              from pipeline.scrapers.nccpl_flows import fetch_recent_flows
+
+              rows = fetch_recent_flows(days=6, today=date.today())
+              written = (
+                  db.upsert_records(
+                      "nccpl_fipi_lipi",
+                      rows,
+                      on_conflict="trade_date,participant_type,sector_name",
+                  )
+                  if rows
+                  else 0
+              )
+              print(f"nccpl_fipi_lipi: {written} rows written")
+          except Exception as exc:
+              logging.basicConfig(level=logging.INFO)
+              logging.warning("NCCPL flow scrape failed (non-fatal): %s", exc)
+          EOF
+
+      # Decision engine stores the certified verdicts and fires the
+      # Telegram dispatch (best-effort inside the engine itself).
+      - name: Decision engine and Telegram dispatch
+        run: >-
+          python -c "from pipeline.analytics.decision_engine import
+          run_decision_engine; from datetime import date;
+          run_decision_engine(date.today())"

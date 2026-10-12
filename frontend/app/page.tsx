@@ -79,7 +79,7 @@ export default async function ActionDeskPage() {
       {verdicts.length === 0 ? (
         /* Honest clean state: the engine has not stamped this session yet. */
         <div className="mt-6 rounded-xl border border-slate-200 bg-white px-6 py-12 text-center shadow-sm">
-          <p className="text-[13px] font-medium text-slate-500">
+          <p className="text-[13px] font-medium text-slate-700">
             Awaiting EOD Decision Engine execution for this session
           </p>
         </div>
@@ -109,7 +109,7 @@ export default async function ActionDeskPage() {
             ))}
           </div>
           {showingPriorSession && (
-            <p className="mt-3 text-center text-[13px] text-slate-500">
+            <p className="mt-3 text-center text-[13px] text-slate-700">
               Showing certified verdicts from {verdictDate} - the decision
               engine has not stamped session {session} yet.
             </p>

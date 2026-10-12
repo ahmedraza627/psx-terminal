@@ -8,12 +8,12 @@ import type { ReactNode } from "react";
 export type Tone = "bull" | "bear" | "warn" | "info" | "neutral" | "ghost";
 
 const TONE_TEXT: Record<Tone, string> = {
-  bull: "text-bull",
-  bear: "text-bear",
-  warn: "text-warn",
-  info: "text-info",
-  neutral: "text-muted",
-  ghost: "text-ghost",
+  bull: "text-emerald-700",
+  bear: "text-rose-700",
+  warn: "text-amber-700",
+  info: "text-blue-700",
+  neutral: "text-slate-700",
+  ghost: "text-slate-700",
 };
 
 const TONE_RING: Record<Tone, string> = {
@@ -48,7 +48,7 @@ export function Badge({
 }) {
   const cls = solid
     ? `${TONE_TEXT[tone]} ${TONE_FILL[tone]} ring-1 ${TONE_RING[tone]}`
-    : `text-muted ring-1 ring-hairline bg-panel`;
+    : `text-slate-700 ring-1 ring-hairline bg-panel`;
   return (
     <span
       className={`inline-block rounded-[2px] px-1.5 py-px font-sans text-[10px] font-semibold tracking-wider ${cls} ${className}`}
@@ -80,7 +80,7 @@ export function Num({
       : `${signed && value > 0 ? "+" : ""}${value.toFixed(digits)}${suffix}`;
   return (
     <span
-      className={`font-sans tabular-nums ${tone ?? (value == null ? "text-ghost" : "text-ink")} ${className}`}
+      className={`font-mono tabular-nums font-medium ${tone ?? (value == null ? "text-slate-700" : "text-slate-900")} ${className}`}
     >
       {body}
     </span>
@@ -99,12 +99,12 @@ export function PctCell({
 }) {
   const tone =
     value == null
-      ? "text-ghost"
+      ? "text-slate-700"
       : value > 0.0005
-        ? "text-bull"
+        ? "text-emerald-700 font-semibold"
         : value < -0.0005
-          ? "text-bear"
-          : "text-muted";
+          ? "text-rose-700 font-semibold"
+          : "text-slate-700 font-semibold";
   return <Num value={value} digits={digits} signed suffix="%" tone={tone} className={className} />;
 }
 
@@ -123,7 +123,7 @@ export function DeskFrame({
   return (
     <section className="border-b border-hairline">
       <div className="flex items-center justify-between gap-2 border-b border-hairline bg-panel px-2.5 py-1.5">
-        <h2 className="font-sans text-[10px] font-medium tracking-widest text-muted">
+        <h2 className="font-sans text-[10px] font-medium tracking-widest text-slate-800">
           {title}
         </h2>
         {right}
@@ -159,7 +159,7 @@ export function DataTable({
         style={{ minWidth: `${minWidth}px` }}
       >
         <thead>
-          <tr className="border-b border-hairline bg-obsidian text-[10px] tracking-widest text-ghost">
+          <tr className="border-b-2 border-slate-300 bg-slate-100 text-xs font-bold uppercase tracking-wider text-slate-800">
             {columns.map((c, i) => (
               <th
                 key={c.label}
@@ -179,7 +179,7 @@ export function DataTable({
   );
 }
 
-/** Data row: hover lift to hoverline, hairline separator. */
+/** Data row: hover tint to slate-50, hairline separator. */
 export function Row({
   children,
   className = "",
@@ -188,7 +188,7 @@ export function Row({
   className?: string;
 }) {
   return (
-    <tr className={`border-b border-hairline hover:bg-hoverline ${className}`}>
+    <tr className={`border-b border-slate-200 transition-colors hover:bg-sky-50/50 ${className}`}>
       {children}
     </tr>
   );
@@ -209,7 +209,7 @@ export function IdleState({
       <p className={`font-sans text-xs tracking-widest ${TONE_TEXT[tone]}`}>
         {headline}
       </p>
-      {detail && <p className="mt-1 text-[11px] text-ghost">{detail}</p>}
+      {detail && <p className="mt-1 text-[11px] text-slate-700">{detail}</p>}
     </div>
   );
 }

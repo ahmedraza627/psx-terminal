@@ -49,13 +49,13 @@ function Panel({
     >
       <header className="flex items-center justify-between gap-2 border-b border-hairline bg-slate-50/80 px-4 py-2.5">
         <h2 className="flex items-center gap-2 text-[13px] font-semibold tracking-tight text-ink">
-          <span className="inline-flex h-5 w-5 items-center justify-center rounded-md bg-blue-50 font-sans text-[10px] font-bold text-info">
+          <span className="inline-flex h-5 w-5 items-center justify-center rounded-md bg-blue-50 font-sans text-[10px] font-bold text-blue-700">
             {letter}
           </span>
           {title}
         </h2>
         {meta && (
-          <span className="font-sans text-[10px] tabular-nums text-ghost">
+          <span className="font-sans text-[10px] tabular-nums text-slate-700">
             {meta}
           </span>
         )}
@@ -68,7 +68,7 @@ function Panel({
 function Kpi({
   label,
   value,
-  tone = "text-ink",
+  tone = "text-slate-900",
   sub,
 }: {
   label: string;
@@ -78,12 +78,12 @@ function Kpi({
 }) {
   return (
     <div className="rounded-lg border border-hairline bg-slate-50/70 px-3 py-2">
-      <p className="text-[11px] font-medium text-ghost">{label}</p>
-      <p className={`font-sans text-[16px] font-bold tabular-nums ${tone}`}>
+      <p className="text-[11px] font-medium text-slate-700">{label}</p>
+      <p className={`font-mono text-[16px] font-bold tabular-nums ${tone}`}>
         {value}
       </p>
       {sub && (
-        <p className="text-[10px] font-medium tracking-wide text-ghost">
+        <p className="text-[10px] font-medium tracking-wide text-slate-700">
           {sub}
         </p>
       )}
@@ -100,7 +100,7 @@ function Th({
 }) {
   return (
     <th
-      className={`border-b border-hairline px-2 py-1.5 font-sans text-[9px] font-semibold tracking-[0.15em] text-ghost ${
+      className={`border-b-2 border-slate-300 bg-slate-100 px-2 py-1.5 font-sans text-xs font-bold uppercase tracking-wider text-slate-800 ${
         right ? "text-right" : "text-left"
       }`}
     >
@@ -122,9 +122,9 @@ function Td({
 }) {
   return (
     <td
-      className={`whitespace-nowrap border-b border-hairline/60 px-2 py-1.5 font-sans text-[11px] tabular-nums ${
+      className={`whitespace-nowrap border-b border-slate-200 px-2 py-1.5 font-mono text-[11px] font-medium tabular-nums ${
         right ? "text-right" : "text-left"
-      } ${bold ? "font-bold" : ""} ${tone ?? "text-ink"}`}
+      } ${bold ? "font-bold" : ""} ${tone ?? "text-slate-900"}`}
     >
       {children}
     </td>
@@ -133,9 +133,15 @@ function Td({
 
 /** Signed PKR millions — the console's universal money unit. */
 function M({ v }: { v: number | null }) {
-  if (v == null) return <Td tone="text-ghost">—</Td>;
+  if (v == null) return <Td tone="text-slate-700">—</Td>;
   return (
-    <Td bold tone={v > 0 ? "text-bull" : v < 0 ? "text-bear" : "text-muted"}>
+    <Td tone={
+      v > 0
+        ? "text-emerald-700 font-semibold"
+        : v < 0
+          ? "text-rose-700 font-semibold"
+          : "text-slate-700 font-semibold"
+    }>
       {v > 0 ? "+" : ""}
       {(v / 1e6).toFixed(1)}M
     </Td>
@@ -144,7 +150,7 @@ function M({ v }: { v: number | null }) {
 
 function Idle({ text }: { text: string }) {
   return (
-    <p className="px-3 py-6 text-center font-sans text-[11px] tracking-widest text-ghost">
+    <p className="px-3 py-6 text-center font-sans text-[11px] tracking-widest text-slate-700">
       {text}
     </p>
   );
@@ -168,7 +174,7 @@ function RadarEmpty({ sessionDate }: { sessionDate: string | null }) {
  */
 function PanelFooter({
   text,
-  tone = "text-bull/70",
+  tone = "text-slate-700",
 }: {
   text: string;
   tone?: string;
@@ -196,20 +202,20 @@ function SignalBadge({
     key.includes("TRAP_SHORT");
   if (isBull) {
     return (
-      <span className="rounded-[2px] bg-bull/15 px-1.5 py-px font-sans text-[9px] font-bold tracking-widest text-bull ring-1 ring-bull/40">
+      <span className="rounded-[2px] bg-bull/15 px-1.5 py-px font-sans text-[9px] font-bold tracking-widest text-emerald-700 ring-1 ring-bull/40">
         {titleCase((signalType.match(/[A-Z][A-Z0-9_]+/g) || [signalType]).pop() ?? signalType)}
       </span>
     );
   }
   if (isBear) {
     return (
-      <span className="rounded-[2px] bg-bear/15 px-1.5 py-px font-sans text-[9px] font-bold tracking-widest text-bear ring-1 ring-bear/40">
+      <span className="rounded-[2px] bg-bear/15 px-1.5 py-px font-sans text-[9px] font-bold tracking-widest text-rose-700 ring-1 ring-bear/40">
         {titleCase((signalType.match(/[A-Z][A-Z0-9_]+/g) || [signalType]).pop() ?? signalType)}
       </span>
     );
   }
   return (
-    <span className="rounded-[2px] bg-hairline/60 px-1.5 py-px font-sans text-[9px] font-bold tracking-widest text-ghost ring-1 ring-hairline">
+    <span className="rounded-[2px] bg-hairline/60 px-1.5 py-px font-sans text-[9px] font-bold tracking-widest text-slate-700 ring-1 ring-hairline">
       {titleCase(signalType)}
     </span>
   );
@@ -220,7 +226,7 @@ function CatalystNode({ signal }: { signal: QuantSignal }) {
   return (
     <div className="space-y-1">
       {lines.map((line, i) => (
-        <p key={i} className="font-sans text-[10px] leading-relaxed text-ghost">
+        <p key={i} className="font-sans text-[10px] leading-relaxed text-slate-700">
           {line}
         </p>
       ))}
@@ -281,11 +287,11 @@ export function FlowMatrixPanel({
         <>
           {data.retailTrapped && (
             <div className="border-b border-bear/50 bg-bear/15 px-3 py-2">
-              <p className="font-sans text-[11px] font-bold tracking-[0.18em] text-bear">
+              <p className="font-sans text-[11px] font-bold tracking-[0.18em] text-rose-700">
                 <span className="mr-1.5 inline-block h-2 w-2 animate-pulse rounded-[2px] bg-bear align-middle" />
                 Retail Trap Active: Smart Money Distributing
               </p>
-              <p className="mt-0.5 font-sans text-[10px] leading-relaxed text-bear/80">
+              <p className="mt-0.5 font-sans text-[10px] leading-relaxed text-rose-700">
                 Individuals net-buying while institutions (FIPI + Mutual
                 Funds) net-sell — retail is on the other side of
                 institutional distribution.
@@ -299,10 +305,10 @@ export function FlowMatrixPanel({
               value={`${data.institutions1dPkr != null && data.institutions1dPkr > 0 ? "+" : ""}${((data.institutions1dPkr ?? 0) / 1e6).toFixed(1)}M`}
               tone={
                 (data.institutions1dPkr ?? 0) > 0
-                  ? "text-bull"
+                  ? "text-emerald-700"
                   : (data.institutions1dPkr ?? 0) < 0
-                    ? "text-bear"
-                    : "text-muted"
+                    ? "text-rose-700"
+                    : "text-slate-700"
               }
             />
             <Kpi
@@ -310,10 +316,10 @@ export function FlowMatrixPanel({
               value={`${data.retail1dPkr != null && data.retail1dPkr > 0 ? "+" : ""}${((data.retail1dPkr ?? 0) / 1e6).toFixed(1)}M`}
               tone={
                 (data.retail1dPkr ?? 0) > 0
-                  ? "text-bull"
+                  ? "text-emerald-700"
                   : (data.retail1dPkr ?? 0) < 0
-                    ? "text-bear"
-                    : "text-muted"
+                    ? "text-rose-700"
+                    : "text-slate-700"
               }
             />
             <Kpi
@@ -321,10 +327,10 @@ export function FlowMatrixPanel({
               value={`${inst30d != null && inst30d > 0 ? "+" : ""}${((inst30d ?? 0) / 1e6).toFixed(0)}M`}
               tone={
                 (inst30d ?? 0) > 0
-                  ? "text-bull"
+                  ? "text-emerald-700"
                   : (inst30d ?? 0) < 0
-                    ? "text-bear"
-                    : "text-muted"
+                    ? "text-rose-700"
+                    : "text-slate-700"
               }
             />
             <Kpi
@@ -332,10 +338,10 @@ export function FlowMatrixPanel({
               value={`${retail30d != null && retail30d > 0 ? "+" : ""}${((retail30d ?? 0) / 1e6).toFixed(0)}M`}
               tone={
                 (retail30d ?? 0) > 0
-                  ? "text-bull"
+                  ? "text-emerald-700"
                   : (retail30d ?? 0) < 0
-                    ? "text-bear"
-                    : "text-muted"
+                    ? "text-rose-700"
+                    : "text-slate-700"
               }
             />
           </div>
@@ -351,8 +357,8 @@ export function FlowMatrixPanel({
                     <button
                       type="button"
                       onClick={cycleSort}
-                      className={`inline-flex items-center gap-1 tracking-[0.15em] hover:text-ink ${
-                        sort30d === false ? "text-ghost" : "text-info"
+                      className={`inline-flex items-center gap-1 uppercase tracking-[0.15em] hover:text-blue-700 ${
+                        sort30d === false ? "text-slate-700" : "text-blue-700"
                       }`}
                       title="Sort by 30-day net (medium-term drift)"
                     >
@@ -384,7 +390,7 @@ export function FlowMatrixPanel({
               </thead>
               <tbody>
                 {participants.map((p) => (
-                  <tr key={p.participantType} className="hover:bg-hoverline">
+                  <tr key={p.participantType} className="transition-colors hover:bg-sky-50/50">
                     <Td right={false} bold tone="text-ink">
                       {p.participantType}
                     </Td>
@@ -421,8 +427,8 @@ export function FlowMatrixPanel({
                     p.participantType,
                   ) && (p.net30dPkr ?? 0) > 0,
               )
-                ? "text-bull/70"
-                : "text-ghost"
+                ? "text-emerald-700"
+                : "text-slate-700"
             }
           />
         </>
@@ -458,11 +464,11 @@ export function QuantRadarPanel({
             const tickerTone =
               signal.signalType.toUpperCase().includes("ACCUMULATION") ||
               signal.signalType.toUpperCase().includes("INSTITUTIONAL")
-                ? "text-bull"
+                ? "text-emerald-700"
                 : signal.signalType.toUpperCase().includes("TRAP") ||
                   signal.signalType.toUpperCase().includes("DISTRIBUTION") ||
                   signal.signalType.toUpperCase().includes("SHORT")
-                  ? "text-bear"
+                  ? "text-rose-700"
                   : "text-ink";
             return (
               <div
@@ -475,7 +481,7 @@ export function QuantRadarPanel({
                   </span>
                   <span className="flex items-center gap-2">
                     <SignalBadge signalType={signal.signalType} />
-                    <span className="font-sans text-[10px] tabular-nums text-ghost">
+                    <span className="font-sans text-[10px] tabular-nums text-slate-700">
                       {signal.confidenceScore != null
                         ? `${signal.confidenceScore}%`
                         : "—"}
@@ -483,22 +489,22 @@ export function QuantRadarPanel({
                   </span>
                   <div className="ml-auto flex items-center gap-2">
                     {signal.sector ? (
-                      <span className="font-sans text-[9px] tracking-wider text-ghost">
+                      <span className="font-sans text-[9px] tracking-wider text-slate-700">
                         {signal.sector}
                       </span>
                     ) : (
-                      <span className="font-sans text-[9px] text-ghost">—</span>
+                      <span className="font-sans text-[9px] text-slate-700">—</span>
                     )}
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                   {signal.marketClose != null && (
-                    <span className="font-sans text-[10px] tabular-nums text-muted">
+                    <span className="font-sans text-[10px] tabular-nums text-slate-700">
                       LTP {signal.marketClose.toFixed(2)}
                     </span>
                   )}
                   {signal.volume != null && (
-                    <span className="font-sans text-[10px] tabular-nums text-muted">
+                    <span className="font-sans text-[10px] tabular-nums text-slate-700">
                       VOL {fmtInt(signal.volume)}
                     </span>
                   )}
@@ -575,7 +581,7 @@ export function VolumeBreakoutsPanel({
                   </tr>
                 ) : (
                   movers.map((m) => (
-                    <tr key={m.ticker} className="hover:bg-hoverline">
+                    <tr key={m.ticker} className="transition-colors hover:bg-sky-50/50">
                       <Td right={false} bold>
                         <TickerLink ticker={m.ticker} />
                       </Td>
@@ -584,18 +590,18 @@ export function VolumeBreakoutsPanel({
                         bold
                         tone={
                           m.changePct == null
-                            ? "text-ghost"
+                            ? "text-slate-700"
                             : m.changePct > 0
-                              ? "text-bull"
+                              ? "text-emerald-700"
                               : m.changePct < 0
-                                ? "text-bear"
-                                : "text-muted"
+                                ? "text-rose-700"
+                                : "text-slate-700"
                         }
                       >
                         {fmtPct(m.changePct, 2)}
                       </Td>
-                      <Td tone="text-muted">{fmtInt(m.volume)}</Td>
-                      <Td tone="text-info">
+                      <Td tone="text-slate-700">{fmtInt(m.volume)}</Td>
+                      <Td tone="text-blue-700">
                         {m.turnoverPkr == null
                           ? "—"
                           : `${(m.turnoverPkr / 1e6).toFixed(1)}M`}
@@ -621,7 +627,7 @@ export function VolumeBreakoutsPanel({
                   <span className="font-sans text-[12px] font-bold text-ink">
                     <TickerLink ticker={n.ticker} />
                   </span>
-                  <span className="font-sans text-[10px] tabular-nums text-muted">
+                  <span className="font-sans text-[10px] tabular-nums text-slate-700">
                     {`VOL ${n.volume == null ? "—" : fmtInt(n.volume)} · CHG ${
                       n.changePct == null
                         ? "—"
@@ -629,7 +635,7 @@ export function VolumeBreakoutsPanel({
                     }`}
                   </span>
                   {n.insiderBuy && (
-                    <span className="rounded-[2px] bg-warn/15 px-1.5 py-px font-sans text-[9px] font-bold tracking-widest text-warn ring-1 ring-warn/40">
+                    <span className="rounded-[2px] bg-warn/15 px-1.5 py-px font-sans text-[9px] font-bold tracking-widest text-amber-700 ring-1 ring-warn/40">
                       Insider Buy
                     </span>
                   )}
@@ -646,7 +652,7 @@ export function VolumeBreakoutsPanel({
             ? `Dislocation set: new top-25 volume entrants, ${dislocation.sessionDate} vs ${dislocation.priorDate}`
             : "Dislocation feed unavailable — top-turnover table above is the certified fact"
         }
-        tone="text-ghost"
+        tone="text-slate-700"
       />
     </Panel>
   );
@@ -669,7 +675,7 @@ function MoveTable({
     <div className="min-w-0">
       <p
         className={`border-b border-hairline px-2 py-1 font-sans text-[10px] font-bold tracking-[0.18em] ${
-          tone === "bull" ? "text-bull" : "text-bear"
+          tone === "bull" ? "text-emerald-700" : "text-rose-700"
         }`}
       >
         {title}
@@ -687,19 +693,19 @@ function MoveTable({
           </thead>
           <tbody>
             {rows.map((m) => (
-              <tr key={m.ticker} className="hover:bg-hoverline">
+              <tr key={m.ticker} className="transition-colors hover:bg-sky-50/50">
                 <Td right={false} bold>
                   <TickerLink ticker={m.ticker} />
                 </Td>
                 <Td>{m.close == null ? "—" : m.close.toFixed(2)}</Td>
                 <Td
                   bold
-                  tone={tone === "bull" ? "text-bull" : "text-bear"}
+                  tone={tone === "bull" ? "text-emerald-700" : "text-rose-700"}
                 >
                   {fmtPct(m.changePct, 2)}
                 </Td>
-                <Td tone="text-muted">{fmtInt(m.volume)}</Td>
-                <Td tone="text-muted">
+                <Td tone="text-slate-700">{fmtInt(m.volume)}</Td>
+                <Td tone="text-slate-700">
                   {m.turnoverPkr == null
                     ? "—"
                     : `${(m.turnoverPkr / 1e6).toFixed(1)}M`}
@@ -741,18 +747,18 @@ export function BreadthPanel({
             <Kpi
               label="Advancers"
               value={String(data.advancers)}
-              tone={data.advancers > 0 ? "text-bull" : "text-muted"}
+              tone={data.advancers > 0 ? "text-emerald-700" : "text-slate-700"}
             />
             <Kpi
               label="Decliners"
               value={String(data.decliners)}
-              tone={data.decliners > 0 ? "text-bear" : "text-muted"}
+              tone={data.decliners > 0 ? "text-rose-700" : "text-slate-700"}
             />
             <Kpi label="Unchanged" value={String(data.unchanged)} />
             <Kpi
               label="A/D Ratio"
               value={data.ratio == null ? "—" : data.ratio.toFixed(2)}
-              tone={data.ratio != null && data.ratio < 1 ? "text-bear" : "text-bull"}
+              tone={data.ratio != null && data.ratio < 1 ? "text-rose-700" : "text-emerald-700"}
               sub={`${data.verdicts} verdicts${data.priorDate ? ` vs ${data.priorDate}` : ""}`}
             />
           </div>
@@ -786,12 +792,12 @@ export function BreadthPanel({
               }
               tone={
                 data.ratio < 0.2 && accumTickers.length > 0
-                  ? "text-warn/80"
+                  ? "text-amber-700"
                   : data.ratio < 0.5 && inst1dPkr != null && inst1dPkr < 0
-                    ? "text-bear/70"
+                    ? "text-rose-700/70"
                     : data.ratio > 1.0 && inst1dPkr != null && inst1dPkr > 0
-                      ? "text-bull/70"
-                      : "text-ghost"
+                      ? "text-emerald-700"
+                      : "text-slate-700"
               }
             />
           )}

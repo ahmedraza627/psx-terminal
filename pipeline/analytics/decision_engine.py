@@ -63,6 +63,7 @@ from datetime import date
 from typing import Any, Optional
 
 from pipeline import db
+from pipeline.alerts.telegram import send_daily_dispatch
 from pipeline.backtest.engine import run_quick_backtest
 from pipeline.http_client import http_get
 
@@ -82,6 +83,22 @@ TP1_LOOKBACK = 10                # TP1 target = recent 10-day swing high
 SHORT_MIN_RR = 1.2               # TP1 floored to a 1:1.2 reward/risk
 SHORT_MIN_RISK_PCT = 0.005       # sanity floor on stop distance
 SHORT_MAX_RISK_PCT = 0.04        # hard 4% stop cap: a wider stop is tightened
+
+# Phase 3 - MID_TERM TP1 optimization: swap the greedy extended-target
+# swing model (measured ~34% win rate at un-hittable 1:8 R:R) for a
+# realistic structural TP1 with a mathematically bounded reward/risk.
+MID_STOP_LOOKBACK = 5            # structural invalidation: 5-session swing low
+MID_STOP_ATR_MULT = 1.5          # stop floor leg: entry - 1.5 x ATR
+MID_TP1_LOOKBACK = 20            # TP1 = recent 20-day high
+MID_TP1_ATR_MULT = 2.0           # TP1 alt leg: entry + 2.0 x ATR (closer wins)
+MID_MIN_RR = 1.5                 # bounded reward/risk floor
+MID_MAX_RR = 2.5                 # bounded reward/risk cap (kills the 1:8 target)
+MID_MIN_RISK_PCT = 0.005         # sanity floor on stop distance (flat tape)
+
+# Phase 4 - PSX circuit-breaker guardrail: a name that CLOSED at its lower
+# circuit limit (close == low and session change <= -7.4%) has no exit
+# liquidity and is rejected from every BUY horizon.
+LOWER_LOCK_CHANGE_PCT = -7.4
 
 # --------------------------------------------------------------------------- #
 # Phase 2 - Institutional Alpha Engine: liquidity/solvency pre-filter, macro
@@ -507,6 +524,53 @@ def _kse100_index_series(
 # --------------------------------------------------------------------------- #
 # Horizon verdicts                                                            #
 # --------------------------------------------------------------------------- #
+def _lower_lock_tickers(
+    eod_rows: list[dict[str, Any]], session_date: date
+) -> set[str]:
+    """Tickers that CLOSED at their lower circuit limit on ``session_date``.
+
+    Lock test (documented, Phase 4): close_price == low_price AND the
+    session change vs the prior stored close is <= -7.4%. A locked book
+    cannot be entered or exited at institutional size, so such names are
+    rejected from every BUY candidate set. Order-independent over the
+    stored rows (keeps the newest prior close per ticker explicitly).
+    """
+    latest: dict[str, dict[str, Any]] = {}
+    prior: dict[str, tuple[date, float]] = {}
+    for row in eod_rows:
+        try:
+            day = _parse_day(row.get("trade_date"))
+            ticker = str(row.get("ticker") or "")
+            close = float(row.get("close_price") or 0.0)
+        except (TypeError, ValueError):
+            continue
+        if not ticker or close <= 0 or day is None or day > session_date:
+            continue
+        if day == session_date:
+            latest[ticker] = row
+        elif ticker not in prior or day > prior[ticker][0]:
+            prior[ticker] = (day, close)
+    locked: set[str] = set()
+    for ticker, row in latest.items():
+        try:
+            close = float(row.get("close_price") or 0.0)
+            low_raw = row.get("low_price")
+            low = float(low_raw) if low_raw is not None else None
+        except (TypeError, ValueError):
+            continue
+        base = prior.get(ticker)
+        if low is None or close <= 0 or low <= 0 or base is None:
+            continue
+        base_close = base[1]
+        if base_close <= 0:
+            continue
+        change_pct = (close - base_close) / base_close * 100.0
+        # close == low to the paisa; a locked session pins both at the limit.
+        if abs(close - low) <= 0.01 and change_pct <= LOWER_LOCK_CHANGE_PCT:
+            locked.add(ticker)
+    return locked
+
+
 def _short_term_verdict(
     session_date: date,
     prior_date: date,
@@ -515,6 +579,7 @@ def _short_term_verdict(
     sector_by_ticker: dict[str, str],
     tape_state: str,
     pe_map: dict[str, Optional[float]],
+    locked_tickers: Optional[set[str]] = None,
 ) -> Optional[dict[str, Any]]:
     """Institutional Pullback & Dry-up Accumulation engine (Phase 2).
 
@@ -541,6 +606,10 @@ def _short_term_verdict(
     candidates: list[tuple[float, float, str]] = []
     for ticker, points in series.items():
         if ticker.upper() in INDEX_TICKERS:
+            continue
+        # F. Circuit-breaker guardrail (Phase 4): a lower-lock close is
+        # untradeable at size - never a BUY candidate.
+        if locked_tickers and ticker in locked_tickers:
             continue
         window = [p for p in points if p[0] <= session_date]
         if len(window) < VOLUME_SMA_WINDOW:
@@ -657,6 +726,7 @@ def _leader_in_sector(
     window_start: Optional[date],
     pe_map: Optional[dict[str, Optional[float]]] = None,
     require_profitable: bool = False,
+    locked_tickers: Optional[set[str]] = None,
 ) -> Optional[str]:
     """Highest session-turnover ticker mapped to ``sector``.
 
@@ -670,6 +740,11 @@ def _leader_in_sector(
     best_turnover = -1.0
     for ticker, mapped in sector_by_ticker.items():
         if not _sector_matches(sector, mapped):
+            continue
+        # Phase 4 circuit-breaker guardrail: lower-lock closes are
+        # untradeable at size - never a BUY leader (AVOID verdicts keep
+        # scanning: the trap warning still applies to a locked name).
+        if locked_tickers and ticker in locked_tickers:
             continue
         if require_profitable and not _is_profitable(pe_map or {}, ticker):
             continue  # strict gate: loss-making / unpriced never certified
@@ -702,13 +777,17 @@ def _mid_term_verdict(
     flow_rows: list[dict[str, Any]],
     sector_by_ticker: dict[str, str],
     pe_map: dict[str, Optional[float]],
+    locked_tickers: Optional[set[str]] = None,
 ) -> Optional[dict[str, Any]]:
     """Sector with the largest 5-session institutional absorption while
     retail distributed; leader = highest-turnover member with positive 5D.
 
     Institutional execution levels: entry = latest session close;
-    stop = 20-day SMA or 5% trailing structural support (whichever is
-    tighter); target = trailing-52-week resistance or 2.5:1 minimum R:R.
+    stop = the lower of the recent 5-session swing low and 1.5 x ATR
+    below entry; target = TP1 = the recent 20-day high or entry + 2.0 x
+    ATR (whichever is closer), with reward/risk bounded to [1.5, 2.5]
+    (Phase 3: realistic structural target, not the greedy 52-week
+    resistance chase that stamped ~1:8 R:R and a ~34% win rate).
     """
     window_days = _flow_sessions_desc(flow_rows, session_date)[:FLOW_WINDOW_SESSIONS]
     if len(window_days) < 2:
@@ -739,6 +818,7 @@ def _mid_term_verdict(
         window_start=window_start,
         pe_map=pe_map,
         require_profitable=True,
+        locked_tickers=locked_tickers,
     )
     if leader is None:
         # Sparse history (no usable 5D window) or no positive performer must
@@ -753,6 +833,7 @@ def _mid_term_verdict(
             window_start=None,
             pe_map=pe_map,
             require_profitable=True,
+            locked_tickers=locked_tickers,
         )
     if leader is None:
         LOGGER.info(
@@ -1043,10 +1124,15 @@ def _execution_levels(
         at least 1:1.2 reward/risk. (LOWER, not the tighter/higher leg:
         a stop hugging entry sends the TP1 floor to an unreachable
         ~12-177x R:R and collapses the win rate - measured on ZAL.)
-      MID_TERM:   entry = session close; stop = structural support = the
-        lower of the 3-session swing low, the 20-day SMA and close x 0.95
-        (5% trailing); target = trailing 52-week resistance when it pays
-        at least 1:1 on the structural risk, else 2.5x the risked distance.
+      MID_TERM:   entry = session close; stop = the LOWER of the recent
+        5-session swing low and 1.5 x ATR below close (Phase 3 kept the
+        structural stop); target = TP1 = the recent 20-day high or
+        entry + 2.0 x ATR, whichever sits CLOSER to entry, with the
+        reward/risk mathematically bounded to [1.5, 2.5]. The bounds
+        replace the greedy trailing-52-week-resistance target that
+        produced un-hittable 1:8 ratios and a ~34% historical win rate;
+        the tighter structural TP1 is what lifts MID_TERM toward the
+        65-75% win-rate band.
       LONG_TERM is an AVOID/risk verdict - it has no entry, so it carries
         honest null levels (the desk renders no grid for it).
 
@@ -1078,15 +1164,19 @@ def _execution_levels(
         return dict(empty)
     swing_low = min(closes3)
 
+    # Mean absolute close-to-close change over the last 4 sessions - the
+    # documented ATR proxy shared by both tradeable horizons (the stored
+    # tape carries no high/low, so a true ATR cannot be computed).
+    closes4 = [p[1] for p in window[-4:] if p[1] > 0]
+    changes = [abs(closes4[k] - closes4[k - 1]) for k in range(1, len(closes4))]
+    atr = sum(changes) / len(changes) if changes else 0.0
+
     if verdict["horizon"] == HORIZON_SHORT:
         # Structural support: the LOWER of the 3-session swing low and the
         # 1.0 x ATR floor. (The higher leg would pin risk a hair under
         # entry, sending TP1 out of reach and collapsing the win rate -
         # measured on ZAL.) Phase 2 hardening: cap total risk at 4% of
         # entry so a wide swing cannot produce an un-tradeable stop.
-        closes = [p[1] for p in window[-4:] if p[1] > 0]
-        changes = [abs(closes[i] - closes[i - 1]) for i in range(1, len(closes))]
-        atr = sum(changes) / len(changes) if changes else 0.0
         stops = [swing_low] + ([close - atr] if atr > 0 else [])
         stop = min(s for s in stops if s > 0)
         floor = close * (1.0 - SHORT_MAX_RISK_PCT)
@@ -1103,26 +1193,33 @@ def _execution_levels(
         volumes = [p[2] for p in window if p[2] is not None and p[2] > 0]
         alloc, capacity = _position_sizing(close, stop, volumes)
     else:
-        # MID_TERM structural support: swing low, 20D SMA, 5% trailing.
-        closes20 = [p[1] for p in window[-20:] if p[1] > 0]
-        supports = [swing_low, close * 0.95]
-        if len(closes20) == 20:
-            supports.append(sum(closes20) / 20)
-        stop = min(supports)
-        risk = close - stop
-        # Trailing 52-week resistance as target when it clears 1:1 on the
-        # structural risk; otherwise the 2.5x risked-distance fallback.
-        year_closes = [
-            p[1]
-            for p in window
-            if (session_date - p[0]).days <= 365 and p[1] > 0
-        ]
-        resistance = max(year_closes) if year_closes else 0.0
-        target = (
-            resistance
-            if resistance > close and resistance - close >= risk
-            else close + 2.5 * risk
+        # MID_TERM (Phase 3): realistic structural TP1 instead of the
+        # greedy 52-week-resistance chase that stamped un-hittable 1:8
+        # targets (measured ~34% win rate). Stop stays structural: the
+        # LOWER of the recent 5-session swing low and the 1.5 x ATR floor
+        # beneath entry (the lower leg - a stop hugging entry leaves no
+        # room for a structural target, same reasoning as SHORT_TERM).
+        closes5 = [p[1] for p in window[-MID_STOP_LOOKBACK:] if p[1] > 0]
+        swing_low5 = min(closes5)
+        stops = [swing_low5] + (
+            [close - MID_STOP_ATR_MULT * atr] if atr > 0 else []
         )
+        stop = min(s for s in stops if s > 0)
+        if close - stop < MID_MIN_RISK_PCT * close:
+            stop = close - MID_MIN_RISK_PCT * close  # flat tape: real risk unit
+        risk = close - stop
+        # TP1 = the recent 20-day high or entry + 2.0 x ATR, whichever sits
+        # closer to entry; the result is then bounded to [1.5, 2.5] R:R so
+        # a runaway target can never be stamped again. (The 1.5 floor
+        # outranks the structural legs only on a flat tape pinned at the
+        # 20-day high - a zero-reward target is not tradeable.)
+        high20 = max(p[1] for p in window[-MID_TP1_LOOKBACK:] if p[1] > 0)
+        reward = high20 - close
+        if atr > 0:
+            reward = min(reward, MID_TP1_ATR_MULT * atr)
+        rr = reward / risk if risk > 0 else MID_MIN_RR
+        rr = max(MID_MIN_RR, min(rr, MID_MAX_RR))
+        target = close + rr * risk
 
     risked = max(close - stop, 0.01)  # spec floor: never divide below 0.01
     if verdict["horizon"] == HORIZON_SHORT:
@@ -1183,6 +1280,9 @@ def run_decision_engine(session_date: Optional[date] = None) -> int:
         return 0
     sector_by_ticker = _sector_map(fundamentals)
     pe_map = _pe_map(pe_rows)
+    # Phase 4 circuit-breaker guardrail: names that closed at their lower
+    # circuit limit are rejected from every BUY candidate set.
+    locked_tickers = _lower_lock_tickers(eod_rows, trade_date)
 
     # Market regime + macro tape: the gates every row is stamped with.
     prior = [d for d in sessions_desc if d < trade_date]
@@ -1218,9 +1318,13 @@ def run_decision_engine(session_date: Optional[date] = None) -> int:
 
     verdicts = (
         _short_term_verdict(
-            trade_date, prior_date, series, flow_rows, sector_by_ticker, tape_state, pe_map
+            trade_date, prior_date, series, flow_rows, sector_by_ticker, tape_state, pe_map,
+            locked_tickers
         ),
-        _mid_term_verdict(trade_date, sessions_desc, series, flow_rows, sector_by_ticker, pe_map),
+        _mid_term_verdict(
+            trade_date, sessions_desc, series, flow_rows, sector_by_ticker, pe_map,
+            locked_tickers
+        ),
         _long_term_verdict(trade_date, sessions_desc, series, flow_rows, sector_by_ticker),
     )
     rows = [with_execution(v) for v in verdicts if v is not None]
@@ -1240,6 +1344,14 @@ def run_decision_engine(session_date: Optional[date] = None) -> int:
     retired = [h for h in all_horizons if h not in written_horizons]
     if retired:
         db.purge_verdict_horizons(trade_date.isoformat(), retired)
+    # Phase 4 - Telegram dispatch: strictly best-effort. Verdicts are
+    # already stored, so delivery problems never fail the pipeline run.
+    try:
+        send_daily_dispatch(trade_date, rows, tape_state)
+    except Exception as exc:  # noqa: BLE001 - dispatch is advisory only
+        LOGGER.warning(
+            "decision engine %s: telegram dispatch failed: %s", trade_date, exc
+        )
     LOGGER.info(
         "decision engine %s: %d/%d verdicts stored (regime=%s, tape=%s) (%s)",
         trade_date,

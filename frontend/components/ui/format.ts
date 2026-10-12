@@ -65,8 +65,8 @@ export function fmtPf(value: number | null | undefined): string {
 }
 
 export function tonePct(value: number | null | undefined): string {
-  if (value == null) return "text-ghost";
-  if (value > 0.0005) return "text-bull";
-  if (value < -0.0005) return "text-bear";
-  return "text-muted";
+  if (value == null) return "text-slate-700";
+  if (value > 0.0005) return "text-emerald-700 font-semibold";
+  if (value < -0.0005) return "text-rose-700 font-semibold";
+  return "text-slate-700 font-semibold";
 }

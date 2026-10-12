@@ -21,7 +21,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className="min-h-dvh bg-obsidian font-sans text-ink antialiased">
+      <body className="min-h-dvh bg-slate-50 font-sans text-ink antialiased">
         <div className="flex min-h-dvh">
           <Sidebar />
           <main className="min-w-0 flex-1 overflow-x-hidden">{children}</main>
