@@ -3,9 +3,9 @@ import Sidebar from "@/components/Sidebar";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "PSX QUANT - Decision Engine",
+  title: "PSX Terminal - Equity Analytics",
   description:
-    "Action-first institutional decision engine for PSX: direct short, mid, and long-term verdicts, market pulse, and institutional flow.",
+    "Institutional equity analytics for PSX: short, mid, and long-term verdicts, market pulse, and institutional flow.",
 };
 
 export const viewport: Viewport = {

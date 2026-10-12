@@ -17,14 +17,14 @@ export default async function InstitutionalFlowPage() {
   const flow = await fetchFlowMatrix();
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 pb-12 pt-6 sm:px-6">
+    <div className="mx-auto w-full max-w-6xl px-4 pb-12 pt-16 sm:px-6 md:pt-6">
       <PageHeader
         title="Institutional Flow"
         subtitle="FIPI / LIPI matrix — where smart money and retail actually traded."
         right={<SessionPill session={flow?.asOfDate ?? session} />}
       />
 
-      <div className="mt-6">
+      <div className="mt-6 w-full overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
         <FlowMatrixPanel data={flow} id="flow-matrix" />
       </div>
     </div>

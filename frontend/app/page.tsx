@@ -52,20 +52,22 @@ export default async function ActionDeskPage() {
     }),
   );
 
-  // Engine-stamped horizons, rendered in canonical card order. The engine
-  // only stores horizons with a certified candidate, so a partial set
-  // renders fewer cards - never placeholders.
+  // Engine-stamped horizons in canonical order. A horizon with no
+  // certified setup renders a muted cash-preservation placeholder rather
+  // than collapsing the grid to fewer columns, so the desk always reads
+  // as three deliberate slots. A session the engine has not stamped at
+  // all still shows the honest awaiting state below.
   const byHorizon = new Map(verdicts.map((v) => [v.horizon, v]));
-  const cards = HORIZONS.flatMap((h) => {
-    const verdict = byHorizon.get(h.key);
-    return verdict ? [{ label: h.label, verdict }] : [];
-  });
+  const cards = HORIZONS.map((h) => ({
+    label: h.label,
+    verdict: byHorizon.get(h.key) ?? null,
+  }));
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 pb-12 pt-6 sm:px-6">
+    <div className="mx-auto w-full max-w-6xl px-4 pb-12 pt-16 sm:px-6 md:pt-6">
       <PageHeader
         title={`${greeting(Number.isNaN(hourPkt) ? 10 : hourPkt)} - here's your desk`}
-        subtitle="Three verdicts, zero noise. The machine reads the tape; you make the call."
+        subtitle="Daily institutional execution desk and certified market tape."
         right={
           <>
             <SessionPill session={session} />
@@ -74,7 +76,7 @@ export default async function ActionDeskPage() {
         }
       />
 
-      {cards.length === 0 ? (
+      {verdicts.length === 0 ? (
         /* Honest clean state: the engine has not stamped this session yet. */
         <div className="mt-6 rounded-xl border border-slate-200 bg-white px-6 py-12 text-center shadow-sm">
           <p className="text-[13px] font-medium text-slate-500">
@@ -84,24 +86,25 @@ export default async function ActionDeskPage() {
       ) : (
         /* Executive verdict grid: one card per certified horizon */
         <>
-          <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 lg:gap-6">
             {cards.map(({ label, verdict }) => (
               <DecisionCard
-                key={verdict.horizon}
+                key={verdict?.horizon ?? label}
+                cashState={verdict == null}
                 horizon={label}
-                direction={verdict.direction}
-                ticker={verdict.ticker}
-                logic={verdict.logic}
-                entryRef={verdict.entryRef}
-                stopLoss={verdict.stopLoss}
-                targetPrice={verdict.targetPrice}
-                riskReward={verdict.riskReward}
-                regimeStatus={verdict.regimeStatus}
-                historicalWinRate={verdict.historicalWinRate}
-                fundamentalScore={verdict.fundamentalScore}
-                suggestedAllocPct={verdict.suggestedAllocPct}
-                maxVolumeCapacityShares={verdict.maxVolumeCapacityShares}
-                macroTapeState={verdict.macroTapeState}
+                direction={verdict?.direction}
+                ticker={verdict?.ticker}
+                logic={verdict?.logic}
+                entryRef={verdict?.entryRef}
+                stopLoss={verdict?.stopLoss}
+                targetPrice={verdict?.targetPrice}
+                riskReward={verdict?.riskReward}
+                regimeStatus={verdict?.regimeStatus}
+                historicalWinRate={verdict?.historicalWinRate}
+                fundamentalScore={verdict?.fundamentalScore}
+                suggestedAllocPct={verdict?.suggestedAllocPct}
+                maxVolumeCapacityShares={verdict?.maxVolumeCapacityShares}
+                macroTapeState={verdict?.macroTapeState}
               />
             ))}
           </div>

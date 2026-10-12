@@ -24,7 +24,9 @@ export default function PageHeader({
           <p className="pt-0.5 text-[13px] text-slate-600">{subtitle}</p>
         )}
       </div>
-      {right && <div className="flex items-center gap-2">{right}</div>}
+      {right && (
+        <div className="flex flex-wrap items-center gap-2">{right}</div>
+      )}
     </header>
   );
 }

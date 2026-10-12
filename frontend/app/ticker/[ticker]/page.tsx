@@ -52,8 +52,8 @@ export default async function TickerDeepDivePage({
 
         <footer className="px-4 pb-4 pt-1">
           <p className="border-t border-hairline pt-2 font-sans text-[9px] tracking-[0.18em] text-ghost">
-            Certified pipeline data · no signals · flow shown at sector or
-            market-wide level (NCCPL publishes no per-ticker flows)
+            Certified EOD data · No signals · Flow shown at sector or
+            market level only (NCCPL publishes no per-ticker flows)
           </p>
         </footer>
       </aside>

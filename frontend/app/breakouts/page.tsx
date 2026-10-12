@@ -25,14 +25,14 @@ export default async function VolumeAnomaliesPage() {
     pair != null ? await fetchVolumeDislocation(pair) : null;
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 pb-12 pt-6 sm:px-6">
+    <div className="mx-auto w-full max-w-6xl px-4 pb-12 pt-16 sm:px-6 md:pt-6">
       <PageHeader
         title="Volume Anomalies"
         subtitle="Volume spikes, new top-25 entrants, and the session's heaviest turnover."
         right={<SessionPill session={breadth?.sessionDate ?? session} />}
       />
 
-      <div className="mt-6">
+      <div className="mt-6 w-full overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
         <VolumeBreakoutsPanel
           breadth={breadth}
           dislocation={dislocation}

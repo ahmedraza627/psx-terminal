@@ -82,7 +82,7 @@ export default function Sidebar() {
       )}
 
       <aside
-        className={`sticky top-0 z-50 flex h-dvh shrink-0 flex-col border-r border-slate-200 bg-white transition-all duration-200 ${
+        className={`top-0 z-50 flex h-dvh shrink-0 flex-col border-r border-slate-200 bg-white transition-all duration-200 ${
           collapsed ? "w-[76px]" : "w-60"
         } ${
           mobileOpen
@@ -94,15 +94,15 @@ export default function Sidebar() {
         <div className="flex items-center justify-between gap-2 border-b border-slate-200 px-3.5 py-3.5">
           {collapsed ? (
             <span className="mx-auto font-sans text-[13px] font-bold text-blue-600">
-              PQ
+              PSX
             </span>
           ) : (
             <Link href="/" className="leading-tight">
               <span className="block font-sans text-[15px] font-bold tracking-tight text-slate-900">
-                PSX<span className="text-blue-600">·</span>QUANT
+                PSX Terminal
               </span>
-              <span className="block text-[10px] font-medium tracking-[0.2em] text-slate-400">
-                Decision Engine
+              <span className="block text-[10px] font-medium tracking-[0.16em] text-slate-400">
+                Equity Analytics
               </span>
             </Link>
           )}
@@ -196,11 +196,8 @@ export default function Sidebar() {
             collapsed ? "hidden md:block" : ""
           }`}
         >
-          <p className="text-[10px] tracking-[0.18em] text-slate-400">
-            Certified pipeline data
-          </p>
-          <p className="pt-0.5 text-[10px] tracking-[0.18em] text-slate-300">
-            The machine displays · the human decides
+          <p className="text-[10px] leading-relaxed tracking-[0.06em] text-slate-400">
+            Certified EOD &amp; NCCPL Feed · Daily 16:30 PKT
           </p>
         </div>
       </aside>

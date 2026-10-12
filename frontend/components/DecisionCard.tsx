@@ -7,8 +7,11 @@ import TickerLink from "@/components/TickerLink";
  * (BUY/ACCUMULATE = soft emerald, AVOID/SHORT = soft rose), the target
  * ticker, a single readable system-logic sentence, and - when the engine
  * certified risk math for the horizon - an execution grid with the entry
- * reference, invalidation (stop), target zone and reward-to-risk ratio.
- * A DEFENSIVE_CASH regime stamp surfaces as a small amber sizing warning.
+ * reference, invalidation (stop), target zone, reward-to-risk ratio and
+ * the suggested allocation cap. A horizon with no certified setup renders
+ * a muted slate cash-preservation placeholder so the desk grid never
+ * collapses. A DEFENSIVE_CASH regime stamp surfaces as a small amber
+ * sizing warning.
  * Light SaaS styling: white card, rounded-xl, soft shadow, slate borders,
  * Inter typography, zero emojis. Pure server component; fed live by the
  * pipeline's decision engine via psx_system_verdicts.
@@ -19,11 +22,16 @@ export type DecisionDirection = "BUY" | "AVOID" | "SHORT" | "ACCUMULATE";
 export interface DecisionCardProps {
   /** e.g. "Short-Term (1-5 Days)" | "Mid-Term (2-8 Weeks)" */
   horizon: string;
-  direction: DecisionDirection;
+  /**
+   * Horizon has no certified setup: render the muted cash placeholder
+   * (slate, no red/green) instead of an engine verdict.
+   */
+  cashState?: boolean;
+  direction?: DecisionDirection;
   /** Target symbol, e.g. "HUBC" or "MEBL". */
-  ticker: string;
+  ticker?: string;
   /** One highly readable sentence: WHY the engine fired. */
-  logic: string;
+  logic?: string | null;
   /** Entry reference price in PKR (null = no certified levels). */
   entryRef?: number | null;
   /** Invalidation / stop-loss level in PKR. */
@@ -82,6 +90,7 @@ function pkr(value: number): string {
 
 export default function DecisionCard({
   horizon,
+  cashState = false,
   direction,
   ticker,
   logic,
@@ -96,6 +105,33 @@ export default function DecisionCard({
   maxVolumeCapacityShares = null,
   macroTapeState = null,
 }: DecisionCardProps) {
+  // Cash placeholder: no certified setup for this horizon. Deliberately
+  // slate-only (never red/green) with the execution grid omitted, so the
+  // card reads as capital preservation rather than a weak signal.
+  if (cashState || direction == null || ticker == null || logic == null) {
+    return (
+      <article className="relative flex min-w-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-md">
+        <span aria-hidden className="absolute inset-y-0 left-0 w-1 bg-slate-300" />
+        <div className="flex flex-col gap-3 p-4 pl-5 sm:px-5 sm:pl-6">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-[11px] font-semibold tracking-[0.14em] text-slate-400">
+              {horizon}
+            </p>
+            <span className="shrink-0 rounded-full border border-slate-200 bg-slate-100 px-2.5 py-0.5 text-[11px] font-bold tracking-wide text-slate-500">
+              CASH / NO SETUP
+            </span>
+          </div>
+          <p className="text-[26px] font-bold leading-none tracking-tight text-slate-400">
+            CASH
+          </p>
+          <p className="text-[13px] leading-relaxed text-slate-500">
+            No qualifying pullback setup meeting institutional criteria.
+            Preserving capital in cash.
+          </p>
+        </div>
+      </article>
+    );
+  }
   const s = DIRECTION_STYLE[direction];
   const hasLevels =
     entryRef != null || stopLoss != null || targetPrice != null;
@@ -114,12 +150,25 @@ export default function DecisionCard({
   // gate blocks new buys, so the card recommends capital preservation.
   const preserveCapital =
     macroTapeState === "DEFENSIVE_CASH" || defensive;
+  // Max allocation label: whole percents render clean ("15%"), fractional
+  // budgets keep one decimal ("12.5%").
+  const allocRounded =
+    suggestedAllocPct != null
+      ? Math.round(suggestedAllocPct * 10) / 10
+      : null;
+  const allocLabel =
+    allocRounded != null
+      ? allocRounded % 1 === 0
+        ? String(allocRounded)
+        : allocRounded.toFixed(1)
+      : null;
+  const hasExec = hasLevels || suggestedAllocPct != null;
   return (
     <article className="relative flex min-w-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-md">
       {/* Direction spine - the card's semantic color at a glance */}
       <span aria-hidden className={`absolute inset-y-0 left-0 w-1 ${s.accent}`} />
 
-      <div className="flex flex-col gap-3 px-5 py-4 pl-6">
+      <div className="flex flex-col gap-3 p-4 pl-5 sm:px-5 sm:pl-6">
         {/* Horizon + direction */}
         <div className="flex items-center justify-between gap-2">
           <p className="text-[11px] font-semibold tracking-[0.14em] text-slate-400">
@@ -154,18 +203,11 @@ export default function DecisionCard({
               {historicalWinRate.toFixed(0)}% Hist. Win Rate
             </span>
           )}
-          {suggestedAllocPct != null && (
-            <span className="inline-flex shrink-0 items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold tabular-nums text-slate-600">
-              Max Sizing: {suggestedAllocPct.toFixed(1)}%
-              {maxVolumeCapacityShares != null &&
-                ` \u00b7 ${maxVolumeCapacityShares.toLocaleString("en-US")} sh`}
-            </span>
-          )}
         </div>
 
         {/* Execution grid - certified risk math (when the engine stored it) */}
-        {hasLevels && (
-          <div className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+        {hasExec && (
+          <div className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 sm:grid-cols-3">
             <div className="flex flex-col">
               <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
                 Entry Ref
@@ -201,6 +243,24 @@ export default function DecisionCard({
                 {riskReward != null ? `1:${riskReward} R:R` : "—"}
               </span>
             </div>
+
+            {allocLabel != null && (
+              <div className="flex flex-col col-span-2 sm:col-span-1">
+                <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                  Position Size
+                </span>
+                <span
+                  className="mt-1 w-fit rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[13px] font-semibold tabular-nums text-slate-700"
+                  title={
+                    maxVolumeCapacityShares != null
+                      ? `Order capped at ${maxVolumeCapacityShares.toLocaleString("en-US")} shares (2% of 20D avg volume)`
+                      : "Capped at 15% of portfolio"
+                  }
+                >
+                  Max Alloc: {allocLabel}%
+                </span>
+              </div>
+            )}
           </div>
         )}
 
@@ -221,7 +281,7 @@ export default function DecisionCard({
 
       {/* Fundamental gate stamp - the verdict passed the strict PE filter */}
       {fundamentalScore && (
-        <div className="border-t border-slate-100 px-5 py-2 pl-6">
+        <div className="border-t border-slate-100 px-4 py-2 pl-5 sm:px-5 sm:pl-6">
           <p className="text-[11px] font-medium tracking-wide text-slate-400">
             Fundamental filter: {fundamentalScore}
           </p>
