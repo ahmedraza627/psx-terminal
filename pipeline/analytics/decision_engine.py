@@ -615,7 +615,11 @@ def _short_term_verdict(
     # outright; a LEADING ticker receives priority over NEUTRAL in the
     # candidate ranking. Names that are not in the authoritative matrix are
     # treated as NEUTRAL (the matrix is a floor, not a ceiling).
-    def _sector_status_for(ticker: str) -> dict[str, Any]:
+    def _sector_status_for(
+        ticker: str, sector_matrix: Optional[dict[str, Any]] = None
+    ) -> dict[str, Any]:
+        if not sector_matrix:
+            return {"sector": "UNKNOWN", "status": "NEUTRAL", "rank": 99}
         return get_ticker_sector_status(ticker, sector_matrix)
 
     # (proximity, dry_up_pct, ticker) - tightest setup wins; gates run first.
@@ -709,7 +713,7 @@ def _short_term_verdict(
         if _is_profitable(pe_map, ticker):
             best_ticker = ticker
             best_dry_up = dry_up
-            best_sector_info = _sector_status_for(ticker)
+            best_sector_info = _sector_status_for(ticker, sector_matrix)
             break
 
     if best_ticker is None:
@@ -885,7 +889,11 @@ def _mid_term_verdict(
             session_date, best_sector,
         )
         return None
-    leader_sector_info = get_ticker_sector_status(leader, sector_matrix)
+    leader_sector_info = (
+        get_ticker_sector_status(leader, sector_matrix)
+        if sector_matrix
+        else {"sector": "UNKNOWN", "status": "NEUTRAL", "rank": 99}
+    )
     return {
         "trade_date": session_date.isoformat(),
         "horizon": HORIZON_MID,
@@ -1418,11 +1426,11 @@ def run_decision_engine(session_date: Optional[date] = None) -> int:
     verdicts = (
         _short_term_verdict(
             trade_date, prior_date, series, flow_rows, sector_by_ticker, tape_state, pe_map,
-            locked_tickers
+            locked_tickers, sector_matrix=sector_matrix,
         ),
         _mid_term_verdict(
             trade_date, sessions_desc, series, flow_rows, sector_by_ticker, pe_map,
-            locked_tickers
+            locked_tickers, sector_matrix=sector_matrix,
         ),
         _long_term_verdict(trade_date, sessions_desc, series, flow_rows, sector_by_ticker),
     )
