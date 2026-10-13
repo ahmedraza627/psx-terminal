@@ -59,7 +59,7 @@ from __future__ import annotations
 import logging
 import os
 from collections import defaultdict
-from datetime import date
+from datetime import date, timedelta
 from typing import Any, Optional
 
 from pipeline import db
