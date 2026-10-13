@@ -269,14 +269,20 @@ def run_quick_backtest(
     for i in signals:
         if i + 1 >= len(sessions):
             break  # signal on the last stored session: no entry bar
-        entry = closes[i + 1]  # next session close = the live entry_ref convention
+        # Round-trip friction penalty (Phase 5): 0.35% total slippage +
+        # brokerage. Applied asymmetrically so reported stats reflect net
+        # take-home edge: long entries fill worse (+0.175%), stops/targets
+        # fill worse (-0.175%).
+        FRICTION_PCT = 0.00175
+        entry = closes[i + 1] * (1.0 + FRICTION_PCT)  # entry: pay the spread
         if entry <= 0:
             continue
         if horizon == "SHORT_TERM":
             setup = _pullback_setup(closes, volumes, i)
             if setup is None:
                 continue
-            stop, target = setup["stop"], setup["target"]
+            stop = setup["stop"] * (1.0 - FRICTION_PCT)  # stop fill: give the spread
+            target = setup["target"] * (1.0 - FRICTION_PCT)
         else:
             # MID_TERM (Phase 3): structural stop = the LOWER of the
             # 5-session swing low and 1.5 x ATR below entry; TP1 = the
@@ -289,6 +295,7 @@ def run_quick_backtest(
                 continue
             swing_low5 = min(closes[i - MID_STOP_LOOKBACK + 1 : i + 1])
             stop = min(swing_low5, entry - MID_STOP_ATR_MULT * atr)
+            stop = stop * (1.0 - FRICTION_PCT)
             if stop <= 0:
                 continue
             if entry - stop < MID_MIN_RISK_PCT * entry:
@@ -298,7 +305,7 @@ def run_quick_backtest(
             reward = min(high20 - entry, MID_TP1_ATR_MULT * atr)
             rr = reward / risk if risk > 0 else MID_MIN_RR
             rr = min(max(rr, MID_MIN_RR), MID_MAX_RR)
-            target = entry + rr * risk
+            target = (entry + rr * risk) * (1.0 - FRICTION_PCT)
 
         total += 1
         for k, (_, open_, high, low, _, _) in enumerate(

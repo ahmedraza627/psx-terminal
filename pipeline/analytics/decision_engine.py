@@ -64,6 +64,8 @@ from typing import Any, Optional
 
 from pipeline import db
 from pipeline.alerts.telegram import send_daily_dispatch
+import math
+
 from pipeline.backtest.engine import run_quick_backtest
 from pipeline.http_client import http_get
 
@@ -1084,27 +1086,57 @@ def _liquidity_ok(
     return turnover >= LIQUIDITY_TURNOVER_FLOOR_PKR
 
 
+def _atr_pct(closes: list[float]) -> Optional[float]:
+    """14-session-style ATR% proxy from the stored tape.
+
+    The stored EOD tape carries no high/low, so the engine's documented ATR
+    proxy is the mean absolute close-to-close change over the last 4 sessions
+    (ATR_PROXY_SESSIONS). We scale it to a 14-session reading by resolving the
+    mean absolute change across the trailing 14 closes where available, then
+    express it as a % of the latest close. Returns None when history is too
+    thin to read.
+    """
+    if len(closes) < 2:
+        return None
+    window = closes[-14:] if len(closes) >= 14 else closes
+    changes = [abs(window[k] - window[k - 1]) for k in range(1, len(window))]
+    if not changes:
+        return None
+    atr = sum(changes) / len(changes)
+    close = closes[-1]
+    if close <= 0:
+        return None
+    return (atr / close) * 100.0
+
+
 def _position_sizing(
     entry: float,
     stop: float,
     volumes: list[float],
-) -> tuple[Optional[float], Optional[int]]:
-    """Fixed-fractional sizing from a 1.5% portfolio risk budget.
+    closes: list[float],
+) -> tuple[Optional[int], Optional[int]]:
+    """Inverse-volatility position sizing from the 14-session ATR%.
 
-    risk_per_share = entry - stop. The allocation is the risk budget as a
-    multiple of the risk-per-share as a % of entry, capped at 15% of the
-    portfolio. Volume capacity caps the order at 2% of the 20-day average
-    volume so the exit stays liquid.
+    Highly volatile tickers automatically receive smaller allocations
+    (5-8%); low-volatility blue chips receive full size (12-15%).
 
-    Returns (alloc_pct, capacity_shares). Both None when the stop is at or
-    above entry (no valid risk to size against) - never a fabricated size.
+    raw_alloc = 15.0 * (2.5 / max(atr_pct, 1.5)), clamped to [5, 15],
+    returned as an integer percent. Volume capacity caps the order at 2% of
+    the 20-day average volume so the exit stays liquid.
+
+    Returns (alloc_pct_int, capacity_shares). Both None when sizing cannot
+    be resolved (no valid ATR reading) - never a fabricated size.
     """
-    risk_per_share = entry - stop
-    if entry <= 0 or risk_per_share <= 0:
+    if entry <= 0:
         return None, None
-    risk_pct = (risk_per_share / entry) * 100.0
-    alloc = (RISK_BUDGET_PCT / max(risk_pct, 1.0)) * 100.0
-    alloc_pct = round(min(MAX_ALLOC_PCT, alloc), 1)
+    atr_pct = _atr_pct(closes)
+    if atr_pct is None:
+        return None, None
+    raw_alloc = 15.0 * (2.5 / max(atr_pct, 1.5))
+    # Integer percent, rounded half away from zero so a 12.5% raw reading
+    # lands on 13% rather than Python's banker's-round 12 - the desk wants
+    # .5 up for position sizing, not toward the even multiple.
+    alloc_pct = int(max(5, min(15, math.floor(raw_alloc + 0.5))))  # type: ignore[arg-type]
     if not volumes:
         return alloc_pct, None
     avg_vol20 = sum(volumes[-VOLUME_SMA_WINDOW:]) / len(volumes[-VOLUME_SMA_WINDOW:])
@@ -1194,9 +1226,10 @@ def _execution_levels(
         # TP1 = the recent 10-day swing high, floored so it pays 1:1.2.
         high10 = max(p[1] for p in window[-TP1_LOOKBACK:] if p[1] > 0)
         target = max(high10, close + SHORT_MIN_RR * risk)
-        # Fixed-fractional sizing from the 1.5% risk budget (2% volume cap).
+        # Inverse-volatility sizing from the 14-session ATR% (2% volume cap).
         volumes = [p[2] for p in window if p[2] is not None and p[2] > 0]
-        alloc, capacity = _position_sizing(close, stop, volumes)
+        closes_for_sizing = [p[1] for p in window if p[1] is not None and p[1] > 0]
+        alloc, capacity = _position_sizing(close, stop, volumes, closes_for_sizing)
     else:
         # MID_TERM (Phase 3): realistic structural TP1 instead of the
         # greedy 52-week-resistance chase that stamped un-hittable 1:8
@@ -1226,25 +1259,21 @@ def _execution_levels(
         rr = max(MID_MIN_RR, min(rr, MID_MAX_RR))
         target = close + rr * risk
 
+        # Inverse-volatility sizing for the MID_TERM leader as well: the
+        # sector-absorption pick still gets a dynamic ATR%-based allocation
+        # (5-15%), persisted as an integer percent.
+        volumes = [p[2] for p in window if p[2] is not None and p[2] > 0]
+        closes_for_sizing = [p[1] for p in window if p[1] is not None and p[1] > 0]
+        alloc, capacity = _position_sizing(close, stop, volumes, closes_for_sizing)
+
     risked = max(close - stop, 0.01)  # spec floor: never divide below 0.01
-    if verdict["horizon"] == HORIZON_SHORT:
-        return {
-            "entry_ref": round(close, 2),
-            "stop_loss": round(stop, 2),
-            "target_price": round(target, 2),
-            "risk_reward_ratio": round((target - close) / risked, 2),
-            "suggested_alloc_pct": alloc,
-            "max_volume_capacity_shares": capacity,
-        }
-    # MID_TERM carries no dynamic sizing (sector absorption pick, not a
-    # risk-sized swing) - sizing fields stay honest nulls.
     return {
         "entry_ref": round(close, 2),
         "stop_loss": round(stop, 2),
         "target_price": round(target, 2),
         "risk_reward_ratio": round((target - close) / risked, 2),
-        "suggested_alloc_pct": None,
-        "max_volume_capacity_shares": None,
+        "suggested_alloc_pct": alloc,
+        "max_volume_capacity_shares": capacity,
     }
 
 

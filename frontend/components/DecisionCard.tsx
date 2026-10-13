@@ -250,7 +250,7 @@ export default function DecisionCard({
                   Position Size
                 </span>
                 <span
-                  className="mt-1 w-fit rounded border border-slate-300 bg-slate-200/80 px-2 py-0.5 font-mono font-bold text-slate-900"
+                  className="mt-1 w-fit rounded border border-slate-300 bg-slate-200/80 px-2 py-0.5 font-mono font-bold text-slate-950"
                   title={
                     maxVolumeCapacityShares != null
                       ? `Order capped at ${maxVolumeCapacityShares.toLocaleString("en-US")} shares (2% of 20D avg volume)`
