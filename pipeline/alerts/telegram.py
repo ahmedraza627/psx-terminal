@@ -34,6 +34,19 @@ HORIZON_LABELS = {
     "LONG_TERM": "[3] RISK RADAR (AVOID)",
 }
 
+
+def _sector_line(verdict: dict[str, Any]) -> str:
+    """Sector tag for the brief: Sector: <NAME> [<STATUS> #<rank>]."""
+    sector_name = verdict.get("sector_name")
+    status = verdict.get("sector_status")
+    rank = verdict.get("sector_rank")
+    if not sector_name:
+        return ""
+    rank_txt = f" #{rank}" if rank is not None else ""
+    status_txt = f"[{status}{rank_txt}]" if status else ""
+    return f"Sector: {_text(sector_name)} {status_txt}".strip()
+
+
 DASH = "\u2014"
 
 
@@ -82,6 +95,9 @@ def build_dispatch_message(
     if short:
         lines.append(f"Status: {short.get('direction') or 'CASH / NO SETUP'}")
         lines.append(f"Ticker: {_text(short.get('ticker'))}")
+        sl = _sector_line(short)
+        if sl:
+            lines.append(sl)
         lines.append(f"Note: {_text(short.get('logic_text'))}")
     else:
         lines.append("Status: CASH / NO SETUP")
@@ -95,6 +111,9 @@ def build_dispatch_message(
             f"Status: {mid.get('direction') or 'CASH / NO SETUP'}"
             f" | Ticker: {_text(mid.get('ticker'))}"
         )
+        sl = _sector_line(mid)
+        if sl:
+            lines.append(sl)
         lines.append(f"\u2022 Entry Ref: PKR {_num(mid.get('entry_ref'))}")
         lines.append(f"\u2022 Invalidation: PKR {_num(mid.get('stop_loss'))}")
         lines.append(f"\u2022 TP1 Target: PKR {_num(mid.get('target_price'))}")

@@ -65,6 +65,7 @@ from typing import Any, Optional
 from pipeline import db
 from pipeline.alerts.telegram import send_daily_dispatch
 from pipeline.analytics.outcome_tracker import log_active_setups
+from pipeline.analytics.sector_matrix import compute_sector_matrix, get_ticker_sector_status
 import math
 
 from pipeline.backtest.engine import run_quick_backtest
@@ -610,6 +611,13 @@ def _short_term_verdict(
     window_days = _flow_sessions_desc(flow_rows, session_date)[:3]
     sector_flows = _sector_flow_totals(flow_rows, window_days) if window_days else {}
 
+    # Sector rotation matrix gate: a DISTRIBUTION-sector ticker is rejected
+    # outright; a LEADING ticker receives priority over NEUTRAL in the
+    # candidate ranking. Names that are not in the authoritative matrix are
+    # treated as NEUTRAL (the matrix is a floor, not a ceiling).
+    def _sector_status_for(ticker: str) -> dict[str, Any]:
+        return get_ticker_sector_status(ticker, sector_matrix)
+
     # (proximity, dry_up_pct, ticker) - tightest setup wins; gates run first.
     candidates: list[tuple[float, float, str]] = []
     for ticker, points in series.items():
@@ -618,6 +626,18 @@ def _short_term_verdict(
         # F. Circuit-breaker guardrail (Phase 4): a lower-lock close is
         # untradeable at size - never a BUY candidate.
         if locked_tickers and ticker in locked_tickers:
+            continue
+
+        # Sector rotation gate (Phase 5C): reject DISTRIBUTION-sector
+        # candidates and remember the sector status for priority ranking.
+        sector_info = _sector_status_for(ticker)
+        if sector_info.get("status") == "DISTRIBUTION":
+            LOGGER.debug(
+                "decision engine %s: %s rejected (sector=%s, status=%s)",
+                session_date, ticker,
+                sector_info.get("sector") or "UNKNOWN",
+                sector_info.get("status"),
+            )
             continue
         window = [p for p in points if p[0] <= session_date]
         if len(window) < VOLUME_SMA_WINDOW:
@@ -672,12 +692,24 @@ def _short_term_verdict(
 
     # A (fundamentals): walk tightest-first to the first strictly profitable
     # name. A loss-maker or unpriced ticker is skipped, never certified.
+    # Sector priority: among comparable setups, LEADING-sector tickers are
+    # walked before NEUTRAL-sector tickers (DISTRIBUTION already filtered out).
+    def _candidate_sort_key(item: tuple[float, float, str]) -> tuple[float, float, int, float]:
+        proximity, dry_up, ticker = item
+        sector_info = _sector_status_for(ticker)
+        status = sector_info.get("status")
+        rank = sector_info.get("rank") or 999
+        status_rank = 0 if status == "LEADING" else 1  # LEADING first
+        return (proximity, dry_up, status_rank, rank)
+
     best_ticker: Optional[str] = None
     best_dry_up = 0.0
-    for proximity, dry_up, ticker in sorted(candidates):
+    best_sector_info: dict[str, Any] = {}
+    for proximity, dry_up, ticker in sorted(candidates, key=_candidate_sort_key):
         if _is_profitable(pe_map, ticker):
             best_ticker = ticker
             best_dry_up = dry_up
+            best_sector_info = _sector_status_for(ticker)
             break
 
     if best_ticker is None:
@@ -721,6 +753,9 @@ def _short_term_verdict(
             f"dry-up (-{best_dry_up:.0f}% vs 20D avg) in confirmed uptrend."
         ),
         **sizing,
+        "sector_name": best_sector_info.get("sector"),
+        "sector_status": best_sector_info.get("status"),
+        "sector_rank": best_sector_info.get("rank"),
     }
 
 
@@ -850,12 +885,16 @@ def _mid_term_verdict(
             session_date, best_sector,
         )
         return None
+    leader_sector_info = get_ticker_sector_status(leader, sector_matrix)
     return {
         "trade_date": session_date.isoformat(),
         "horizon": HORIZON_MID,
         "direction": "BUY",
         "ticker": leader,
         "logic_text": "Sustained institutional net absorption across 5 sessions while retail distributed.",
+        "sector_name": leader_sector_info.get("sector"),
+        "sector_status": leader_sector_info.get("status"),
+        "sector_rank": leader_sector_info.get("rank"),
     }
 
 
@@ -1328,6 +1367,13 @@ def run_decision_engine(session_date: Optional[date] = None) -> int:
     # circuit limit are rejected from every BUY candidate set.
     locked_tickers = _lower_lock_tickers(eod_rows, trade_date)
 
+    # Sector rotation & smart-money matrix: classify every sector in the
+    # loaded tape as LEADING / NEUTRAL / DISTRIBUTION so individual setups are
+    # gated by institutional-flow + momentum confluence, not stock-level alone.
+    sector_matrix = compute_sector_matrix(
+        trade_date, eod_rows=eod_rows, flow_rows=flow_rows, sector_by_ticker=sector_by_ticker,
+    )
+
     # Market regime + macro tape: the gates every row is stamped with.
     prior = [d for d in sessions_desc if d < trade_date]
     prior_date = prior[0] if prior else trade_date
@@ -1339,13 +1385,22 @@ def run_decision_engine(session_date: Optional[date] = None) -> int:
         v.update(levels)
         v["regime_status"] = regime
         v["macro_tape_state"] = tape_state
-        # Fundamental gate result + historical edge proof. BUY verdicts
-        # already passed the strict PE gate in candidate selection; AVOID
-        # verdicts are warnings, so they stay UNVERIFIED and unbacktested.
-        profitable = _is_profitable(pe_map, v["ticker"])
-        v["fundamental_score"] = (
-            FUNDAMENTAL_SCORE_LABEL if profitable else FUNDAMENTAL_UNVERIFIED
-        )
+        # Sector rotation matrix: attach the sector tag to every BUY verdict
+    # so the frontend and the Telegram brief can show where the certified
+    # setup sits in the institutional-flow + momentum lattice.
+    sector_info = get_ticker_sector_status(v["ticker"], sector_matrix)
+
+    # Fundamental gate result + historical edge proof. BUY verdicts
+    # already passed the strict PE gate in candidate selection; AVOID
+    # verdicts are warnings, so they stay UNVERIFIED and unbacktested.
+    profitable = _is_profitable(pe_map, v["ticker"])
+    v["fundamental_score"] = (
+        FUNDAMENTAL_SCORE_LABEL if profitable else FUNDAMENTAL_UNVERIFIED
+    )
+    if sector_info:
+        v["sector_name"] = sector_info.get("sector")
+        v["sector_status"] = sector_info.get("status")
+        v["sector_rank"] = sector_info.get("rank")
         v["historical_win_rate"] = None
         if v["direction"] == "BUY" and profitable:
             try:
