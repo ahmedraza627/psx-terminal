@@ -589,6 +589,7 @@ def _short_term_verdict(
     tape_state: str,
     pe_map: dict[str, Optional[float]],
     locked_tickers: Optional[set[str]] = None,
+    sector_matrix: Optional[dict[str, Any]] = None,
 ) -> Optional[dict[str, Any]]:
     """Institutional Pullback & Dry-up Accumulation engine (Phase 2).
 
@@ -825,6 +826,7 @@ def _mid_term_verdict(
     sector_by_ticker: dict[str, str],
     pe_map: dict[str, Optional[float]],
     locked_tickers: Optional[set[str]] = None,
+    sector_matrix: Optional[dict[str, Any]] = None,
 ) -> Optional[dict[str, Any]]:
     """Sector with the largest 5-session institutional absorption while
     retail distributed; leader = highest-turnover member with positive 5D.
