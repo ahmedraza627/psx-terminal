@@ -64,6 +64,7 @@ from typing import Any, Optional
 
 from pipeline import db
 from pipeline.alerts.telegram import send_daily_dispatch
+from pipeline.analytics.outcome_tracker import log_active_setups
 import math
 
 from pipeline.backtest.engine import run_quick_backtest
@@ -1387,6 +1388,17 @@ def run_decision_engine(session_date: Optional[date] = None) -> int:
     retired = [h for h in all_horizons if h not in written_horizons]
     if retired:
         db.purge_verdict_horizons(trade_date.isoformat(), retired)
+    # Phase 5B - setup logging for the ML outcome dataset: persist an OPEN
+    # row per active BUY verdict so the post-close outcome tracker can evaluate
+    # real exits. Idempotent on (verdict_date, horizon, ticker); never overwrites
+    # an already-resolved outcome.
+    try:
+        log_active_setups(rows, trade_date, tape_state, series)
+    except Exception as exc:  # noqa: BLE001 - outcome logging is advisory only
+        LOGGER.warning(
+            "decision engine %s: outcome setup logging failed: %s", trade_date, exc
+        )
+
     # Phase 4 - Telegram dispatch: strictly best-effort. Verdicts are
     # already stored, so delivery problems never fail the pipeline run.
     try:

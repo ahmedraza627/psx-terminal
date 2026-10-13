@@ -61,6 +61,14 @@ jobs:
               logging.warning("NCCPL flow scrape failed (non-fatal): %s", exc)
           EOF
 
+      # Phase 5B - resolve OPEN trades against today's EOD tape, evaluating
+      # stops / TP1 / time expiration in strict order. Non-fatal: missing or
+      # partial tape rows degrade to wait-and-see, never abort the run.
+      - name: Resolve open trade outcomes
+        continue-on-error: true
+        run: |
+          python -c "from pipeline.analytics.outcome_tracker import resolve_open_trades; from datetime import date; resolve_open_trades(date.today())"
+
       # Decision engine stores the certified verdicts and fires the
       # Telegram dispatch (best-effort inside the engine itself).
       - name: Decision engine and Telegram dispatch
