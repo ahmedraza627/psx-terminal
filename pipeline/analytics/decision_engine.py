@@ -67,6 +67,11 @@ from pipeline.alerts.telegram import send_daily_dispatch
 from pipeline.backtest.engine import run_quick_backtest
 from pipeline.http_client import http_get
 
+# Re-export the EOD tail window from db so callers that want the constant can
+# read it from the decision engine namespace (used by the synthetic verify probe).
+ENGINE_UNIVERSE_DAYS = db._ENGINE_UNIVERSE_DAYS
+
+
 LOGGER = logging.getLogger(__name__)
 
 VOLUME_SMA_WINDOW = int(os.getenv("VERDICT_VOLUME_SMA_WINDOW", "20"))
@@ -1256,7 +1261,16 @@ def run_decision_engine(session_date: Optional[date] = None) -> int:
     trade_date = session_date or date.today()
     # One process-level DPS probe per run at most; failures fall through to
     # the equal-weight market proxy inside _kse100_index_series.
-    eod_rows = db.fetch_recent_eod()
+    #
+    # Universe tail: a small calendar-bounded window for the candidate
+    # screens (breadth, 20D highs, 5-day pullbacks, ATR). The deep
+    # historical backtest still runs on the single qualified leader ticker
+    # (fetch_eod_for_ticker, ticker=eq.<leader>), which is already fast.
+    tail_end = trade_date.isoformat()
+    tail_start = (
+        trade_date - timedelta(days=ENGINE_UNIVERSE_DAYS)
+    ).isoformat()
+    eod_rows = db.fetch_eod_in_window(tail_start, tail_end)
     if not eod_rows:
         LOGGER.warning("decision engine: no EOD history; aborting")
         return 0

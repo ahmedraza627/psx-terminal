@@ -23,6 +23,13 @@ CHUNK_SIZE = 500
 # fully fed regardless of the `days` a caller passes.
 EOD_HISTORY_MIN_DAYS = 220
 
+# Decision-engine universe tail: a calendar-bounded EOD window for the
+# SHORT_TERM / MID_TERM / LONG_TERM candidate screens. 30 calendar days is
+# enough for breadth, 20D highs, 5-day pullbacks and 14D ATR, and small
+# enough to paginate over a handful of 1000-row pages instead of the
+# multi-month fetch that exhausted the Supabase pool on cloud runs.
+_ENGINE_UNIVERSE_DAYS = 30
+
 _client: Optional[Client] = None
 
 
@@ -49,7 +56,17 @@ def get_client() -> Client:
     if not url.startswith("http"):
         raise ValueError("SUPABASE_URL must start with http:// or https://")
 
-    _client = create_client(url, key)
+    from supabase.lib.client_options import SyncClientOptions
+    from httpx import Client as HttpxClient
+
+    _client = create_client(
+        url,
+        key,
+        options=SyncClientOptions(
+            postgrest_client_timeout=15.0,
+            httpx_client=HttpxClient(timeout=15.0),
+        ),
+    )
     LOGGER.info("Supabase client initialised for %s", url)
     return _client
 
@@ -256,6 +273,31 @@ def _paginated_select(
             break
         start += PAGE_SIZE
     return rows[:max_rows]
+
+
+def fetch_eod_in_window(
+    min_date: str,
+    max_date: str,
+    max_rows: int = 240_000,
+) -> list[dict[str, Any]]:
+    """Trade-date-bounded EOD slice across the market.
+
+    Server-side ``trade_date >= min_date AND trade_date <= max_date`` keeps the
+    read strictly on the window's pages - never the full table. Used by the
+    decision engine so the universe slice fed to the candidate screens is a
+    small calendar-bounded tail instead of a multi-month fetch.
+    """
+    return _paginated_select(
+        "psx_daily_eod",
+        "trade_date,ticker,open_price,high_price,low_price,close_price,volume",
+        order_desc_col="trade_date",
+        order_asc_col="ticker",
+        max_rows=max_rows,
+        filters=[
+            ("trade_date", "gte", min_date),
+            ("trade_date", "lte", max_date),
+        ],
+    )
 
 
 def fetch_recent_eod(days: int = 90, min_date: Optional[str] = None) -> list[dict[str, Any]]:
