@@ -1385,22 +1385,22 @@ def run_decision_engine(session_date: Optional[date] = None) -> int:
         v.update(levels)
         v["regime_status"] = regime
         v["macro_tape_state"] = tape_state
-        # Sector rotation matrix: attach the sector tag to every BUY verdict
-    # so the frontend and the Telegram brief can show where the certified
-    # setup sits in the institutional-flow + momentum lattice.
-    sector_info = get_ticker_sector_status(v["ticker"], sector_matrix)
+        # Sector rotation matrix: attach the sector tag to every verdict
+        # so the frontend and the Telegram brief can show where the
+        # certified setup sits in the institutional-flow lattice.
+        sector_info = get_ticker_sector_status(v["ticker"], sector_matrix)
 
-    # Fundamental gate result + historical edge proof. BUY verdicts
-    # already passed the strict PE gate in candidate selection; AVOID
-    # verdicts are warnings, so they stay UNVERIFIED and unbacktested.
-    profitable = _is_profitable(pe_map, v["ticker"])
-    v["fundamental_score"] = (
-        FUNDAMENTAL_SCORE_LABEL if profitable else FUNDAMENTAL_UNVERIFIED
-    )
-    if sector_info:
-        v["sector_name"] = sector_info.get("sector")
-        v["sector_status"] = sector_info.get("status")
-        v["sector_rank"] = sector_info.get("rank")
+        # Fundamental gate result + historical edge proof. BUY verdicts
+        # already passed the strict PE gate in candidate selection; AVOID
+        # verdicts are warnings, so they stay UNVERIFIED and unbacktested.
+        profitable = _is_profitable(pe_map, v["ticker"])
+        v["fundamental_score"] = (
+            FUNDAMENTAL_SCORE_LABEL if profitable else FUNDAMENTAL_UNVERIFIED
+        )
+        if sector_info:
+            v["sector_name"] = sector_info.get("sector")
+            v["sector_status"] = sector_info.get("status")
+            v["sector_rank"] = sector_info.get("rank")
         v["historical_win_rate"] = None
         if v["direction"] == "BUY" and profitable:
             try:
