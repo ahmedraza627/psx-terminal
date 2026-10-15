@@ -971,6 +971,207 @@ export interface SystemVerdict {
  * cards with it and flags the one-session lag honestly.
  * Settle-safe by house convention: failures degrade to [].
  */
+export interface SectorMatrixRow {
+  /** Ranked strongest -> weakest by composite score. */
+  sector: string;
+  memberCount: number;
+  /** 5-session equal-weighted sector return (%). */
+  ewReturn5dPct: number | null;
+  /** FIPI + MUTUAL FUNDS + BANKS cumulative net (PKR). */
+  netInstFlowPkr: number;
+  /** INDIVIDUALS cumulative net (PKR). */
+  netRetailFlowPkr: number;
+  compositeScore: number;
+  status: "LEADING" | "NEUTRAL" | "DISTRIBUTION";
+  rank: number;
+}
+
+export interface SectorMatrixData {
+  /** Session the matrix was computed for. */
+  tradeDate: string;
+  rows: SectorMatrixRow[];
+  /** Strongest -> weakest (same order as rows when ranking is stable). */
+  ranking: string[];
+}
+
+export async function fetchSectorMatrix(): Promise<SectorMatrixData | null> {
+  try {
+    const supabase = createClient();
+    // The pipeline stores the authoritative house matrix in one row per
+    // session (PK trade_date). Fall back to the latest available session
+    // when the active one has not been stamped yet.
+    const fetchFor = async (
+      td: string,
+    ): Promise<SectorMatrixRow[] | null> => {
+      const { data, error } = await supabase
+        .from("sector_matrix")
+        .select(
+          "trade_date,sectors:rank,members,member_count,ew_return_5d_pct,net_inst_flow_pkr,net_retail_flow_pkr,composite_score,status"
+        )
+        .eq("trade_date", td)
+        .single();
+      if (error) return null;
+      const row = data as {
+        trade_date: string;
+        sectors?: Record<
+          string,
+          {
+            rank?: number;
+            members?: string[];
+            member_count?: number;
+            ew_return_5d_pct?: number | null;
+            net_inst_flow_pkr?: number | null;
+            net_retail_flow_pkr?: number | null;
+            composite_score?: number | null;
+            status?: string;
+          }
+        >;
+      } | null;
+      if (!row || !row.sectors) return null;
+      const out: SectorMatrixRow[] = [];
+      for (const [sector, info] of Object.entries(row.sectors)) {
+        out.push({
+          sector,
+          memberCount: info.member_count ?? 0,
+          ewReturn5dPct: info.ew_return_5d_pct ?? null,
+          netInstFlowPkr: info.net_inst_flow_pkr ?? 0,
+          netRetailFlowPkr: info.net_retail_flow_pkr ?? 0,
+          compositeScore: info.composite_score ?? 0,
+          status: (info.status ?? "NEUTRAL") as SectorMatrixRow["status"],
+          rank: info.rank ?? 99,
+        });
+      }
+      out.sort((a, b) => a.rank - b.rank);
+      return out;
+    };
+
+    const trySession = async (
+      td: string,
+    ): Promise<SectorMatrixRow[] | null> => {
+      const rows = await fetchFor(td);
+      if (rows) return rows;
+      const { data: latest, error: lErr } = await supabase
+        .from("sector_matrix")
+        .select("trade_date")
+        .order("trade_date", { ascending: false })
+        .limit(1);
+      if (lErr || !latest?.length) return null;
+      return fetchFor((latest[0] as { trade_date: string }).trade_date);
+    };
+
+    const activeRows = await trySession("");
+    if (!activeRows) return null;
+    return {
+      tradeDate: activeRows[0]?.sector ?? "",
+      rows: activeRows,
+      ranking: activeRows.map((r) => r.sector),
+    };
+  } catch {
+    return null;
+  }
+}
+
+// Live institutional trade outcomes ledger (psx_trade_outcomes).
+// ----------------------------------------------------------------------- //
+export type OutcomeStatus = "OPEN" | "WIN_TP1" | "LOSS_SL" | "EXPIRED_TIME";
+
+export interface TradeOutcomeRow {
+  /** Verdict date the setup was stamped (ISO). */
+  verdictDate: string;
+  horizon: string;
+  ticker: string;
+  /** Certified entry reference (PKR). */
+  entryPrice: number | null;
+  /** Invalidation / stop level (PKR). */
+  stopLoss: number | null;
+  /** Target-1 level (PKR). */
+  tp1Target: number | null;
+  /** Suggested allocation (%) from the 1.5% risk model. */
+  suggestedAllocPct: number | null;
+  /** Bars held since entry. */
+  barsHeld: number;
+  status: OutcomeStatus;
+  /** Realized PnL (%) when resolved; null while OPEN. */
+  pnlPct: number | null;
+  /** Realized R-multiple when resolved; null while OPEN. */
+  rMultiple: number | null;
+  /** Exit date when resolved; null while OPEN. */
+  exitDate: string | null;
+}
+
+export interface TradeOutcomesLedgerData {
+  rows: TradeOutcomeRow[];
+  /** Aggregate stats across the resolved rows in this page. */
+  aggregate: {
+    totalResolved: number;
+    netWinRatePct: number | null;
+    averageRMultiple: number | null;
+  } | null;
+}
+
+export async function fetchTradeOutcomesLedger():
+  Promise<TradeOutcomesLedgerData> {
+  try {
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from("psx_trade_outcomes")
+      .select(
+        "verdict_date,horizon,ticker,entry_price,stop_loss,tp1_target,suggested_alloc_pct,bars_held,status,exit_price,pnl_pct,r_multiple,exit_date"
+      )
+      .order("verdict_date", { ascending: false })
+      .limit(15);
+    if (error) throw error;
+    const rows = ((data ?? []) as {
+      verdict_date: string;
+      horizon: string;
+      ticker: string;
+      entry_price: number | null;
+      stop_loss: number | null;
+      tp1_target: number | null;
+      suggested_alloc_pct: number | null;
+      bars_held: number;
+      status: string;
+      exit_price: number | null;
+      pnl_pct: number | null;
+      r_multiple: number | null;
+      exit_date: string | null;
+    }[]).map((r) => ({
+      verdictDate: r.verdict_date,
+      horizon: r.horizon,
+      ticker: r.ticker.toUpperCase(),
+      entryPrice: r.entry_price ?? null,
+      stopLoss: r.stop_loss ?? null,
+      tp1Target: r.tp1_target ?? null,
+      suggestedAllocPct: r.suggested_alloc_pct ?? null,
+      barsHeld: r.bars_held ?? 0,
+      status: (r.status ?? "OPEN") as OutcomeStatus,
+      pnlPct: r.pnl_pct ?? null,
+      rMultiple: r.r_multiple ?? null,
+      exitDate: r.exit_date ?? null,
+    }));
+
+    const resolved = rows.filter((r) => r.status !== "OPEN");
+    const totalResolved = resolved.length;
+    const netWinRatePct =
+      totalResolved > 0
+        ? resolved.filter((r) => r.status === "WIN_TP1").length / totalResolved
+        : null;
+    const averageRMultiple =
+      totalResolved > 0
+        ? resolved.reduce((a, r) => a + (r.rMultiple ?? 0), 0) / totalResolved
+        : null;
+
+    return {
+      rows,
+      aggregate: totalResolved > 0
+        ? { totalResolved, netWinRatePct, averageRMultiple }
+        : null,
+    };
+  } catch {
+    return { rows: [], aggregate: null };
+  }
+}
+
 export async function fetchSystemVerdicts(
   sessionDate: string | null,
 ): Promise<SystemVerdict[]> {

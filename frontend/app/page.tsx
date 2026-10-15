@@ -12,9 +12,11 @@ import DecisionCard from "@/components/DecisionCard";
 import PageHeader from "@/components/PageHeader";
 import SearchBox from "@/components/SearchBox";
 import SessionPill from "@/components/SessionPill";
+import TradeOutcomesLedger from "@/components/TradeOutcomesLedger";
 import {
   fetchLatestEodSession,
   fetchSystemVerdicts,
+  fetchTradeOutcomesLedger,
 } from "@/lib/consoleQueries";
 
 export const dynamic = "force-dynamic";
@@ -36,6 +38,7 @@ function greeting(hourPkt: number): string {
 export default async function ActionDeskPage() {
   const session = await fetchLatestEodSession();
   const verdicts = await fetchSystemVerdicts(session);
+  const outcomes = await fetchTradeOutcomesLedger();
   // The query falls back to the latest CERTIFIED session when the engine
   // has not stamped the active one yet, so cards carry their actual
   // tradeDate - surface the one-session lag honestly instead of getting
@@ -116,6 +119,8 @@ export default async function ActionDeskPage() {
           )}
         </>
       )}
+
+      <TradeOutcomesLedger data={outcomes} />
     </div>
   );
 }

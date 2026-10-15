@@ -32,7 +32,6 @@ Writes exactly one psx_system_verdicts row per horizon per session
                                  back to the breadth trap (advance/decline <
                                  0.8 while KSE-100 closed green -> KSE100)
                                  when no trap-sector ticker is priced.
-
 Macro tape gate (_macro_tape_state) - stamped on every row as
 macro_tape_state and used to block SHORT_TERM buys:
   RISK_ON        KSE-100 above its 50D SMA and A/D ratio >= 1.0.
@@ -41,14 +40,12 @@ macro_tape_state and used to block SHORT_TERM buys:
   NEUTRAL        everything else.
 Honest-data rules: when KSE-100 history is too thin to form a 50D SMA, or
 the A/D ratio is unverifiable, the state is NEUTRAL - never fabricated.
-
 Participant vocabulary: institutions = FOREIGN TOTAL + FIPI + BANKS +
 MUTUAL FUNDS. NCCPL's FIPI aggregate is stored as the "FOREIGN TOTAL"
 rollup on current scraper generations (and as literal "FIPI" on legacy
 rows), so both labels are honoured. Retail is detected by the substring
 "INDIVIDUAL" at the session level (covers both INDIVIDUAL and
 INDIVIDUALS labels).
-
 Honest-data rules (house convention): a horizon with no certified
 candidate is SKIPPED - never fabricated, never defaulted. The frontend
 renders the missing horizon as its own idle state.
@@ -57,6 +54,7 @@ renders the missing horizon as its own idle state.
 from __future__ import annotations
 
 import logging
+import math
 import os
 from collections import defaultdict
 from datetime import date, timedelta
@@ -64,17 +62,18 @@ from typing import Any, Optional
 
 from pipeline import db
 from pipeline.alerts.telegram import send_daily_dispatch
+from pipeline.analytics.context import MarketContext, build_market_context
 from pipeline.analytics.outcome_tracker import log_active_setups
-from pipeline.analytics.sector_matrix import compute_sector_matrix, get_ticker_sector_status
-import math
-
+from pipeline.analytics.sector_matrix import (
+    compute_sector_matrix,
+    get_ticker_sector_status,
+)
 from pipeline.backtest.engine import run_quick_backtest
 from pipeline.http_client import http_get
 
 # Re-export the EOD tail window from db so callers that want the constant can
 # read it from the decision engine namespace (used by the synthetic verify probe).
 ENGINE_UNIVERSE_DAYS = db._ENGINE_UNIVERSE_DAYS
-
 
 LOGGER = logging.getLogger(__name__)
 
@@ -189,7 +188,9 @@ def _session_series(
 
 def _session_dates_desc(series: dict[str, list[tuple[date, float, float]]]) -> list[date]:
     """All stored sessions, newest first (across the universe)."""
-    return sorted({p[0] for points in series.values() for p in points}, reverse=True)
+    return sorted(
+        {p[0] for points in series.values() for p in points}, reverse=True
+    )
 
 
 def _point_at(
@@ -347,6 +348,7 @@ def _sector_matches(nccpl_sector: str, mapped_sector: str) -> bool:
     whitespace collapsed; exact match wins, otherwise containment on the
     normalised labels counts as the same sector family.
     """
+
     def norm(s: str) -> str:
         return " ".join(s.upper().replace("&", " AND ").split())
 
@@ -412,7 +414,9 @@ def _kse100_change_pct(
             return (now / before - 1.0) * 100.0
 
     try:
-        response = http_get("https://dps.psx.com.pk/timeseries/eod/KSE100", timeout=25.0)
+        response = http_get(
+            "https://dps.psx.com.pk/timeseries/eod/KSE100", timeout=25.0
+        )
         payload = response.json()
     except Exception as exc:  # noqa: BLE001 - benchmark down = unverifiable
         LOGGER.warning("decision engine: KSE100 DPS timeseries unavailable: %s", exc)
@@ -580,17 +584,7 @@ def _lower_lock_tickers(
     return locked
 
 
-def _short_term_verdict(
-    session_date: date,
-    prior_date: date,
-    series: dict[str, list[tuple[date, float, float]]],
-    flow_rows: list[dict[str, Any]],
-    sector_by_ticker: dict[str, str],
-    tape_state: str,
-    pe_map: dict[str, Optional[float]],
-    locked_tickers: Optional[set[str]] = None,
-    sector_matrix: Optional[dict[str, Any]] = None,
-) -> Optional[dict[str, Any]]:
+def _short_term_verdict(ctx: MarketContext) -> Optional[dict[str, Any]]:
     """Institutional Pullback & Dry-up Accumulation engine (Phase 2).
 
     Replaces the 16.9% breakout chase with a quiet-dip-into-support setup,
@@ -600,6 +594,18 @@ def _short_term_verdict(
     the 3-session swing low and the 1.0 x ATR floor, hardened to a maximum
     4% risk; TP1 = the 10-day swing high, floored to a 1:1.2 reward/risk.
     """
+
+    session_date = ctx.trade_date
+    tape_state = ctx.tape_state
+    series = ctx.series
+    sector_by_ticker = ctx.sector_by_ticker
+    pe_map = ctx.pe_map
+    locked_tickers = ctx.locked_tickers
+    sector_matrix = ctx.sector_matrix
+    flow_rows = ctx.flows_by_ticker.get("rows") if isinstance(
+        ctx.flows_by_ticker, dict
+    ) else []
+
     if tape_state == TAPE_DEFENSIVE:
         LOGGER.info(
             "decision engine %s: macro tape DEFENSIVE_CASH - preserving "
@@ -733,7 +739,9 @@ def _short_term_verdict(
         return None
 
     levels = _execution_levels(
-        {"horizon": HORIZON_SHORT, "ticker": best_ticker}, session_date, series
+        {"horizon": HORIZON_SHORT, "ticker": best_ticker},
+        session_date,
+        ctx.series,
     )
     entry = levels.get("entry_ref")
     stop = levels.get("stop_loss")
@@ -744,7 +752,10 @@ def _short_term_verdict(
     if entry is not None and stop is not None:
         points = series.get(best_ticker) or []
         volumes = [p[2] for p in points if p[0] <= session_date]
-        alloc, capacity = _position_sizing(float(entry), float(stop), volumes)
+        alloc, capacity = _position_sizing(
+            float(entry), float(stop), volumes,
+            [p[1] for p in points if p[0] <= session_date],
+        )
         sizing["suggested_alloc_pct"] = alloc
         sizing["max_volume_capacity_shares"] = capacity
 
@@ -765,16 +776,12 @@ def _short_term_verdict(
 
 
 def _leader_in_sector(
+    ctx: MarketContext,
     sector: str,
-    session_date: date,
-    series: dict[str, list[tuple[date, float, float]]],
-    sector_by_ticker: dict[str, str],
     *,
     require_positive_5d: bool,
     window_start: Optional[date],
-    pe_map: Optional[dict[str, Optional[float]]] = None,
     require_profitable: bool = False,
-    locked_tickers: Optional[set[str]] = None,
 ) -> Optional[str]:
     """Highest session-turnover ticker mapped to ``sector``.
 
@@ -784,6 +791,13 @@ def _leader_in_sector(
     AVOID verdicts deliberately skip the gate - the trap ticker's
     fundamentals are irrelevant to the warning.
     """
+
+    session_date = ctx.trade_date
+    series = ctx.series
+    sector_by_ticker = ctx.sector_by_ticker
+    pe_map = ctx.pe_map
+    locked_tickers = ctx.locked_tickers
+
     best_ticker: Optional[str] = None
     best_turnover = -1.0
     for ticker, mapped in sector_by_ticker.items():
@@ -794,7 +808,7 @@ def _leader_in_sector(
         # scanning: the trap warning still applies to a locked name).
         if locked_tickers and ticker in locked_tickers:
             continue
-        if require_profitable and not _is_profitable(pe_map or {}, ticker):
+        if require_profitable and not _is_profitable(pe_map, ticker):
             continue  # strict gate: loss-making / unpriced never certified
         points = series.get(ticker)
         if not points:
@@ -818,16 +832,7 @@ def _leader_in_sector(
     return best_ticker
 
 
-def _mid_term_verdict(
-    session_date: date,
-    sessions_desc: list[date],
-    series: dict[str, list[tuple[date, float, float]]],
-    flow_rows: list[dict[str, Any]],
-    sector_by_ticker: dict[str, str],
-    pe_map: dict[str, Optional[float]],
-    locked_tickers: Optional[set[str]] = None,
-    sector_matrix: Optional[dict[str, Any]] = None,
-) -> Optional[dict[str, Any]]:
+def _mid_term_verdict(ctx: MarketContext) -> Optional[dict[str, Any]]:
     """Sector with the largest 5-session institutional absorption while
     retail distributed; leader = highest-turnover member with positive 5D.
 
@@ -838,9 +843,25 @@ def _mid_term_verdict(
     (Phase 3: realistic structural target, not the greedy 52-week
     resistance chase that stamped ~1:8 R:R and a ~34% win rate).
     """
+
+    session_date = ctx.trade_date
+    series = ctx.series
+    sector_by_ticker = ctx.sector_by_ticker
+    locked_tickers = ctx.locked_tickers
+    sector_matrix = ctx.sector_matrix
+    flows_by_ticker = ctx.flows_by_ticker
+    flow_rows = flows_by_ticker.get("rows") if isinstance(
+        flows_by_ticker, dict
+    ) else []
+    sessions_desc = ctx.sessions_desc
+    pe_map = ctx.pe_map
+
     window_days = _flow_sessions_desc(flow_rows, session_date)[:FLOW_WINDOW_SESSIONS]
     if len(window_days) < 2:
-        LOGGER.info("decision engine: <2 flow sessions for %s; MID_TERM skipped", session_date)
+        LOGGER.info(
+            "decision engine: <2 flow sessions for %s; MID_TERM skipped",
+            session_date,
+        )
         return None
     totals = _sector_flow_totals(flow_rows, window_days)
 
@@ -852,37 +873,35 @@ def _mid_term_verdict(
             best_sector = sector
             best_inst = inst_net
     if best_sector is None:
-        LOGGER.info("decision engine %s: no absorbed sector; MID_TERM skipped", session_date)
+        LOGGER.info(
+            "decision engine %s: no absorbed sector; MID_TERM skipped", session_date
+        )
         return None
 
     # 5-session performance window: the 5th newest stored session <= T.
     prior = [d for d in sessions_desc if d < session_date]
-    window_start = prior[FLOW_WINDOW_SESSIONS - 1] if len(prior) >= FLOW_WINDOW_SESSIONS else None
+    window_start = (
+        prior[FLOW_WINDOW_SESSIONS - 1]
+        if len(prior) >= FLOW_WINDOW_SESSIONS
+        else None
+    )
     leader = _leader_in_sector(
+        ctx,
         best_sector,
-        session_date,
-        series,
-        sector_by_ticker,
         require_positive_5d=True,
         window_start=window_start,
-        pe_map=pe_map,
         require_profitable=True,
-        locked_tickers=locked_tickers,
     )
     if leader is None:
         # Sparse history (no usable 5D window) or no positive performer must
         # not drop the sector entirely: fall back to the session's top
         # turnover ticker from psx_daily_eod (fix for the 2026-10-07 skip).
         leader = _leader_in_sector(
+            ctx,
             best_sector,
-            session_date,
-            series,
-            sector_by_ticker,
             require_positive_5d=False,
             window_start=None,
-            pe_map=pe_map,
             require_profitable=True,
-            locked_tickers=locked_tickers,
         )
     if leader is None:
         LOGGER.info(
@@ -945,19 +964,23 @@ def _breadth_verdict(
     }
 
 
-def _long_term_verdict(
-    session_date: date,
-    sessions_desc: list[date],
-    series: dict[str, list[tuple[date, float, float]]],
-    flow_rows: list[dict[str, Any]],
-    sector_by_ticker: dict[str, str],
-) -> Optional[dict[str, Any]]:
+def _long_term_verdict(ctx: MarketContext) -> Optional[dict[str, Any]]:
     """Retail-trap sector first; KSE-100 breadth trap as the direct fallback.
 
     v2 (fix for the 2026-10-07 all-skip): when no trap-sector ticker is
     priced in psx_daily_eod (or the mapping starves), the horizon falls
     straight back to the breadth check instead of skipping outright.
     """
+
+    session_date = ctx.trade_date
+    series = ctx.series
+    sector_by_ticker = ctx.sector_by_ticker
+    flows_by_ticker = ctx.flows_by_ticker
+    flow_rows = flows_by_ticker.get("rows") if isinstance(
+        flows_by_ticker, dict
+    ) else []
+    sessions_desc = ctx.sessions_desc
+
     window_days = _flow_sessions_desc(flow_rows, session_date)[:FLOW_WINDOW_SESSIONS]
     totals = _sector_flow_totals(flow_rows, window_days)
     trap_sector: Optional[str] = None
@@ -971,12 +994,11 @@ def _long_term_verdict(
             most_retail_buying = retail_net
     if trap_sector is not None:
         leader = _leader_in_sector(
+            ctx,
             trap_sector,
-            session_date,
-            series,
-            sector_by_ticker,
             require_positive_5d=False,
             window_start=None,
+            require_profitable=False,
         )
         if leader is not None:
             return {
@@ -993,12 +1015,15 @@ def _long_term_verdict(
         )
     else:
         LOGGER.info(
-            "decision engine %s: no retail-trap sector; checking breadth", session_date
+            "decision engine %s: no retail-trap sector; checking breadth",
+            session_date,
         )
 
     prior = [d for d in sessions_desc if d < session_date]
     if not prior:
-        LOGGER.info("decision engine %s: no prior session; LONG_TERM skipped", session_date)
+        LOGGER.info(
+            "decision engine %s: no prior session; LONG_TERM skipped", session_date
+        )
         return None
     breadth = _breadth_verdict(session_date, prior[0], series)
     if breadth is None:
@@ -1007,7 +1032,7 @@ def _long_term_verdict(
 
 
 # --------------------------------------------------------------------------- #
-# Market regime (macro gate) + execution levels
+# Market regime (macro gate) + execution levels                               #
 # --------------------------------------------------------------------------- #
 def _regime_status(
     session_date: date,
@@ -1022,7 +1047,9 @@ def _regime_status(
     adv = dec = 0
     # Points are (day, close, volume): the SMA leg must average CLOSES (p[1])
     # - averaging p[2] would smear volumes into a price test.
-    window = [p for p in series.get("KSE100") or [] if p[0] <= session_date][-20:]
+    window = [
+        p for p in series.get("KSE100") or [] if p[0] <= session_date
+    ][-20:]
     sma20 = sum(p[1] for p in window) / len(window) if len(window) == 20 else 0.0
     for ticker, points in series.items():
         if ticker.upper() in INDEX_TICKERS:
@@ -1116,6 +1143,26 @@ def _macro_tape_state(
     return TAPE_NEUTRAL
 
 
+def _macro_tape_gate_label(
+    regime: str, tape_state: str
+) -> str:
+    """High-level macro label derived from (regime, tape_state).
+
+    This is the value written to ctx.macro_regime so the verdict evaluators
+    and downstream shapers see a single stable string, even though the tape
+    gate machinery keeps the two components separate internally.
+    """
+    if tape_state == TAPE_DEFENSIVE:
+        return "BEARISH"
+    if regime == "NORMAL" and tape_state == TAPE_RISK_ON:
+        return "BULLISH"
+    if regime == "NORMAL" and tape_state == TAPE_NEUTRAL:
+        return "NEUTRAL"
+    if regime == "DEFENSIVE_CASH":
+        return "BEARISH"
+    return "NEUTRAL"
+
+
 def _liquidity_ok(
     points: list[tuple[date, float, float]],
     session_date: date,
@@ -1126,7 +1173,9 @@ def _liquidity_ok(
     Points are (day, close, volume). Honest: fewer than TURNOVER_WINDOW
     sessions in the window fails the floor (no certified baseline, no buy).
     """
-    window = [p for p in points if p[0] <= session_date][-TURNOVER_WINDOW:]
+    window = [
+        p for p in points if p[0] <= session_date
+    ][-TURNOVER_WINDOW:]
     if len(window) < TURNOVER_WINDOW:
         return False
     close = window[-1][1]
@@ -1186,10 +1235,14 @@ def _position_sizing(
     # Integer percent, rounded half away from zero so a 12.5% raw reading
     # lands on 13% rather than Python's banker's-round 12 - the desk wants
     # .5 up for position sizing, not toward the even multiple.
-    alloc_pct = int(max(5, min(15, math.floor(raw_alloc + 0.5))))  # type: ignore[arg-type]
+    alloc_pct = int(
+        max(5, min(15, math.floor(raw_alloc + 0.5)))
+    )  # type: ignore[arg-type]
     if not volumes:
         return alloc_pct, None
-    avg_vol20 = sum(volumes[-VOLUME_SMA_WINDOW:]) / len(volumes[-VOLUME_SMA_WINDOW:])
+    avg_vol20 = sum(volumes[-VOLUME_SMA_WINDOW:]) / len(
+        volumes[-VOLUME_SMA_WINDOW:]
+    )
     capacity = int(avg_vol20 * VOLUME_PARTICIPATION)
     return alloc_pct, (capacity if capacity > 0 else None)
 
@@ -1217,7 +1270,7 @@ def _execution_levels(
         entry + 2.0 x ATR, whichever sits CLOSER to entry, with the
         reward/risk mathematically bounded to [1.5, 2.5]. The bounds
         replace the greedy trailing-52-week-resistance target that
-        produced un-hittable 1:8 ratios and a ~34% historical win rate;
+        produced un-hittable 1:8 ratios and a ~34% win rate;
         the tighter structural TP1 is what lifts MID_TERM toward the
         65-75% win-rate band.
       LONG_TERM is an AVOID/risk verdict - it has no entry, so it carries
@@ -1338,6 +1391,7 @@ def run_decision_engine(session_date: Optional[date] = None) -> int:
     Returns the number of rows written.
     """
     trade_date = session_date or date.today()
+
     # One process-level DPS probe per run at most; failures fall through to
     # the equal-weight market proxy inside _kse100_index_series.
     #
@@ -1346,9 +1400,7 @@ def run_decision_engine(session_date: Optional[date] = None) -> int:
     # historical backtest still runs on the single qualified leader ticker
     # (fetch_eod_for_ticker, ticker=eq.<leader>), which is already fast.
     tail_end = trade_date.isoformat()
-    tail_start = (
-        trade_date - timedelta(days=ENGINE_UNIVERSE_DAYS)
-    ).isoformat()
+    tail_start = (trade_date - timedelta(days=ENGINE_UNIVERSE_DAYS)).isoformat()
     eod_rows = db.fetch_eod_in_window(tail_start, tail_end)
     if not eod_rows:
         LOGGER.warning("decision engine: no EOD history; aborting")
@@ -1364,46 +1416,31 @@ def run_decision_engine(session_date: Optional[date] = None) -> int:
     # its own unfiltered fetch (3k newest rows cover every ticker).
     pe_rows = db.fetch_recent_fundamentals(real_sectors_only=False)
 
-    series = _session_series(eod_rows)
-    sessions_desc = _session_dates_desc(series)
-    if trade_date not in sessions_desc:
-        LOGGER.warning(
-            "decision engine: %s has no stored EOD session; aborting", trade_date
-        )
-        return 0
-    sector_by_ticker = _sector_map(fundamentals)
-    pe_map = _pe_map(pe_rows)
-    # Phase 4 circuit-breaker guardrail: names that closed at their lower
-    # circuit limit are rejected from every BUY candidate set.
-    locked_tickers = _lower_lock_tickers(eod_rows, trade_date)
-
-    # Sector rotation & smart-money matrix: classify every sector in the
-    # loaded tape as LEADING / NEUTRAL / DISTRIBUTION so individual setups are
-    # gated by institutional-flow + momentum confluence, not stock-level alone.
-    sector_matrix = compute_sector_matrix(
-        trade_date, eod_rows=eod_rows, flow_rows=flow_rows, sector_by_ticker=sector_by_ticker,
+    # Single immutable session snapshot: every downstream evaluator reads
+    # from this, so new filters/indicators go into MarketContext, not into
+    # long loose argument lists.
+    ctx = build_market_context(
+        trade_date,
+        eod_rows=eod_rows,
+        flow_rows=flow_rows,
+        fundamentals=fundamentals,
+        pe_rows=pe_rows,
     )
 
-    # Market regime + macro tape: the gates every row is stamped with.
-    prior = [d for d in sessions_desc if d < trade_date]
-    prior_date = prior[0] if prior else trade_date
-    regime = _regime_status(trade_date, prior_date, series)
-    tape_state = _macro_tape_state(trade_date, prior_date, series)
-
     def with_execution(v: dict[str, Any]) -> dict[str, Any]:
-        levels = _execution_levels(v, trade_date, series)
+        levels = _execution_levels(v, trade_date, ctx.series)
         v.update(levels)
-        v["regime_status"] = regime
-        v["macro_tape_state"] = tape_state
+        v["regime_status"] = ctx.macro_regime
+        v["macro_tape_state"] = ctx.tape_state
         # Sector rotation matrix: attach the sector tag to every verdict
         # so the frontend and the Telegram brief can show where the
         # certified setup sits in the institutional-flow lattice.
-        sector_info = get_ticker_sector_status(v["ticker"], sector_matrix)
+        sector_info = get_ticker_sector_status(v["ticker"], ctx.sector_matrix)
 
         # Fundamental gate result + historical edge proof. BUY verdicts
         # already passed the strict PE gate in candidate selection; AVOID
         # verdicts are warnings, so they stay UNVERIFIED and unbacktested.
-        profitable = _is_profitable(pe_map, v["ticker"])
+        profitable = _is_profitable(ctx.pe_map, v["ticker"])
         v["fundamental_score"] = (
             FUNDAMENTAL_SCORE_LABEL if profitable else FUNDAMENTAL_UNVERIFIED
         )
@@ -1414,7 +1451,9 @@ def run_decision_engine(session_date: Optional[date] = None) -> int:
         v["historical_win_rate"] = None
         if v["direction"] == "BUY" and profitable:
             try:
-                result = run_quick_backtest(v["ticker"], v["horizon"], trade_date)
+                result = run_quick_backtest(
+                    v["ticker"], v["horizon"], trade_date
+                )
             except Exception as exc:  # noqa: BLE001 - backtest must never kill verdicts
                 LOGGER.warning(
                     "decision engine %s: backtest %s failed: %s",
@@ -1426,20 +1465,15 @@ def run_decision_engine(session_date: Optional[date] = None) -> int:
         return v
 
     verdicts = (
-        _short_term_verdict(
-            trade_date, prior_date, series, flow_rows, sector_by_ticker, tape_state, pe_map,
-            locked_tickers, sector_matrix=sector_matrix,
-        ),
-        _mid_term_verdict(
-            trade_date, sessions_desc, series, flow_rows, sector_by_ticker, pe_map,
-            locked_tickers, sector_matrix=sector_matrix,
-        ),
-        _long_term_verdict(trade_date, sessions_desc, series, flow_rows, sector_by_ticker),
+        _short_term_verdict(ctx),
+        _mid_term_verdict(ctx),
+        _long_term_verdict(ctx),
     )
     rows = [with_execution(v) for v in verdicts if v is not None]
     if not rows:
         LOGGER.warning(
-            "decision engine %s: no horizon had a certified candidate", trade_date
+            "decision engine %s: no horizon had a certified candidate",
+            trade_date,
         )
         return 0
     written = db.upsert_records(
@@ -1458,27 +1492,29 @@ def run_decision_engine(session_date: Optional[date] = None) -> int:
     # real exits. Idempotent on (verdict_date, horizon, ticker); never overwrites
     # an already-resolved outcome.
     try:
-        log_active_setups(rows, trade_date, tape_state, series)
+        log_active_setups(rows, trade_date, ctx.tape_state, ctx.series)
     except Exception as exc:  # noqa: BLE001 - outcome logging is advisory only
         LOGGER.warning(
-            "decision engine %s: outcome setup logging failed: %s", trade_date, exc
+            "decision engine %s: outcome setup logging failed: %s",
+            trade_date, exc,
         )
 
     # Phase 4 - Telegram dispatch: strictly best-effort. Verdicts are
     # already stored, so delivery problems never fail the pipeline run.
     try:
-        send_daily_dispatch(trade_date, rows, tape_state)
+        send_daily_dispatch(trade_date, rows, ctx.tape_state)
     except Exception as exc:  # noqa: BLE001 - dispatch is advisory only
         LOGGER.warning(
-            "decision engine %s: telegram dispatch failed: %s", trade_date, exc
+            "decision engine %s: telegram dispatch failed: %s",
+            trade_date, exc,
         )
     LOGGER.info(
         "decision engine %s: %d/%d verdicts stored (regime=%s, tape=%s) (%s)",
         trade_date,
         written,
         len(rows),
-        regime,
-        tape_state,
+        ctx.macro_regime,
+        ctx.tape_state,
         ", ".join(r["horizon"] for r in rows),
     )
     return written
