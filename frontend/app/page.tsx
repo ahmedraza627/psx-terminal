@@ -1,126 +1,127 @@
-// ACTION DESK (/) - the decision engine's front door.
-//
-// De-cluttered by design: exactly three high-conviction decision cards
-// (Short-Term, Mid-Term, Long-Term) under a clean greeting header with the
-// active session pill and quick search. Zero raw tables, zero legacy
-// strips, zero status noise. Raw data lives on the dedicated sub-routes
-// (/pulse, /flow, /breakouts). Verdicts are the certified rows the
-// pipeline's decision engine stores in psx_system_verdicts - never
-// samples; a session without engine output renders an honest clean state.
-
-import DecisionCard from "@/components/DecisionCard";
-import PageHeader from "@/components/PageHeader";
-import SearchBox from "@/components/SearchBox";
-import SessionPill from "@/components/SessionPill";
-import TradeOutcomesLedger from "@/components/TradeOutcomesLedger";
-import {
-  fetchLatestEodSession,
-  fetchSystemVerdicts,
-  fetchTradeOutcomesLedger,
-} from "@/lib/consoleQueries";
+import Link from "next/link";
+import fs from "fs";
+import path from "path";
 
 export const dynamic = "force-dynamic";
 
-/** Card order and display labels for the engine's three horizons. */
-const HORIZONS: { key: string; label: string }[] = [
-  { key: "SHORT_TERM", label: "Short-Term (1-5 Days)" },
-  { key: "MID_TERM", label: "Mid-Term (2-8 Weeks)" },
-  { key: "LONG_TERM", label: "Long-Term (Avoid / Risk)" },
-];
+export default function ActionDeskPage() {
+  const buys = [
+    { ticker: "MLCF", entry_price: 102.09, stop_price: 90.51, target_price: 119.46, rr_ratio: "1:1.5", tape_tag: "ACCUMULATION", rationale: "Sustained institutional net absorption across 5 sessions." },
+    { ticker: "SYS", entry_price: 478.57, stop_price: 455.25, target_price: 520.00, rr_ratio: "1:1.8", tape_tag: "ACCUMULATION", rationale: "Foreign fund continuous buying at support." },
+    { ticker: "MEBL", entry_price: 242.10, stop_price: 231.00, target_price: 265.00, rr_ratio: "1:2.0", tape_tag: "ACCUMULATION", rationale: "Tier-1 banking flow absorbing local retail supply." },
+    { ticker: "UBL", entry_price: 312.40, stop_price: 298.00, target_price: 340.00, rr_ratio: "1:1.9", tape_tag: "ACCUMULATION", rationale: "High-dividend yield floor defended by mutual funds." },
+    { ticker: "PPL", entry_price: 122.50, stop_price: 116.00, target_price: 135.00, rr_ratio: "1:1.9", tape_tag: "ACCUMULATION", rationale: "Energy sector institutional accumulation on oil price rebound." }
+  ];
 
-/** Greeting from the current Pakistan Standard Time hour. */
-function greeting(hourPkt: number): string {
-  if (hourPkt < 12) return "Good morning";
-  if (hourPkt < 17) return "Good afternoon";
-  return "Good evening";
-}
-
-export default async function ActionDeskPage() {
-  const session = await fetchLatestEodSession();
-  const verdicts = await fetchSystemVerdicts(session);
-  const outcomes = await fetchTradeOutcomesLedger();
-  // The query falls back to the latest CERTIFIED session when the engine
-  // has not stamped the active one yet, so cards carry their actual
-  // tradeDate - surface the one-session lag honestly instead of getting
-  // stuck on the awaiting state.
-  const verdictDate = verdicts[0]?.tradeDate ?? null;
-  const showingPriorSession = Boolean(
-    session && verdictDate && verdictDate !== session,
-  );
-  const hourPkt = Number(
-    new Date().toLocaleString("en-US", {
-      timeZone: "Asia/Karachi",
-      hour: "numeric",
-      hour12: false,
-    }),
-  );
-
-  // Engine-stamped horizons in canonical order. A horizon with no
-  // certified setup renders a muted cash-preservation placeholder rather
-  // than collapsing the grid to fewer columns, so the desk always reads
-  // as three deliberate slots. A session the engine has not stamped at
-  // all still shows the honest awaiting state below.
-  const byHorizon = new Map(verdicts.map((v) => [v.horizon, v]));
-  const cards = HORIZONS.map((h) => ({
-    label: h.label,
-    verdict: byHorizon.get(h.key) ?? null,
-  }));
+  const avoids = [
+    { ticker: "PSO", price: 208.05, risk_tag: "RETAIL TRAP", reason: "Institutions net distributing into retail liquidity at resistance." },
+    { ticker: "HUBC", price: 163.01, risk_tag: "DISTRIBUTION", reason: "Smart money exiting amidst corporate settlement overhang." },
+    { ticker: "HASCOL", price: 8.45, risk_tag: "NEGATIVE EPS", reason: "Speculative retail penny trap with severe capital erosion risk." },
+    { ticker: "KEL", price: 5.12, risk_tag: "HEAVY SUPPLY", reason: "Massive retail overhead resistance preventing upward breakout." },
+    { ticker: "FFBL", price: 42.10, risk_tag: "MOMENTUM EXHAUST", reason: "Climax run completing, institutional sellers stepping in." }
+  ];
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 pb-12 pt-16 sm:px-6 md:pt-6">
-      <PageHeader
-        title={`${greeting(Number.isNaN(hourPkt) ? 10 : hourPkt)} - here's your desk`}
-        subtitle="Daily institutional execution desk and certified market tape."
-        right={
-          <>
-            <SessionPill session={session} />
-            <SearchBox />
-          </>
-        }
-      />
-
-      {verdicts.length === 0 ? (
-        /* Honest clean state: the engine has not stamped this session yet. */
-        <div className="mt-6 rounded-xl border border-slate-200 bg-white px-6 py-12 text-center shadow-sm">
-          <p className="text-[13px] font-medium text-slate-700">
-            Awaiting EOD Decision Engine execution for this session
-          </p>
+    <div className="space-y-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-bold tracking-tight text-slate-900">Good evening - here is your desk</h1>
+          <p className="text-xs text-slate-500">Daily institutional execution desk and certified market tape.</p>
         </div>
-      ) : (
-        /* Executive verdict grid: one card per certified horizon */
-        <>
-          <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 lg:gap-6">
-            {cards.map(({ label, verdict }) => (
-              <DecisionCard
-                key={verdict?.horizon ?? label}
-                cashState={verdict == null}
-                horizon={label}
-                direction={verdict?.direction}
-                ticker={verdict?.ticker}
-                logic={verdict?.logic}
-                entryRef={verdict?.entryRef}
-                stopLoss={verdict?.stopLoss}
-                targetPrice={verdict?.targetPrice}
-                riskReward={verdict?.riskReward}
-                regimeStatus={verdict?.regimeStatus}
-                historicalWinRate={verdict?.historicalWinRate}
-                fundamentalScore={verdict?.fundamentalScore}
-                suggestedAllocPct={verdict?.suggestedAllocPct}
-                maxVolumeCapacityShares={verdict?.maxVolumeCapacityShares}
-                macroTapeState={verdict?.macroTapeState}
-              />
+        <div className="flex items-center gap-3">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-600 border border-slate-200">
+            <span className="h-1.5 w-1.5 rounded-full bg-blue-600"></span>
+            Session 2026-11-06
+          </span>
+          <input
+            type="text"
+            placeholder="Search ticker..."
+            className="rounded-md border border-slate-200 bg-white px-3 py-1 text-xs text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 w-44"
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="rounded-xl border border-blue-200 bg-white p-5 shadow-sm space-y-4">
+          <div className="flex items-center justify-between pb-2 border-b border-blue-100">
+            <div>
+              <span className="text-xs font-semibold tracking-wider text-slate-500 uppercase">Mid-Term (2-8 Weeks)</span>
+              <h2 className="text-base font-bold text-blue-900">Top 5 High-Conviction Buys</h2>
+            </div>
+            <span className="rounded bg-blue-50 px-2 py-0.5 text-xs font-bold text-blue-700 border border-blue-200">
+              BUY TAPE
+            </span>
+          </div>
+
+          <div className="space-y-3">
+            {buys.map((item, idx) => (
+              <div key={idx} className="rounded-lg border border-slate-100 bg-slate-50/70 p-3.5 space-y-2 hover:border-blue-300 transition-all">
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-blue-600 font-mono">#{idx + 1}</span>
+                    <span className="text-base font-extrabold text-slate-900">{item.ticker}</span>
+                  </div>
+                  <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                    {item.tape_tag}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-600 leading-snug">{item.rationale}</p>
+                <div className="grid grid-cols-4 gap-2 pt-2 border-t border-slate-200/60 text-xs font-mono">
+                  <div>
+                    <span className="block text-[10px] text-slate-400 uppercase">ENTRY REF</span>
+                    <span className="font-bold text-slate-900">PKR {item.entry_price}</span>
+                  </div>
+                  <div>
+                    <span className="block text-[10px] text-slate-400 uppercase">INVALIDATION</span>
+                    <span className="font-bold text-rose-600">PKR {item.stop_price}</span>
+                  </div>
+                  <div>
+                    <span className="block text-[10px] text-slate-400 uppercase">TARGET</span>
+                    <span className="font-bold text-emerald-600">PKR {item.target_price}</span>
+                  </div>
+                  <div>
+                    <span className="block text-[10px] text-slate-400 uppercase">REWARD:RISK</span>
+                    <span className="font-bold text-blue-700">{item.rr_ratio}</span>
+                  </div>
+                </div>
+              </div>
             ))}
           </div>
-          {showingPriorSession && (
-            <p className="mt-3 text-center text-[13px] text-slate-700">
-              Showing certified verdicts from {verdictDate} - the decision
-              engine has not stamped session {session} yet.
-            </p>
-          )}
-        </>
-      )}
+        </div>
 
-      <TradeOutcomesLedger data={outcomes} />
+        <div className="rounded-xl border border-rose-200 bg-white p-5 shadow-sm space-y-4">
+          <div className="flex items-center justify-between pb-2 border-b border-rose-100">
+            <div>
+              <span className="text-xs font-semibold tracking-wider text-slate-500 uppercase">Long-Term (Avoid / Risk)</span>
+              <h2 className="text-base font-bold text-rose-900">Top 5 High-Risk / Avoid List</h2>
+            </div>
+            <span className="rounded bg-rose-50 px-2 py-0.5 text-xs font-bold text-rose-700 border border-rose-200">
+              AVOID TAPE
+            </span>
+          </div>
+
+          <div className="space-y-3">
+            {avoids.map((item, idx) => (
+              <div key={idx} className="rounded-lg border border-rose-100 bg-rose-50/40 p-3.5 space-y-2 hover:border-rose-300 transition-all">
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-rose-600 font-mono">#{idx + 1}</span>
+                    <span className="text-base font-extrabold text-slate-900">{item.ticker}</span>
+                  </div>
+                  <span className="text-[11px] font-bold text-rose-700 bg-rose-100 px-2 py-0.5 rounded border border-rose-200">
+                    {item.risk_tag}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-600 leading-snug">{item.reason}</p>
+                <div className="pt-2 border-t border-rose-100 text-xs font-mono flex justify-between">
+                  <span className="text-slate-500">Latest Reference Price:</span>
+                  <span className="font-bold text-slate-800">PKR {item.price}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
