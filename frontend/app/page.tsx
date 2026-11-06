@@ -7,10 +7,10 @@ export const dynamic = "force-dynamic";
 export default function ActionDeskPage() {
   const buys = [
     { ticker: "MLCF", entry_price: 102.09, stop_price: 90.51, target_price: 119.46, rr_ratio: "1:1.5", tape_tag: "ACCUMULATION", rationale: "Sustained institutional net absorption across 5 sessions." },
-    { ticker: "SYS", entry_price: 478.57, stop_price: 455.25, target_price: 520.00, rr_ratio: "1:1.8", tape_tag: "ACCUMULATION", rationale: "Foreign fund continuous buying at support." },
-    { ticker: "MEBL", entry_price: 242.10, stop_price: 231.00, target_price: 265.00, rr_ratio: "1:2.0", tape_tag: "ACCUMULATION", rationale: "Tier-1 banking flow absorbing local retail supply." },
-    { ticker: "UBL", entry_price: 312.40, stop_price: 298.00, target_price: 340.00, rr_ratio: "1:1.9", tape_tag: "ACCUMULATION", rationale: "High-dividend yield floor defended by mutual funds." },
-    { ticker: "PPL", entry_price: 122.50, stop_price: 116.00, target_price: 135.00, rr_ratio: "1:1.9", tape_tag: "ACCUMULATION", rationale: "Energy sector institutional accumulation on oil price rebound." }
+    { ticker: "SYS", entry_price: 114.60, stop_price: 106.50, target_price: 130.00, rr_ratio: "1:1.8", tape_tag: "ACCUMULATION", rationale: "Foreign fund continuous buying at support." },
+    { ticker: "MEBL", entry_price: 550.25, stop_price: 525.00, target_price: 600.00, rr_ratio: "1:2.0", tape_tag: "ACCUMULATION", rationale: "Tier-1 banking flow absorbing local retail supply." },
+    { ticker: "UBL", entry_price: 425.34, stop_price: 405.00, target_price: 465.00, rr_ratio: "1:1.9", tape_tag: "ACCUMULATION", rationale: "High-dividend yield floor defended by mutual funds." },
+    { ticker: "PPL", entry_price: 217.00, stop_price: 204.00, target_price: 242.00, rr_ratio: "1:1.9", tape_tag: "ACCUMULATION", rationale: "Energy sector institutional accumulation on oil price rebound." }
   ];
 
   const avoids = [
