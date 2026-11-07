@@ -8,14 +8,7 @@ import { useEffect, useState } from "react";
  * Collapsible left navigation drawer - light SaaS style.
  *
  * Real Next.js sub-routes: every entry is a <Link> to a dedicated page
- * (/ /pulse /flow /breakouts), so navigation is a true route change, not
- * an anchor jump. Active state is path-derived.
- *
- * Desktop (md+): the drawer sits in the flex flow; the hamburger toggles
- * between the full rail (w-60) and an icon rail (w-[76px]). The choice
- * persists in localStorage.
- * Mobile: the drawer is off-canvas; a floating hamburger opens it over a
- * backdrop. One component owns all of it - no cross-tree state.
+ * (/ /pulse /flow /breakouts /history), so navigation is a true route change.
  */
 
 const MENU = [
@@ -23,6 +16,7 @@ const MENU = [
   { href: "/pulse", label: "Market Pulse", glyph: "chart" },
   { href: "/flow", label: "Institutional Flow", glyph: "building" },
   { href: "/breakouts", label: "Volume Anomalies", glyph: "trending-up" },
+  { href: "/history", label: "Audit & History", glyph: "history" },
 ] as const;
 
 const COLLAPSE_KEY = "psx-sidebar-collapsed";
@@ -183,6 +177,12 @@ export default function Sidebar() {
                     <>
                       <path d="M3 17l6-6 4 4 8-8" />
                       <path d="M15 7h6v6" />
+                    </>
+                  )}
+                  {item.glyph === "history" && (
+                    <>
+                      <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                      <path d="M9 14l2 2 4-4" />
                     </>
                   )}
                 </svg>
