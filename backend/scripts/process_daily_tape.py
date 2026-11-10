@@ -39,19 +39,10 @@ def init_db():
     cur = conn.cursor()
     cur.execute("""
         CREATE TABLE IF NOT EXISTS daily_eod (
-            date TEXT,
-            ticker TEXT,
-            sector TEXT,
-            open REAL,
-            high REAL,
-            low REAL,
-            close REAL,
-            volume REAL,
-            turnover REAL,
+            date TEXT, ticker TEXT, sector TEXT, open REAL, high REAL, low REAL, close REAL, volume REAL, turnover REAL,
             PRIMARY KEY (date, ticker)
         )
     """)
-    # Safe migration: agar purani table bina sector ke bani hui ho
     cur.execute("PRAGMA table_info(daily_eod)")
     columns = [col[1] for col in cur.fetchall()]
     if "sector" not in columns:
@@ -121,10 +112,13 @@ def process_all():
                     market_rates[sym] = close_p
                     pct_change = ((close_p - prev_c) / prev_c) * 100 if prev_c > 0 else 0.0
 
-                    # Liquidity Filter: Vol >= 200k, Price >= 8 PKR, Turnover >= 1.5 Crore PKR
-                    if vol >= 200000 and close_p >= 8.0:
+                    # INSTITUTIONAL LIQUIDITY GATE:
+                    # Minimum Volume: 250,000 shares
+                    # Minimum Price: PKR 10.0 (Eliminates penny stocks)
+                    # Minimum Daily Turnover: PKR 40,000,000 (4 Crore PKR)
+                    if vol >= 250000 and close_p >= 10.0:
                         turnover = close_p * vol
-                        if turnover >= 15000000:
+                        if turnover >= 40000000:
                             parsed_today.append({
                                 "ticker": sym,
                                 "sector": sec,
@@ -154,7 +148,7 @@ def process_all():
         clv = (item["close"] - item["low"]) / rng if rng > 0 else 0.5
 
         # RVOL (Bounded 1.2x to 3.8x)
-        raw_rvol = 1.2 + (item["turnover"] / 1200000000)
+        raw_rvol = 1.2 + (item["turnover"] / 1500000000)
         rvol = round(min(max(raw_rvol, 1.2), 3.8), 1)
 
         # Dynamic ATR (Between 2.5% and 4.2%)
@@ -201,7 +195,7 @@ def process_all():
                 "rr": "1:1.7",
                 "probability": f"{item['prob']}%",
                 "rvol": f"{item['rvol']}x",
-                "notes": f"High volume accumulation ({int(item['vol']):,} shares). Short-term swing target +{gain_pct}%."
+                "notes": f"Institutional accumulation ({int(item['vol']):,} shares, PKR {round(item['turnover']/10000000, 1)}Cr turnover). Swing target +{gain_pct}%."
             })
             sector_buy_count[sec] = sector_buy_count.get(sec, 0) + 1
         if len(buys) == 5:
@@ -228,7 +222,7 @@ def process_all():
                 "tag": "SELLING PRESSURE",
                 "probability": f"{item['prob']}%",
                 "rvol": f"{item['rvol']}x",
-                "notes": f"Heavy selling volume ({int(item['vol']):,} shares). Downside risk of -{risk_pct}% to key support."
+                "notes": f"High volume distribution ({int(item['vol']):,} shares, PKR {round(item['turnover']/10000000, 1)}Cr turnover). Downside risk of -{risk_pct}%."
             })
             sector_avoid_count[sec] = sector_avoid_count.get(sec, 0) + 1
         if len(avoids) == 5:
@@ -238,7 +232,7 @@ def process_all():
     with open(LATEST_JSON, "w") as f:
         json.dump({"sessionDate": session_date, "sessionTime": session_time, "buys": buys, "avoids": avoids}, f, indent=2)
 
-    # HISTORY & INSIDERS RE-CALCULATE
+    # AUDIT LOG RE-CALCULATION
     history_logs = []
     for item in AUDIT_REGISTRY:
         sym = item["ticker"]
@@ -291,7 +285,7 @@ def process_all():
     with open(INSIDERS_JSON, "w") as f:
         json.dump(insider_logs, f, indent=2)
 
-    print(f"\n[CORRECTED QUANT] Synchronized with Sector Diversification:")
+    print(f"\n[INSTITUTIONAL QUANT] Purged Penny Stocks (>40M PKR Turnover):")
     for b in buys:
         print(f"  BUY  #{b['rank']} {b['ticker']}: Target {b['target']} | Win Rate: {b['probability']} | RVOL: {b['rvol']}")
     for a in avoids:
