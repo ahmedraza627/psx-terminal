@@ -1,5 +1,5 @@
-import path from "node:path";
 import fs from "node:fs";
+import path from "node:path";
 
 import {
   flowBreakdown,
@@ -10,49 +10,116 @@ import {
   fmtInt,
 } from "@/lib/riskEngine";
 import type { BuySetup, AvoidSetup, State } from "@/lib/riskEngine";
-import { BuyCard, AvoidCard, LedgerTable, Guardrail } from "@/components/action-desk-cards";
+import { BuyCard, AvoidCard } from "@/components/action-desk-cards";
 import {
   buildTriangulation,
   catalystMetadata,
   type TriangulationResult,
 } from "@/lib/catalystEngine";
+import { resolveLivePrices, computeAvoidBand } from "@/lib/psxLiveFeed";
 
-/**
- * PSX Institutional Terminal — Action Desk (Home Page).
- *
- * Server Component: reads public/data/state.json at request time and renders
- * the Main Action Desk with the Top 5 High-Conviction Buys and the Top 5
- * High-Risk / Avoid List. Triangulation confluence badges are computed from
- * the three institutional signals (FIPI/LIPI flow, FIPI fund absorption, SEC
- * Form 31 founder filings) plus the pre-meeting catalyst bonus. No client
- * interactivity on this page.
- *
- * Safety: every read of state.json is guarded by a try/catch; if the file is
- * missing or unreadable, a fully-populated fallback state is used so the build
- * and the runtime can never crash mid-render.
- */
+/** PSX Institutional Terminal — Action Desk (Home Page). */
+
 export const dynamic = "force-dynamic";
 
-async function loadState(): Promise<State> {
-  const fallback: State = {
-    generated_at: "1970-01-01",
-    version: "0.0.0",
+const BUY_TICKERS = ["MLCF", "SYS", "MEBL", "UBL", "PPL"];
+const AVOID_TICKERS = ["PSO", "HUBC", "HASCOL", "KEL", "TELE"];
+
+async function loadTriangulations(buys: BuySetup[], avoids: AvoidSetup[]) {
+  const tickerSetups = [...buys.map((b) => ({ ticker: b.ticker, setup: b, isBuy: true })), ...avoids.map((a) => ({ ticker: a.ticker, setup: a, isBuy: false }))];
+  const lookup = new Map(tickerSetups.map((t) => [t.ticker.toUpperCase(), t]));
+  const results = new Map<string, TriangulationResult>();
+  for (const [ticker] of lookup) {
+    const t = lookup.get(ticker)!;
+    const flow = flowBreakdown(t.ticker, t.setup);
+    results.set(t.ticker, await buildTriangulation(t.ticker, t.setup, t.isBuy, flow));
+  }
+  return results;
+}
+
+export default async function ActionDeskPage() {
+  const { buys: liveBuys, avoids: liveAvoids } = await resolveLivePrices(BUY_TICKERS, AVOID_TICKERS);
+
+  const statePath = path.join(process.cwd(), "frontend", "public", "data", "state.json");
+  let jsonState: Record<string, unknown> = {};
+  try {
+    const raw = fs.readFileSync(statePath, "utf-8");
+    jsonState = JSON.parse(raw) as Record<string, unknown>;
+  } catch (err) {
+    console.error("[Home] state.json read failed;", err);
+  }
+
+  const rawBuys = (jsonState.top_buy_setups as Array<Record<string, unknown>>) ?? [];
+  const rawAvoids = (jsonState.top_avoid_setups as Array<Record<string, unknown>>) ?? [];
+
+  const catalystPhaseMap: Record<string, "ACCUMULATION_RUNUP" | "EXHAUSTION_DUMP_WINDOW" | "NEUTRAL"> = {
+    MLCF: "ACCUMULATION_RUNUP",
+    SYS: "ACCUMULATION_RUNUP",
+    MEBL: "EXHAUSTION_DUMP_WINDOW",
+    UBL: "ACCUMULATION_RUNUP",
+    PPL: "ACCUMULATION_RUNUP",
+    PSO: "EXHAUSTION_DUMP_WINDOW",
+    HUBC: "EXHAUSTION_DUMP_WINDOW",
+    HASCOL: "EXHAUSTION_DUMP_WINDOW",
+    KEL: "EXHAUSTION_DUMP_WINDOW",
+    TELE: "NEUTRAL",
+  };
+
+  const buys: BuySetup[] = rawBuys.map((s, idx) => ({
+    ticker: String((s.ticker ?? BUY_TICKERS[idx] ?? "UNKNOWN").toString().toUpperCase()),
+    sector: String(s.sector ?? "Unknown"),
+    entry_price: Number(s.entry_price ?? 0),
+    stop_price: Number(s.stop_price ?? 0),
+    target_price: Number(s.target_price ?? 0),
+    rr_ratio: Number(s.rr_ratio ?? 1.0),
+    tape_tag: String(s.tape_tag ?? "BUY"),
+    rationale: String(s.rationale ?? ""),
+    dividend_yield: Number(s.dividend_yield ?? 0),
+    board_meeting_date: String(s.board_meeting_date ?? ""),
+    days_to_meeting: Number(s.days_to_meeting ?? 0),
+    avg_pre_meeting_runup_pct: Number(s.avg_pre_meeting_runup_pct ?? 0),
+    post_result_dump_prob: Number(s.post_result_dump_prob ?? 0),
+    catalyst_phase: catalystPhaseMap[String((s.ticker ?? BUY_TICKERS[idx] ?? "UNKNOWN").toString().toUpperCase())] ?? "NEUTRAL",
+  }));
+
+  const avoids: AvoidSetup[] = rawAvoids.map((s, idx) => ({
+    ticker: String((s.ticker ?? AVOID_TICKERS[idx] ?? "UNKNOWN").toString().toUpperCase()),
+    sector: String(s.sector ?? "Unknown"),
+    current_price: Number(s.current_price ?? 0),
+    stop_price: Number(s.stop_price ?? 0),
+    risk_tag: String(s.risk_tag ?? ""),
+    reason: String(s.reason ?? ""),
+    dividend_yield: Number(s.dividend_yield ?? 0),
+    board_meeting_date: String(s.board_meeting_date ?? ""),
+    days_to_meeting: Number(s.days_to_meeting ?? 0),
+    avg_pre_meeting_runup_pct: Number(s.avg_pre_meeting_runup_pct ?? 0),
+    post_result_dump_prob: Number(s.post_result_dump_prob ?? 0),
+    catalyst_phase: catalystPhaseMap[String((s.ticker ?? AVOID_TICKERS[idx] ?? "UNKNOWN").toString().toUpperCase())] ?? "NEUTRAL",
+  }));
+
+  liveBuys.forEach((lp, idx) => {
+    if (idx < buys.length) {
+      buys[idx].entry_price = lp.price;
+    }
+  });
+  liveAvoids.forEach((lp, idx) => {
+    if (idx < avoids.length) {
+      avoids[idx].current_price = lp.price;
+    }
+  });
+
+  avoids.forEach((a) => {
+    const band = computeAvoidBand(a.ticker, a.current_price);
+    a.stop_price = band.downsideTarget;
+  });
+
+  const state: State = {
+    generated_at: "2026-11-10",
+    version: "1.0.0",
     fund_equity_pkr: 100_000_000,
     fund_notional_pkr: 100_000_000,
-    top_buy_setups: [
-      { ticker: "MLCF", sector: "IT", entry_price: 100.04, stop_price: 78.00, target_price: 291.40, rr_ratio: 1.0, tape_tag: "BUY", rationale: "Verified 100.04 session close; high-conviction long", dividend_yield: 0, board_meeting_date: "2026-11-20", days_to_meeting: 11, avg_pre_meeting_runup_pct: 8.4, post_result_dump_prob: 78, catalyst_phase: "ACCUMULATION_RUNUP" },
-      { ticker: "SYS", sector: "Textiles", entry_price: 189.60, stop_price: 154.30, target_price: 231.00, rr_ratio: 1.0, tape_tag: "BUY", rationale: "High-conviction buy", dividend_yield: 0, board_meeting_date: "2026-11-25", days_to_meeting: 16, avg_pre_meeting_runup_pct: 7.2, post_result_dump_prob: 68, catalyst_phase: "ACCUMULATION_RUNUP" },
-      { ticker: "MEBL", sector: "Oil & Gas", entry_price: 112.80, stop_price: 95.40, target_price: 141.00, rr_ratio: 1.0, tape_tag: "BUY", rationale: "High-conviction buy", dividend_yield: 8.4, board_meeting_date: "2026-11-21", days_to_meeting: 12, avg_pre_meeting_runup_pct: 6.5, post_result_dump_prob: 74, catalyst_phase: "EXHAUSTION_DUMP_WINDOW" },
-      { ticker: "UBL", sector: "Bank", entry_price: 42.15, stop_price: 34.00, target_price: 51.00, rr_ratio: 1.0, tape_tag: "BUY", rationale: "High-conviction buy", dividend_yield: 10.2, board_meeting_date: "2026-11-18", days_to_meeting: 9, avg_pre_meeting_runup_pct: 5.8, post_result_dump_prob: 70, catalyst_phase: "ACCUMULATION_RUNUP" },
-      { ticker: "PPL", sector: "Pvt", entry_price: 88.50, stop_price: 70.30, target_price: 108.00, rr_ratio: 1.0, tape_tag: "BUY", rationale: "High-conviction buy", dividend_yield: 14.1, board_meeting_date: "2026-11-19", days_to_meeting: 10, avg_pre_meeting_runup_pct: 6.0, post_result_dump_prob: 71, catalyst_phase: "ACCUMULATION_RUNUP" },
-    ],
-    top_avoid_setups: [
-      { ticker: "PSO", sector: "Oil & Gas", current_price: 208.05, stop_price: 185.00, risk_tag: "Retail Trap", reason: "Retail overhead distribution; smart money absent from order book", dividend_yield: 6.8, board_meeting_date: "2026-11-26", days_to_meeting: 17, avg_pre_meeting_runup_pct: 3.2, post_result_dump_prob: 80, catalyst_phase: "EXHAUSTION_DUMP_WINDOW" },
-      { ticker: "HUBC", sector: "Bank", current_price: 163.01, stop_price: 130.00, risk_tag: "Distribution", reason: "Heavy distribution, weak alpha", dividend_yield: 18.5, board_meeting_date: "2026-11-22", days_to_meeting: 13, avg_pre_meeting_runup_pct: 6.1, post_result_dump_prob: 72, catalyst_phase: "EXHAUSTION_DUMP_WINDOW" },
-      { ticker: "HASCOL", sector: "Cement", current_price: 8.45, stop_price: 5.80, risk_tag: "Negative EPS", reason: "Negative EPS, avoid", dividend_yield: 5.5, board_meeting_date: "2026-11-28", days_to_meeting: 19, avg_pre_meeting_runup_pct: 2.1, post_result_dump_prob: 82, catalyst_phase: "EXHAUSTION_DUMP_WINDOW" },
-      { ticker: "KEL", sector: "Textiles", current_price: 5.12, stop_price: 3.40, risk_tag: "Heavy Supply", reason: "Heavy short supply, watch", dividend_yield: 4.2, board_meeting_date: "2026-11-24", days_to_meeting: 15, avg_pre_meeting_runup_pct: 2.8, post_result_dump_prob: 79, catalyst_phase: "EXHAUSTION_DUMP_WINDOW" },
-      { ticker: "TELE", sector: "Telecom", current_price: 7.80, stop_price: 5.10, risk_tag: "Retail Trap", reason: "Retail overhead distribution; smart money absent from order book", dividend_yield: 1.0, board_meeting_date: "2026-12-01", days_to_meeting: 22, avg_pre_meeting_runup_pct: 1.5, post_result_dump_prob: 85, catalyst_phase: "NEUTRAL" },
-    ],
+    top_buy_setups: buys,
+    top_avoid_setups: avoids,
     macro_cash: {
       cash_reserve_pct: 60,
       cash_reserve_pkr: 60_000_000,
@@ -71,36 +138,7 @@ async function loadState(): Promise<State> {
     },
   };
 
-  try {
-    const statePath = path.join(process.cwd(), "frontend", "public", "data", "state.json");
-    const raw = fs.readFileSync(statePath, "utf-8");
-    const parsed = JSON.parse(raw) as Partial<State>;
-    return { ...fallback, ...parsed };
-  } catch (err) {
-    console.error("[Home] state.json read failed; using fallback state:", err);
-    return fallback;
-  }
-}
-
-async function loadTriangulations(buys: BuySetup[], avoids: AvoidSetup[]) {
-  const tickerSetups = [...buys.map((b) => ({ ticker: b.ticker, setup: b, isBuy: true })), ...avoids.map((a) => ({ ticker: a.ticker, setup: a, isBuy: false }))];
-  const lookup = new Map(tickerSetups.map((t) => [t.ticker.toUpperCase(), t]));
-  const results = new Map<string, TriangulationResult>();
-  for (const [ticker] of lookup) {
-    const t = lookup.get(ticker)!;
-    const flow = flowBreakdown(t.ticker, t.setup);
-    results.set(t.ticker, await buildTriangulation(t.ticker, t.setup, t.isBuy, flow));
-  }
-  return results;
-}
-
-export default async function ActionDeskPage() {
-  const state = await loadState();
-  const buys = state.top_buy_setups;
-  const avoids = state.top_avoid_setups;
-
   const triangulations = await loadTriangulations(buys, avoids);
-
   const ledgerRows = buildLedgerRows(state);
   const ledgerSummary = computeForwardTestSummary(ledgerRows);
 
@@ -116,11 +154,10 @@ export default async function ActionDeskPage() {
           </p>
         </div>
         <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold text-slate-600 border border-slate-200">
-          Live
+          Live Feed
         </span>
       </div>
 
-      {/* Column 1: Top 5 High-Conviction Buys */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="rounded-xl border border-blue-200 bg-blue-50/30 p-5 shadow-sm space-y-3">
           <div className="flex items-center justify-between pb-2 border-b border-blue-100">
@@ -148,7 +185,6 @@ export default async function ActionDeskPage() {
           </div>
         </div>
 
-        {/* Column 2: Top 5 High-Risk / Avoid List */}
         <div className="rounded-xl border border-rose-200 bg-rose-50/30 p-5 shadow-sm space-y-3">
           <div className="flex items-center justify-between pb-2 border-b border-rose-100">
             <div>
@@ -176,7 +212,6 @@ export default async function ActionDeskPage() {
         </div>
       </div>
 
-      {/* Feature 4 — Auditable Institutional Ledger & Forward-Test Tracker */}
       <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
           <div>
@@ -196,7 +231,9 @@ export default async function ActionDeskPage() {
             </span>
           </div>
         </div>
-        <LedgerTable rows={ledgerRows} summary={ledgerSummary} />
+        <div className="border-t border-slate-200/60 px-4 py-3 text-xs text-slate-500">
+          Institutional ledger is available in the /history view.
+        </div>
       </div>
     </div>
   );
