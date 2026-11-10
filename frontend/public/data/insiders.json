@@ -1,0 +1,80 @@
+[
+  {
+    "filingDate": "2026-11-05",
+    "ticker": "SYS",
+    "sponsor": "Executive Director / Sponsor Family",
+    "action": "BUY",
+    "shares": 350000,
+    "filedRate": 114.2,
+    "currentRate": 114.2,
+    "marketValueM": 39.97,
+    "pnlPct": 0.0,
+    "status": "ACCUMULATING",
+    "notes": "Direct market purchase disclosed to PSX."
+  },
+  {
+    "filingDate": "2026-10-28",
+    "ticker": "LUCK",
+    "sponsor": "Yunus Brothers Group (Associated)",
+    "action": "BUY",
+    "shares": 125000,
+    "filedRate": 435.0,
+    "currentRate": 435.0,
+    "marketValueM": 54.38,
+    "pnlPct": 0.0,
+    "status": "ACCUMULATING",
+    "notes": "Associated group treasury accumulation."
+  },
+  {
+    "filingDate": "2026-10-22",
+    "ticker": "MEBL",
+    "sponsor": "Founding Shareholder Group",
+    "action": "BUY",
+    "shares": 200000,
+    "filedRate": 542.5,
+    "currentRate": 542.5,
+    "marketValueM": 108.5,
+    "pnlPct": 0.0,
+    "status": "ACCUMULATING",
+    "notes": "Long-term institutional ownership defense."
+  },
+  {
+    "filingDate": "2026-10-18",
+    "ticker": "AIRLINK",
+    "sponsor": "Chief Executive Officer",
+    "action": "BUY",
+    "shares": 500000,
+    "filedRate": 112.0,
+    "currentRate": 112.0,
+    "marketValueM": 56.0,
+    "pnlPct": 0.0,
+    "status": "ACCUMULATING",
+    "notes": "Sponsor open market purchase via CDC."
+  },
+  {
+    "filingDate": "2026-10-12",
+    "ticker": "SEARL",
+    "sponsor": "International Brands Limited (IBL)",
+    "action": "BUY",
+    "shares": 450000,
+    "filedRate": 76.5,
+    "currentRate": 76.5,
+    "marketValueM": 34.42,
+    "pnlPct": 0.0,
+    "status": "ACCUMULATING",
+    "notes": "Parent company debt-to-equity consolidation."
+  },
+  {
+    "filingDate": "2026-10-05",
+    "ticker": "HUBC",
+    "sponsor": "Major Shareholder / Institutional",
+    "action": "SELL",
+    "shares": 1500000,
+    "filedRate": 209.5,
+    "currentRate": 209.5,
+    "marketValueM": 314.25,
+    "pnlPct": 0.0,
+    "status": "ACCUMULATING",
+    "notes": "Strategic block sale via NDM window."
+  }
+]
