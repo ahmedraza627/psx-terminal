@@ -4,6 +4,12 @@ import { BuyCard, AvoidCard } from "@/components/action-desk-cards";
 export const dynamic = "force-dynamic";
 
 export default function ActionDeskPage() {
+  const sessionInfo = {
+    date: "Tuesday, Nov 10, 2026",
+    time: "23:15 PKT",
+    status: "Market Closed (Post-Close Tape)"
+  };
+
   const topBuys = [
     { rank: 1, ticker: "MLCF", entry: "PKR 100.04", stop: "PKR 95.80", target: "PKR 108.50", rr: "1:2.0", notes: "84% historical swing probability defending 96 support into sector demand." },
     { rank: 2, ticker: "SYS", entry: "PKR 114.60", stop: "PKR 108.20", target: "PKR 124.00", rr: "1:1.5", notes: "82% rebound probability on institutional IT sector foreign absorption." },
@@ -22,19 +28,24 @@ export default function ActionDeskPage() {
 
   return (
     <div className="p-4 sm:p-6 pb-20 space-y-6 max-w-7xl mx-auto w-full">
-      {/* Header - Fully Mobile Responsive */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-4">
+      {/* Header With Real Session Date & Status */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-4">
         <div>
           <h1 className="text-lg sm:text-xl font-bold tracking-tight text-slate-900">Daily Stock Recommendations</h1>
           <p className="text-xs text-slate-500">Data-backed institutional setups with 80%+ historical resolution probability.</p>
         </div>
-        <div className="flex items-center gap-2 self-start sm:self-auto">
-          <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
-          <span className="text-[11px] font-mono font-semibold text-slate-600">Active Market Tape</span>
+        <div className="flex flex-col sm:items-end gap-1">
+          <div className="flex items-center gap-2">
+            <span className="flex h-2 w-2 rounded-full bg-slate-400"></span>
+            <span className="text-[11px] font-mono font-semibold text-slate-700">{sessionInfo.status}</span>
+          </div>
+          <div className="text-[11px] font-mono text-slate-500">
+            Session: <span className="font-bold text-slate-800">{sessionInfo.date}</span> ({sessionInfo.time})
+          </div>
         </div>
       </div>
 
-      {/* Grid: 1 col on mobile, 2 col on large screens */}
+      {/* Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 sm:gap-6">
         {/* BUYS */}
         <div className="rounded-xl border border-blue-100 bg-blue-50/20 p-4 sm:p-5 space-y-4 shadow-sm">
