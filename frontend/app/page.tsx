@@ -1,34 +1,64 @@
-import React from "react";
+"use client";
+
+import React, { useState, useEffect } from "react";
 import { BuyCard, AvoidCard } from "@/components/action-desk-cards";
 
-export const dynamic = "force-dynamic";
+interface BuyItem {
+  rank: number;
+  ticker: string;
+  entry: string;
+  stop: string;
+  target: string;
+  rr: string;
+  notes: string;
+}
+
+interface AvoidItem {
+  rank: number;
+  ticker: string;
+  avoidRef: string;
+  downside: string;
+  price: string;
+  invalidation: string;
+  tag: string;
+  notes: string;
+}
+
+interface MarketPayload {
+  sessionDate: string;
+  sessionTime: string;
+  buys: BuyItem[];
+  avoids: AvoidItem[];
+}
 
 export default function ActionDeskPage() {
-  const sessionInfo = {
-    date: "Tuesday, Nov 10, 2026",
-    time: "23:15 PKT",
-    status: "Market Closed (Post-Close Tape)"
-  };
+  const [data, setData] = useState<MarketPayload | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const topBuys = [
-    { rank: 1, ticker: "MLCF", entry: "PKR 100.04", stop: "PKR 95.80", target: "PKR 108.50", rr: "1:2.0", notes: "84% historical swing probability defending 96 support into sector demand." },
-    { rank: 2, ticker: "SYS", entry: "PKR 114.60", stop: "PKR 108.20", target: "PKR 124.00", rr: "1:1.5", notes: "82% rebound probability on institutional IT sector foreign absorption." },
-    { rank: 3, ticker: "MEBL", entry: "PKR 550.25", stop: "PKR 532.00", target: "PKR 588.00", rr: "1:2.1", notes: "88% quarterly run-up probability backed by high-yield Islamic asset growth." },
-    { rank: 4, ticker: "UBL", entry: "PKR 425.34", stop: "PKR 411.00", target: "PKR 455.00", rr: "1:2.1", notes: "86% dividend yield run-up consistency defending post-result book value." },
-    { rank: 5, ticker: "PPL", entry: "PKR 217.00", stop: "PKR 208.50", target: "PKR 232.00", rr: "1:1.8", notes: "83% mean-reversion probability on institutional oil dividend capture." }
-  ];
+  useEffect(() => {
+    fetch("/data/latest.json?t=" + Date.now())
+      .then((res) => res.json())
+      .then((json: MarketPayload) => {
+        setData(json);
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error("Failed to load live payload", err);
+        setLoading(false);
+      });
+  }, []);
 
-  const topAvoids = [
-    { rank: 1, ticker: "PSO", avoidRef: "PKR 370.00", downside: "PKR 328.00", price: "PKR 360.50", invalidation: "PKR 382.00", tag: "RETAIL TRAP", notes: "Distributing into retail buyers at 52-week supply resistance." },
-    { rank: 2, ticker: "HUBC", avoidRef: "PKR 208.00", downside: "PKR 184.00", price: "PKR 201.60", invalidation: "PKR 214.00", tag: "DISTRIBUTION", notes: "Institutional unwind near 205-210 resistance band post-runup." },
-    { rank: 3, ticker: "HASCOL", avoidRef: "PKR 18.20", downside: "PKR 14.50", price: "PKR 17.10", invalidation: "PKR 19.40", tag: "SPECULATIVE TRAP", notes: "Negative equity overhang; speculative momentum fading at 18 resistance." },
-    { rank: 4, ticker: "KEL", avoidRef: "PKR 6.60", downside: "PKR 5.20", price: "PKR 6.11", invalidation: "PKR 7.00", tag: "HEAVY SUPPLY", notes: "Retail floating supply dilution capping upside breakout above 6.50." },
-    { rank: 5, ticker: "TELE", avoidRef: "PKR 8.40", downside: "PKR 6.20", price: "PKR 7.80", invalidation: "PKR 8.90", tag: "RETAIL TRAP", notes: "Retail pump-and-dump cycle without mutual fund sponsorship." }
-  ];
+  if (loading || !data) {
+    return (
+      <div className="p-8 text-center text-xs font-mono text-slate-500">
+        Loading live institutional tape...
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 sm:p-6 pb-20 space-y-6 max-w-7xl mx-auto w-full">
-      {/* Header With Real Session Date & Status */}
+      {/* Header With Dynamic Scraped Session Date */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-4">
         <div>
           <h1 className="text-lg sm:text-xl font-bold tracking-tight text-slate-900">Daily Stock Recommendations</h1>
@@ -37,10 +67,10 @@ export default function ActionDeskPage() {
         <div className="flex flex-col sm:items-end gap-1">
           <div className="flex items-center gap-2">
             <span className="flex h-2 w-2 rounded-full bg-slate-400"></span>
-            <span className="text-[11px] font-mono font-semibold text-slate-700">{sessionInfo.status}</span>
+            <span className="text-[11px] font-mono font-semibold text-slate-700">Official Close Tape</span>
           </div>
           <div className="text-[11px] font-mono text-slate-500">
-            Session: <span className="font-bold text-slate-800">{sessionInfo.date}</span> ({sessionInfo.time})
+            Session: <span className="font-bold text-slate-800">{data.sessionDate}</span> ({data.sessionTime})
           </div>
         </div>
       </div>
@@ -58,7 +88,7 @@ export default function ActionDeskPage() {
           </div>
 
           <div className="space-y-3">
-            {topBuys.map((item) => (
+            {data.buys.map((item) => (
               <BuyCard key={item.ticker} {...item} />
             ))}
           </div>
@@ -75,7 +105,7 @@ export default function ActionDeskPage() {
           </div>
 
           <div className="space-y-3">
-            {topAvoids.map((item) => (
+            {data.avoids.map((item) => (
               <AvoidCard key={item.ticker} {...item} />
             ))}
           </div>
