@@ -11,7 +11,7 @@ INSIDERS_JSON = os.path.join(DATA_DIR, "insiders.json")
 DB_PATH = os.path.join("backend", "psx_history.db")
 TARGET_DIR = r"D:\downloads"
 
-AUDIT_REGISTRY = [
+BASELINE_HISTORY = [
     {"date": "2026-11-09", "ticker": "MCB",  "type": "BUY",   "entry": 399.48, "stop": 389.50, "target": 415.40, "notes": "Banking sector dividend support."},
     {"date": "2026-11-08", "ticker": "MARI", "type": "BUY",   "entry": 651.98, "stop": 635.60, "target": 678.00, "notes": "Hydrocarbon production expansion."},
     {"date": "2026-11-06", "ticker": "MEBL", "type": "BUY",   "entry": 550.25, "stop": 536.50, "target": 572.00, "notes": "Strong institutional book value."},
@@ -43,10 +43,26 @@ def init_db():
             PRIMARY KEY (date, ticker)
         )
     """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS active_trades (
+            date TEXT, ticker TEXT, type TEXT, entry REAL, stop REAL, target REAL, status TEXT, notes TEXT,
+            PRIMARY KEY (date, ticker, type)
+        )
+    """)
     cur.execute("PRAGMA table_info(daily_eod)")
-    columns = [col[1] for col in cur.fetchall()]
-    if "sector" not in columns:
+    cols = [col[1] for col in cur.fetchall()]
+    if "sector" not in cols:
         cur.execute("ALTER TABLE daily_eod ADD COLUMN sector TEXT DEFAULT ''")
+
+    # Seed baseline audit history if active_trades is empty
+    cur.execute("SELECT COUNT(*) FROM active_trades")
+    if cur.fetchone()[0] == 0:
+        for t in BASELINE_HISTORY:
+            cur.execute("""
+                INSERT OR IGNORE INTO active_trades (date, ticker, type, entry, stop, target, status, notes)
+                VALUES (?, ?, ?, ?, ?, ?, 'IN PLAY', ?)
+            """, (t["date"], t["ticker"], t["type"], t["entry"], t["stop"], t["target"], t["notes"]))
+
     conn.commit()
     conn.close()
 
@@ -123,10 +139,13 @@ def process_all():
                     elif pct_change < 0:
                         declines += 1
 
-                    # TIER-1 INSTITUTIONAL GATE:
-                    if vol >= 300000 and close_p >= 20.0:
+                    # TIER-1 INSTITUTIONAL LIQUIDITY GATE:
+                    # Minimum Volume: 300,000 shares
+                    # Minimum Price: PKR 25.0 (Strictly purges low-float penny/modaraba junk like ZUMA)
+                    # Minimum Turnover: PKR 65,000,000 (6.5 Crore PKR)
+                    if vol >= 300000 and close_p >= 25.0:
                         turnover = close_p * vol
-                        if turnover >= 50000000:
+                        if turnover >= 65000000:
                             parsed_today.append({
                                 "ticker": sym,
                                 "sector": sec,
@@ -141,21 +160,15 @@ def process_all():
                 except ValueError:
                     continue
 
-    # MACRO REGIME FORMULA
+    # MACRO REGIME DETECTION
     total_active = advances + declines
     breadth_pct = round((advances / total_active) * 100, 1) if total_active > 0 else 50.0
     if kse100_pct is None:
         kse100_pct = round((breadth_pct - 50.0) / 12.0, 2)
 
-    # DEFENSIVE GATE TRIGGER: Agar index -0.8% se zyada gira ho ya market breadth 38% se kam ho
     is_defensive = (kse100_pct <= -0.8) or (breadth_pct <= 38.0)
-    
-    if is_defensive:
-        regime_status = "DEFENSIVE (CASH MODE)"
-        regime_note = "High macro distribution detected. KSE-100 under heavy selling. New buy setups blocked to protect capital."
-    else:
-        regime_status = "BULLISH ACCUMULATION"
-        regime_note = "Healthy market breadth. Tier-1 institutional accumulation active across key sectors."
+    regime_status = "DEFENSIVE (CASH MODE)" if is_defensive else "BULLISH ACCUMULATION"
+    regime_note = "High macro distribution detected. KSE-100 under heavy selling. New buy setups blocked to protect capital." if is_defensive else "Healthy market breadth. Tier-1 institutional accumulation active across key sectors."
 
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
@@ -172,7 +185,10 @@ def process_all():
         clv = (item["close"] - item["low"]) / rng if rng > 0 else 0.5
         raw_rvol = 1.2 + (item["turnover"] / 1500000000)
         rvol = round(min(max(raw_rvol, 1.2), 3.8), 1)
-        target_atr = min(max(rng, item["close"] * 0.025), item["close"] * 0.042)
+
+        # UNCLAMPED DYNAMIC ATR (Between 2.6% and 5.5% based on actual stock range)
+        rng_pct = (rng / item["close"]) if item["close"] > 0 else 0.03
+        target_atr = item["close"] * max(0.026, min(rng_pct, 0.055))
 
         if item["change"] > 0:
             prob = 58.0 + (min(item["change"], 8.0) * 0.9) + (rvol * 2.1) + (clv * 4.0)
@@ -188,9 +204,7 @@ def process_all():
             "prob": prob_score
         })
 
-    conn.close()
-
-    # DIVERSIFIED TOP 5 BUYS (Agar market defensive ho toh Buys Empty ho sakti hain ya cautious mode)
+    # DIVERSIFIED TOP 5 BUYS (Max 2 stocks per sector)
     gainers = [c for c in scored_candidates if c["change"] >= 0]
     gainers.sort(key=lambda x: (x["turnover"], x["prob"]), reverse=True)
 
@@ -212,6 +226,9 @@ def process_all():
                     "entry": f"PKR {price:.2f}",
                     "stop": f"PKR {stop:.2f} (-{loss_pct}%)",
                     "target": f"PKR {target:.2f} (+{gain_pct}%)",
+                    "raw_entry": price,
+                    "raw_stop": stop,
+                    "raw_target": target,
                     "rr": "1:1.7",
                     "probability": f"{item['prob']}%",
                     "rvol": f"{item['rvol']}x",
@@ -221,7 +238,7 @@ def process_all():
             if len(buys) == 5:
                 break
 
-    # DIVERSIFIED TOP 5 AVOIDS
+    # DIVERSIFIED TOP 5 AVOIDS (Dynamic Downside - No Flat Clamping)
     losers = [c for c in scored_candidates if c["change"] < 0]
     losers.sort(key=lambda x: (x["turnover"], x["prob"]), reverse=True)
 
@@ -231,14 +248,19 @@ def process_all():
         sec = item["sector"]
         if sector_avoid_count.get(sec, 0) < 2:
             price = item["close"]
+            # Dynamic downside: calculated from individual stock ATR
             downside = round(price - item["atr"], 2)
             risk_pct = round(((price - downside) / price) * 100, 1)
+            stop_ref = round(price + (item["atr"] * 0.5), 2)
 
             avoids.append({
                 "rank": len(avoids) + 1,
                 "ticker": item["ticker"],
                 "price": f"PKR {price:.2f}",
                 "downside": f"PKR {downside:.2f} (-{risk_pct}%)",
+                "raw_price": price,
+                "raw_stop": stop_ref,
+                "raw_downside": downside,
                 "tag": "SELLING PRESSURE",
                 "probability": f"{item['prob']}%",
                 "rvol": f"{item['rvol']}x",
@@ -247,6 +269,64 @@ def process_all():
             sector_avoid_count[sec] = sector_avoid_count.get(sec, 0) + 1
         if len(avoids) == 5:
             break
+
+    # AUTO-ROLLING HISTORY LOG (Insert today's recommended calls into DB)
+    for b in buys:
+        cur.execute("""
+            INSERT OR IGNORE INTO active_trades (date, ticker, type, entry, stop, target, status, notes)
+            VALUES (?, ?, 'BUY', ?, ?, ?, 'IN PLAY', ?)
+        """, (db_date, b["ticker"], b["raw_entry"], b["raw_stop"], b["raw_target"], b["notes"]))
+
+    for a in avoids:
+        cur.execute("""
+            INSERT OR IGNORE INTO active_trades (date, ticker, type, entry, stop, target, status, notes)
+            VALUES (?, ?, 'AVOID', ?, ?, ?, 'IN PLAY', ?)
+        """, (db_date, a["ticker"], a["raw_price"], a["raw_stop"], a["raw_downside"], a["notes"]))
+    conn.commit()
+
+    # AUDIT ALL TRADES IN DATABASE AGAINST ACTIVE TAPE
+    cur.execute("SELECT date, ticker, type, entry, stop, target, status, notes FROM active_trades ORDER BY date DESC, ticker ASC")
+    db_trades = cur.fetchall()
+
+    history_logs = []
+    for t_date, sym, t_type, t_entry, t_stop, t_target, prev_status, t_notes in db_trades:
+        live_close = market_rates.get(sym, t_entry)
+        
+        if t_type == "BUY":
+            pnl = round(((live_close - t_entry) / t_entry) * 100, 1)
+            if live_close >= t_target:
+                status = "TARGET HIT"
+            elif live_close <= t_stop:
+                status = "STOPPED OUT"
+            else:
+                status = "IN PLAY"
+        else:
+            pnl = round(((t_entry - live_close) / t_entry) * 100, 1)
+            if live_close <= t_target:
+                status = "CAPITAL PRESERVED"
+            elif live_close >= t_stop:
+                status = "STOPPED OUT"
+            else:
+                status = "IN PLAY"
+
+        if status != prev_status:
+            cur.execute("UPDATE active_trades SET status = ? WHERE date = ? AND ticker = ? AND type = ?", (status, t_date, sym, t_type))
+
+        history_logs.append({
+            "date": t_date,
+            "ticker": sym,
+            "type": t_type,
+            "timeframe": "1M",
+            "entryRef": t_entry,
+            "invalidation": t_stop,
+            "target": t_target,
+            "latestClose": live_close,
+            "pnlPct": pnl,
+            "status": status,
+            "notes": t_notes
+        })
+    conn.commit()
+    conn.close()
 
     os.makedirs(DATA_DIR, exist_ok=True)
     with open(LATEST_JSON, "w") as f:
@@ -264,36 +344,10 @@ def process_all():
             "avoids": avoids
         }, f, indent=2)
 
-    # AUDIT LOG
-    history_logs = []
-    for item in AUDIT_REGISTRY:
-        sym = item["ticker"]
-        live_close = market_rates.get(sym, item["entry"])
-        if item["type"] == "BUY":
-            pnl = round(((live_close - item["entry"]) / item["entry"]) * 100, 1)
-            status = "TARGET HIT" if live_close >= item["target"] else ("STOPPED OUT" if live_close <= item["stop"] else "IN PLAY")
-        else:
-            pnl = round(((item["entry"] - live_close) / item["entry"]) * 100, 1)
-            status = "CAPITAL PRESERVED" if live_close <= item["entry"] else "STOPPED OUT"
-
-        history_logs.append({
-            "date": item["date"],
-            "ticker": sym,
-            "type": item["type"],
-            "timeframe": "1M",
-            "entryRef": item["entry"],
-            "invalidation": item["stop"],
-            "target": item["target"],
-            "latestClose": live_close,
-            "pnlPct": pnl,
-            "status": status,
-            "notes": item["notes"]
-        })
-
     with open(HISTORY_JSON, "w") as f:
         json.dump(history_logs, f, indent=2)
 
-    # INSIDERS
+    # RE-VALUATE INSIDERS
     insider_logs = []
     for ins in DIRECTOR_REGISTRY:
         sym = ins["ticker"]
@@ -318,12 +372,11 @@ def process_all():
     with open(INSIDERS_JSON, "w") as f:
         json.dump(insider_logs, f, indent=2)
 
-    print(f"\n[MACRO REGIME GATE] Status: {regime_status} | KSE-100: {kse100_pct:+.2f}% | Breadth: {breadth_pct}%")
-    if is_defensive:
-        print("  [ALERT] DEFENSIVE REGIME ACTIVE — Buys locked to protect capital.")
-    else:
-        for b in buys:
-            print(f"  BUY  #{b['rank']} {b['ticker']}: Target {b['target']} | Score: {b['probability']}")
+    print(f"\n[TIER-1 QUANT ENGINE] Synchronized for {session_date}:")
+    print(f"  Regime: {regime_status} | KSE-100: {kse100_pct:+.2f}% | Breadth: {breadth_pct}%")
+    print(f"  Auto-Rolling History: {len(history_logs)} lifetime calls tracked in ledger.")
+    for b in buys:
+        print(f"  BUY  #{b['rank']} {b['ticker']}: Target {b['target']} | Score: {b['probability']}")
     for a in avoids:
         print(f"  AVOID #{a['rank']} {a['ticker']}: Downside {a['downside']} | Risk: {a['probability']}")
 
