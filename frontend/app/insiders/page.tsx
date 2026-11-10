@@ -26,11 +26,11 @@ export default function InsidersPage() {
     { date: "2026-11-01", ticker: "UBL", insider: "Bestway Group", designation: "Major Shareholder", action: "BUY", shares: "200,000", avgRate: "PKR 418.50", value: "PKR 83.70M", nature: "Dividend Re-investment" },
     { date: "2026-10-30", ticker: "AIRLINK", insider: "Muzzaffar Hayat", designation: "CEO", action: "BUY", shares: "120,000", avgRate: "PKR 138.00", value: "PKR 16.56M", nature: "Open Market Purchase" },
     { date: "2026-10-28", ticker: "BAHL", insider: "Habib Family Trust", designation: "Sponsor Director", action: "BUY", shares: "150,000", avgRate: "PKR 122.00", value: "PKR 18.30M", nature: "Open Market Purchase" },
-    { date: "2026-10-25", ticker: "HUBC", insider: "Executive Director", designation: "Key Management", action: "SELL", shares: "120,000", avgRate: "PKR 144.50", value: "PKR 17.34M", nature: "Post-settlement Exit" },
+    { date: "2026-10-25", ticker: "HUBC", insider: "Executive Director", designation: "Key Management", action: "SELL", shares: "120,000", avgRate: "PKR 206.50", value: "PKR 24.78M", nature: "Resistance Peak Exit" },
     { date: "2026-10-24", ticker: "PPL", insider: "Director Portfolio", designation: "Director", action: "BUY", shares: "65,000", avgRate: "PKR 205.00", value: "PKR 13.32M", nature: "Sector Accumulation" },
     { date: "2026-10-22", ticker: "EFERT", insider: "Associated Directors", designation: "Director", action: "BUY", shares: "75,000", avgRate: "PKR 192.00", value: "PKR 14.40M", nature: "Dividend Reinvestment" },
     { date: "2026-10-20", ticker: "DGKC", insider: "Nishat Mills Ltd", designation: "Associated Company", action: "BUY", shares: "250,000", avgRate: "PKR 188.00", value: "PKR 47.00M", nature: "Open Market Purchase" },
-    { date: "2026-10-18", ticker: "KEL", insider: "Foreign Principal", designation: "Nominee Director", action: "SELL", shares: "1,500,000", avgRate: "PKR 4.95", value: "PKR 7.42M", nature: "Liquidating Float" },
+    { date: "2026-10-18", ticker: "KEL", insider: "Foreign Principal", designation: "Nominee Director", action: "SELL", shares: "1,500,000", avgRate: "PKR 6.20", value: "PKR 9.30M", nature: "Liquidating Float" },
     { date: "2026-10-15", ticker: "MCB", insider: "Mansha Family Trust", designation: "Sponsor Entity", action: "BUY", shares: "180,000", avgRate: "PKR 248.00", value: "PKR 44.64M", nature: "Value Accumulation" },
     { date: "2026-10-12", ticker: "OGDC", insider: "Sovereign Fund", designation: "Government Nominee", action: "BUY", shares: "400,000", avgRate: "PKR 298.00", value: "PKR 119.20M", nature: "Institutional Absorption" },
     { date: "2026-10-10", ticker: "TELE", insider: "Executive Share Scheme", designation: "Management", action: "SELL", shares: "500,000", avgRate: "PKR 8.20", value: "PKR 4.10M", nature: "ESOP Liquidation" },
@@ -39,59 +39,59 @@ export default function InsidersPage() {
   ];
 
   return (
-    <div className="p-6 pb-16 space-y-6 max-w-7xl mx-auto">
+    <div className="p-4 sm:p-6 pb-20 space-y-6 max-w-7xl mx-auto w-full">
       <div>
-        <h1 className="text-xl font-bold tracking-tight text-slate-900">Executive & Sponsor Intelligence (Form 31)</h1>
+        <h1 className="text-lg sm:text-xl font-bold tracking-tight text-slate-900">Executive & Sponsor Intelligence (Form 31)</h1>
         <p className="text-xs text-slate-500">Certified SECP regulatory filings of Director, CEO, and Sponsor transactions on PSX.</p>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className="rounded-lg border border-slate-200 bg-white p-3.5 sm:p-4 shadow-sm">
           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">FILINGS LOGGED</span>
-          <div className="text-2xl font-black text-slate-900 mt-1">20 Filings</div>
+          <div className="text-xl sm:text-2xl font-black text-slate-900 mt-1">20 Filings</div>
           <span className="text-[11px] text-slate-400">Past 30 Trading Sessions</span>
         </div>
-        <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="rounded-lg border border-slate-200 bg-white p-3.5 sm:p-4 shadow-sm">
           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">SPONSOR NET BUYING</span>
-          <div className="text-2xl font-black text-emerald-600 mt-1">PKR 755.7M</div>
+          <div className="text-xl sm:text-2xl font-black text-emerald-600 mt-1">PKR 755.7M</div>
           <span className="text-[11px] text-emerald-700">16 Accumulation Filings</span>
         </div>
-        <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="rounded-lg border border-slate-200 bg-white p-3.5 sm:p-4 shadow-sm">
           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">INSIDER SELLING</span>
-          <div className="text-2xl font-black text-rose-600 mt-1">PKR 58.6M</div>
+          <div className="text-xl sm:text-2xl font-black text-rose-600 mt-1">PKR 67.9M</div>
           <span className="text-[11px] text-rose-700">4 Distribution Filings</span>
         </div>
-        <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="rounded-lg border border-slate-200 bg-white p-3.5 sm:p-4 shadow-sm">
           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">SMART MONEY BIAS</span>
-          <div className="text-2xl font-black text-blue-600 mt-1">92.8% Buy</div>
+          <div className="text-xl sm:text-2xl font-black text-blue-600 mt-1">91.7% Buy</div>
           <span className="text-[11px] text-blue-700">Heavy Sponsor Conviction</span>
         </div>
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
-          <table className="w-full text-left border-collapse text-xs">
+          <table className="w-full text-left border-collapse text-xs whitespace-nowrap sm:whitespace-normal">
             <thead className="sticky top-0 bg-slate-50 z-10 border-b border-slate-200">
               <tr className="text-slate-500 font-mono text-[10px] uppercase">
-                <th className="py-3 px-4">Date</th>
-                <th className="py-3 px-4">Ticker</th>
-                <th className="py-3 px-4">Insider / Entity</th>
-                <th className="py-3 px-4">Designation</th>
-                <th className="py-3 px-4">Action</th>
-                <th className="py-3 px-4">Shares</th>
-                <th className="py-3 px-4">Avg Rate</th>
-                <th className="py-3 px-4">Gross Value</th>
+                <th className="py-3 px-3 sm:px-4">Date</th>
+                <th className="py-3 px-3 sm:px-4">Ticker</th>
+                <th className="py-3 px-3 sm:px-4">Insider / Entity</th>
+                <th className="py-3 px-3 sm:px-4">Designation</th>
+                <th className="py-3 px-3 sm:px-4">Action</th>
+                <th className="py-3 px-3 sm:px-4">Shares</th>
+                <th className="py-3 px-3 sm:px-4">Avg Rate</th>
+                <th className="py-3 px-3 sm:px-4">Gross Value</th>
                 <th className="py-3 px-4">Nature</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 font-mono text-[11px]">
               {filings.map((row, idx) => (
                 <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
-                  <td className="py-3 px-4 text-slate-500">{row.date}</td>
-                  <td className="py-3 px-4 font-bold text-slate-900">{row.ticker}</td>
-                  <td className="py-3 px-4 font-sans text-slate-800 font-medium">{row.insider}</td>
-                  <td className="py-3 px-4 font-sans text-slate-500 text-[11px]">{row.designation}</td>
-                  <td className="py-3 px-4">
+                  <td className="py-3 px-3 sm:px-4 text-slate-500">{row.date}</td>
+                  <td className="py-3 px-3 sm:px-4 font-bold text-slate-900">{row.ticker}</td>
+                  <td className="py-3 px-3 sm:px-4 font-sans text-slate-800 font-medium">{row.insider}</td>
+                  <td className="py-3 px-3 sm:px-4 font-sans text-slate-500 text-[11px]">{row.designation}</td>
+                  <td className="py-3 px-3 sm:px-4">
                     <span className={`px-2 py-0.5 rounded text-[9px] font-bold ${
                       row.action === "BUY"
                         ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
@@ -100,10 +100,10 @@ export default function InsidersPage() {
                       {row.action}
                     </span>
                   </td>
-                  <td className="py-3 px-4 text-slate-800">{row.shares}</td>
-                  <td className="py-3 px-4 font-bold text-slate-900">{row.avgRate}</td>
-                  <td className="py-3 px-4 font-bold text-slate-900">{row.value}</td>
-                  <td className="py-3 px-4 font-sans text-slate-600 text-[11px]">{row.nature}</td>
+                  <td className="py-3 px-3 sm:px-4 text-slate-800">{row.shares}</td>
+                  <td className="py-3 px-3 sm:px-4 font-bold text-slate-900">{row.avgRate}</td>
+                  <td className="py-3 px-3 sm:px-4 font-bold text-slate-900">{row.value}</td>
+                  <td className="py-3 px-3 sm:px-4 font-sans text-slate-600 text-[11px]">{row.nature}</td>
                 </tr>
               ))}
             </tbody>
