@@ -14,7 +14,7 @@ export default function ActionDeskPage() {
 
   const topAvoids = [
     { rank: 1, ticker: "PSO", avoidRef: "PKR 370.00", downside: "PKR 328.00", price: "PKR 360.50", invalidation: "PKR 382.00", tag: "RETAIL TRAP", notes: "Distributing into retail buyers at 52-week supply resistance." },
-    { rank: 2, ticker: "HUBC", avoidRef: "PKR 124.00", downside: "PKR 105.00", price: "PKR 118.40", invalidation: "PKR 129.50", tag: "DISTRIBUTION", notes: "Institutional unwind following PPA contract revisions and cash flow caps." },
+    { rank: 2, ticker: "HUBC", avoidRef: "PKR 145.00", downside: "PKR 122.00", price: "PKR 138.50", invalidation: "PKR 149.00", tag: "DISTRIBUTION", notes: "Smart money unwinding into retail liquidity post settlement news." },
     { rank: 3, ticker: "HASCOL", avoidRef: "PKR 6.90", downside: "PKR 4.80", price: "PKR 6.15", invalidation: "PKR 7.40", tag: "NEGATIVE EPS", notes: "High bankruptcy & capital erosion risk; zero institutional sponsors in book." },
     { rank: 4, ticker: "KEL", avoidRef: "PKR 5.15", downside: "PKR 3.85", price: "PKR 4.65", invalidation: "PKR 5.40", tag: "HEAVY SUPPLY", notes: "Persistent retail floating dilution blocking any sustainable upside breakout." },
     { rank: 5, ticker: "TELE", avoidRef: "PKR 8.40", downside: "PKR 6.20", price: "PKR 7.80", invalidation: "PKR 8.90", tag: "RETAIL TRAP", notes: "Retail pump-and-dump cycle without mutual fund sponsorship." }
@@ -34,7 +34,6 @@ export default function ActionDeskPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* BUYS */}
         <div className="rounded-xl border border-blue-100 bg-blue-50/20 p-5 space-y-4 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
@@ -51,7 +50,6 @@ export default function ActionDeskPage() {
           </div>
         </div>
 
-        {/* AVOIDS */}
         <div className="rounded-xl border border-rose-100 bg-rose-50/20 p-5 space-y-4 shadow-sm">
           <div className="flex items-center justify-between">
             <div>

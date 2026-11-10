@@ -17,11 +17,11 @@ interface AuditEntry {
 }
 
 const ALL_LOGS: AuditEntry[] = [
-  // --- LAST 1 MONTH (12 Active / Recent Setups) ---
+  // LAST 1 MONTH
   { date: "2026-11-08", ticker: "MLCF", type: "BUY", timeframe: "1M", entryRef: 100.04, invalidation: 95.80, target: 108.50, latestClose: 100.04, pnlPct: 0.0, status: "IN PLAY", notes: "Accumulation at cement sector support floor." },
   { date: "2026-11-08", ticker: "PSO", type: "AVOID", timeframe: "1M", entryRef: 370.00, invalidation: 382.00, target: 328.00, latestClose: 360.50, pnlPct: 2.6, status: "CAPITAL PRESERVED", notes: "Avoided retail trap near 52-week overhead resistance." },
   { date: "2026-11-06", ticker: "MEBL", type: "BUY", timeframe: "1M", entryRef: 540.00, invalidation: 520.00, target: 585.00, latestClose: 550.25, pnlPct: 1.9, status: "IN PLAY", notes: "Tier 1 banking liquidity defense." },
-  { date: "2026-11-05", ticker: "HUBC", type: "AVOID", timeframe: "1M", entryRef: 124.00, invalidation: 129.50, target: 105.00, latestClose: 118.40, pnlPct: 4.5, status: "CAPITAL PRESERVED", notes: "Preserved capital following institutional exit." },
+  { date: "2026-11-05", ticker: "HUBC", type: "AVOID", timeframe: "1M", entryRef: 145.00, invalidation: 149.00, target: 122.00, latestClose: 138.50, pnlPct: 4.5, status: "CAPITAL PRESERVED", notes: "Preserved capital following institutional exit at 145." },
   { date: "2026-11-04", ticker: "SYS", type: "BUY", timeframe: "1M", entryRef: 112.00, invalidation: 106.00, target: 122.50, latestClose: 114.60, pnlPct: 2.3, status: "IN PLAY", notes: "Foreign tech buying defending major level." },
   { date: "2026-11-02", ticker: "UBL", type: "BUY", timeframe: "1M", entryRef: 418.00, invalidation: 405.00, target: 450.00, latestClose: 425.34, pnlPct: 1.8, status: "IN PLAY", notes: "High dividend yield floor defense." },
   { date: "2026-10-30", ticker: "PPL", type: "BUY", timeframe: "1M", entryRef: 212.00, invalidation: 202.00, target: 230.00, latestClose: 217.00, pnlPct: 2.4, status: "IN PLAY", notes: "Oil dividend capture run-up." },
@@ -31,7 +31,7 @@ const ALL_LOGS: AuditEntry[] = [
   { date: "2026-10-18", ticker: "DGKC", type: "BUY", timeframe: "1M", entryRef: 184.00, invalidation: 174.00, target: 202.00, latestClose: 198.50, pnlPct: 7.9, status: "TARGET HIT", notes: "Cement momentum swing target reached." },
   { date: "2026-10-15", ticker: "OGDC", type: "BUY", timeframe: "1M", entryRef: 288.00, invalidation: 275.00, target: 315.00, latestClose: 312.00, pnlPct: 8.3, status: "TARGET HIT", notes: "Sovereign dividend expansion resolved." },
 
-  // --- LAST 3 MONTHS ---
+  // LAST 3 MONTHS
   { date: "2026-10-10", ticker: "MCB", type: "BUY", timeframe: "3M", entryRef: 235.00, invalidation: 224.00, target: 258.00, latestClose: 260.00, pnlPct: 9.8, status: "TARGET HIT", notes: "Banking spread expansion target reached." },
   { date: "2026-10-04", ticker: "WTL", type: "AVOID", timeframe: "3M", entryRef: 1.38, invalidation: 1.52, target: 1.05, latestClose: 1.12, pnlPct: 18.8, status: "CAPITAL PRESERVED", notes: "Penny stock pump warning executed." },
   { date: "2026-09-28", ticker: "EFERT", type: "BUY", timeframe: "3M", entryRef: 178.00, invalidation: 168.00, target: 196.00, latestClose: 199.00, pnlPct: 10.1, status: "TARGET HIT", notes: "Fertilizer corporate yield accumulation." },
@@ -41,7 +41,7 @@ const ALL_LOGS: AuditEntry[] = [
   { date: "2026-09-08", ticker: "SILK", type: "AVOID", timeframe: "3M", entryRef: 1.65, invalidation: 1.85, target: 1.20, latestClose: 1.25, pnlPct: 24.2, status: "CAPITAL PRESERVED", notes: "Capital erosion in non-performing bank." },
   { date: "2026-08-25", ticker: "LUCK", type: "BUY", timeframe: "3M", entryRef: 910.00, invalidation: 865.00, target: 1000.00, latestClose: 1025.00, pnlPct: 9.9, status: "TARGET HIT", notes: "Conglomerate balance sheet accumulation." },
 
-  // --- LAST 6 MONTHS ---
+  // LAST 6 MONTHS
   { date: "2026-08-15", ticker: "AIRLINK", type: "BUY", timeframe: "6M", entryRef: 125.00, invalidation: 116.00, target: 142.00, latestClose: 145.00, pnlPct: 13.6, status: "TARGET HIT", notes: "Tech distribution assembly breakout." },
   { date: "2026-08-08", ticker: "SNGP", type: "BUY", timeframe: "6M", entryRef: 82.00, invalidation: 77.50, target: 91.00, latestClose: 76.80, pnlPct: -6.3, status: "STOPPED OUT", notes: "Tariff notification delay triggered disciplined risk-out." },
   { date: "2026-08-02", ticker: "PRL", type: "AVOID", timeframe: "6M", entryRef: 32.50, invalidation: 35.00, target: 26.00, latestClose: 27.20, pnlPct: 16.3, status: "CAPITAL PRESERVED", notes: "Refinery tariff policy overhang." },
@@ -50,7 +50,7 @@ const ALL_LOGS: AuditEntry[] = [
   { date: "2026-06-25", ticker: "BAHL", type: "BUY", timeframe: "6M", entryRef: 110.00, invalidation: 104.00, target: 122.00, latestClose: 124.50, pnlPct: 10.9, status: "TARGET HIT", notes: "Commercial banking spread expansion target met." },
   { date: "2026-06-12", ticker: "CNERGY", type: "AVOID", timeframe: "6M", entryRef: 4.85, invalidation: 5.25, target: 3.70, latestClose: 3.85, pnlPct: 20.6, status: "CAPITAL PRESERVED", notes: "Heavy debt penny trap avoided." },
 
-  // --- 1 YEAR ---
+  // 1 YEAR
   { date: "2026-05-18", ticker: "ATRL", type: "BUY", timeframe: "1Y", entryRef: 380.00, invalidation: 355.00, target: 430.00, latestClose: 440.00, pnlPct: 13.2, status: "TARGET HIT", notes: "Refinery policy incentive resolution." },
   { date: "2026-04-20", ticker: "PIBTL", type: "AVOID", timeframe: "1Y", entryRef: 7.20, invalidation: 7.80, target: 5.50, latestClose: 5.65, pnlPct: 21.5, status: "CAPITAL PRESERVED", notes: "Coal terminal throughput stagnation." },
   { date: "2026-03-25", ticker: "FABL", type: "BUY", timeframe: "1Y", entryRef: 45.00, invalidation: 41.50, target: 52.00, latestClose: 53.50, pnlPct: 15.5, status: "TARGET HIT", notes: "Islamic conversion re-rating resolved." },
@@ -156,24 +156,4 @@ export default function HistoryPage() {
                   <td className="py-3 px-4 text-emerald-600">PKR {row.target.toFixed(2)}</td>
                   <td className="py-3 px-4 font-bold text-slate-900">PKR {row.latestClose.toFixed(2)}</td>
                   <td className={`py-3 px-4 font-bold ${row.pnlPct >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
-                    {row.pnlPct >= 0 ? `+${row.pnlPct.toFixed(1)}%` : `${row.pnlPct.toFixed(1)}%`}
-                  </td>
-                  <td className="py-3 px-4">
-                    <span className={`px-2 py-0.5 rounded text-[9px] font-bold ${
-                      row.status === "TARGET HIT" ? "bg-emerald-100 text-emerald-800" :
-                      row.status === "CAPITAL PRESERVED" ? "bg-amber-100 text-amber-800" :
-                      row.status === "STOPPED OUT" ? "bg-rose-100 text-rose-800" : "bg-slate-100 text-slate-800"
-                    }`}>
-                      {row.status}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4 font-sans text-slate-600 text-[11px] max-w-xs">{row.notes}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
-}
+                    {row.pnlPct >= 0

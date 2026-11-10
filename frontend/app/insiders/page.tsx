@@ -26,7 +26,7 @@ export default function InsidersPage() {
     { date: "2026-11-01", ticker: "UBL", insider: "Bestway Group", designation: "Major Shareholder", action: "BUY", shares: "200,000", avgRate: "PKR 418.50", value: "PKR 83.70M", nature: "Dividend Re-investment" },
     { date: "2026-10-30", ticker: "AIRLINK", insider: "Muzzaffar Hayat", designation: "CEO", action: "BUY", shares: "120,000", avgRate: "PKR 138.00", value: "PKR 16.56M", nature: "Open Market Purchase" },
     { date: "2026-10-28", ticker: "BAHL", insider: "Habib Family Trust", designation: "Sponsor Director", action: "BUY", shares: "150,000", avgRate: "PKR 122.00", value: "PKR 18.30M", nature: "Open Market Purchase" },
-    { date: "2026-10-25", ticker: "HUBC", insider: "Executive Director", designation: "Key Management", action: "SELL", shares: "120,000", avgRate: "PKR 126.50", value: "PKR 15.18M", nature: "Post-settlement Exit" },
+    { date: "2026-10-25", ticker: "HUBC", insider: "Executive Director", designation: "Key Management", action: "SELL", shares: "120,000", avgRate: "PKR 144.50", value: "PKR 17.34M", nature: "Post-settlement Exit" },
     { date: "2026-10-24", ticker: "PPL", insider: "Director Portfolio", designation: "Director", action: "BUY", shares: "65,000", avgRate: "PKR 205.00", value: "PKR 13.32M", nature: "Sector Accumulation" },
     { date: "2026-10-22", ticker: "EFERT", insider: "Associated Directors", designation: "Director", action: "BUY", shares: "75,000", avgRate: "PKR 192.00", value: "PKR 14.40M", nature: "Dividend Reinvestment" },
     { date: "2026-10-20", ticker: "DGKC", insider: "Nishat Mills Ltd", designation: "Associated Company", action: "BUY", shares: "250,000", avgRate: "PKR 188.00", value: "PKR 47.00M", nature: "Open Market Purchase" },
@@ -39,7 +39,7 @@ export default function InsidersPage() {
   ];
 
   return (
-    <div className="p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="p-6 pb-16 space-y-6 max-w-7xl mx-auto">
       <div>
         <h1 className="text-xl font-bold tracking-tight text-slate-900">Executive & Sponsor Intelligence (Form 31)</h1>
         <p className="text-xs text-slate-500">Certified SECP regulatory filings of Director, CEO, and Sponsor transactions on PSX.</p>
@@ -58,12 +58,12 @@ export default function InsidersPage() {
         </div>
         <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">INSIDER SELLING</span>
-          <div className="text-2xl font-black text-rose-600 mt-1">PKR 56.4M</div>
+          <div className="text-2xl font-black text-rose-600 mt-1">PKR 58.6M</div>
           <span className="text-[11px] text-rose-700">4 Distribution Filings</span>
         </div>
         <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">SMART MONEY BIAS</span>
-          <div className="text-2xl font-black text-blue-600 mt-1">93.0% Buy</div>
+          <div className="text-2xl font-black text-blue-600 mt-1">92.8% Buy</div>
           <span className="text-[11px] text-blue-700">Heavy Sponsor Conviction</span>
         </div>
       </div>
