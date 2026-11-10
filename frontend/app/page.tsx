@@ -29,7 +29,7 @@ export default function ActionDeskPage() {
         </div>
         <div className="flex items-center gap-2">
           <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
-          <span className="text-[11px] font-mono font-semibold text-slate-600">Certified Live Tape</span>
+          <span className="text-[11px] font-mono font-semibold text-slate-600">Session 2026-11-06 Certified</span>
         </div>
       </div>
 
