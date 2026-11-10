@@ -20,8 +20,15 @@ next-env.d.ts
 # Local scraped data dumps (keep out of git; the source of truth is Supabase)
 data/
 
+# Sync market pipeline (regenerated daily, not committed)
+backend/scripts/.gitkeep
+frontend/public/data/latest.json
+backend/psx/
+
 # OS / editor
 .DS_Store
 Thumbs.db
 .idea/
 .vscode/
+__pycache__/
+*.py[cod]

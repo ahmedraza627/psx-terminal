@@ -1,0 +1,46 @@
+name: sync_market
+
+on:
+  # Daily cron: Mon-Fri 13:30 UTC / 18:30 PKT
+  schedule:
+    - cron: "30 13 * * 1-5"
+  # Manual dispatch
+  workflow_dispatch:
+
+jobs:
+  sync:
+    name: Sync PSX Market Data
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: .
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests beautifulsoup4
+        working-directory: backend
+
+      - name: Run sync_market pipeline
+        run: |
+          python backend/scripts/sync_market.py --verbose
+        working-directory: .
+
+      - name: Commit and push latest.json
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add frontend/public/data/latest.json
+          git diff --staged --quiet || git commit -m "feat: update market snapshot [skip ci]"
+          git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
