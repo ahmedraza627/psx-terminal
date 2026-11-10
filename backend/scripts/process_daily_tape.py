@@ -39,10 +39,23 @@ def init_db():
     cur = conn.cursor()
     cur.execute("""
         CREATE TABLE IF NOT EXISTS daily_eod (
-            date TEXT, ticker TEXT, sector TEXT, open REAL, high REAL, low REAL, close REAL, volume REAL, turnover REAL,
+            date TEXT,
+            ticker TEXT,
+            sector TEXT,
+            open REAL,
+            high REAL,
+            low REAL,
+            close REAL,
+            volume REAL,
+            turnover REAL,
             PRIMARY KEY (date, ticker)
         )
     """)
+    # Safe migration: agar purani table bina sector ke bani hui ho
+    cur.execute("PRAGMA table_info(daily_eod)")
+    columns = [col[1] for col in cur.fetchall()]
+    if "sector" not in columns:
+        cur.execute("ALTER TABLE daily_eod ADD COLUMN sector TEXT DEFAULT ''")
     conn.commit()
     conn.close()
 
@@ -108,19 +121,21 @@ def process_all():
                     market_rates[sym] = close_p
                     pct_change = ((close_p - prev_c) / prev_c) * 100 if prev_c > 0 else 0.0
 
-                    if vol >= 200000 and close_p >= 4.0:
+                    # Liquidity Filter: Vol >= 200k, Price >= 8 PKR, Turnover >= 1.5 Crore PKR
+                    if vol >= 200000 and close_p >= 8.0:
                         turnover = close_p * vol
-                        parsed_today.append({
-                            "ticker": sym,
-                            "sector": sec,
-                            "open": open_p,
-                            "high": high_p,
-                            "low": low_p,
-                            "close": close_p,
-                            "vol": vol,
-                            "turnover": turnover,
-                            "change": pct_change
-                        })
+                        if turnover >= 15000000:
+                            parsed_today.append({
+                                "ticker": sym,
+                                "sector": sec,
+                                "open": open_p,
+                                "high": high_p,
+                                "low": low_p,
+                                "close": close_p,
+                                "vol": vol,
+                                "turnover": turnover,
+                                "change": pct_change
+                            })
                 except ValueError:
                     continue
 
@@ -138,14 +153,14 @@ def process_all():
         rng = item["high"] - item["low"]
         clv = (item["close"] - item["low"]) / rng if rng > 0 else 0.5
 
-        # REALISTIC RELATIVE VOLUME (Bounded 1.2x to 3.8x)
+        # RVOL (Bounded 1.2x to 3.8x)
         raw_rvol = 1.2 + (item["turnover"] / 1200000000)
         rvol = round(min(max(raw_rvol, 1.2), 3.8), 1)
 
-        # REALISTIC ATR (Between 2.5% and 4.2%)
+        # Dynamic ATR (Between 2.5% and 4.2%)
         target_atr = min(max(rng, item["close"] * 0.025), item["close"] * 0.042)
 
-        # DYNAMIC PROBABILITY / RISK SCORE
+        # Dynamic Probability / Risk Score
         if item["change"] > 0:
             prob = 58.0 + (min(item["change"], 8.0) * 0.9) + (rvol * 2.1) + (clv * 4.0)
             prob_score = round(min(prob, 74.8), 1)

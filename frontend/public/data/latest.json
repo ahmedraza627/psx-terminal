@@ -1,6 +1,6 @@
 {
   "sessionDate": "Wednesday, Nov 11, 2026",
-  "sessionTime": "02:40 PKT",
+  "sessionTime": "02:45 PKT",
   "buys": [
     {
       "rank": 1,
@@ -101,13 +101,13 @@
     },
     {
       "rank": 5,
-      "ticker": "CLCPS",
-      "price": "PKR 4.44",
-      "downside": "PKR 4.25 (-4.3%)",
+      "ticker": "SINDM",
+      "price": "PKR 62.17",
+      "downside": "PKR 59.56 (-4.2%)",
       "tag": "SELLING PRESSURE",
-      "probability": "61.7%",
+      "probability": "61.5%",
       "rvol": "1.2x",
-      "notes": "Heavy selling volume (2,243,440 shares). Downside risk of -4.3% to key support."
+      "notes": "Heavy selling volume (650,118 shares). Downside risk of -4.2% to key support."
     }
   ]
 }
