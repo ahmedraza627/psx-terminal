@@ -1,103 +1,103 @@
 {
   "sessionDate": "Wednesday, Nov 11, 2026",
-  "sessionTime": "00:33 PKT",
+  "sessionTime": "01:56 PKT",
   "buys": [
     {
       "rank": 1,
-      "ticker": "MEBL",
-      "entry": "PKR 550.25",
-      "stop": "PKR 527.14",
-      "target": "PKR 597.02",
+      "ticker": "MLCF",
+      "entry": "PKR 107.27",
+      "stop": "PKR 102.76",
+      "target": "PKR 116.39",
       "rr": "1:2.0",
-      "notes": "High-yield Islamic dividend capture defending post-result floor."
+      "notes": "High institutional turnover (33,237,663 shares, +7.23%) defending key pivot."
     },
     {
       "rank": 2,
-      "ticker": "MCB",
-      "entry": "PKR 411.45",
-      "stop": "PKR 394.17",
-      "target": "PKR 446.42",
+      "ticker": "LUCK",
+      "entry": "PKR 451.11",
+      "stop": "PKR 432.16",
+      "target": "PKR 489.45",
       "rr": "1:2.0",
-      "notes": "Large-cap banking spread re-rating on massive corporate liquidity."
+      "notes": "High institutional turnover (5,870,082 shares, +5.59%) defending key pivot."
     },
     {
       "rank": 3,
-      "ticker": "OGDC",
-      "entry": "PKR 312.00",
-      "stop": "PKR 298.90",
-      "target": "PKR 338.52",
+      "ticker": "FCCL",
+      "entry": "PKR 63.61",
+      "stop": "PKR 60.94",
+      "target": "PKR 69.02",
       "rr": "1:2.0",
-      "notes": "Sovereign circular debt dividend settlement anticipation."
+      "notes": "High institutional turnover (38,514,765 shares, +9.58%) defending key pivot."
     },
     {
       "rank": 4,
-      "ticker": "MARI",
-      "entry": "PKR 665.90",
-      "stop": "PKR 637.93",
-      "target": "PKR 722.50",
+      "ticker": "DGKC",
+      "entry": "PKR 213.51",
+      "stop": "PKR 204.54",
+      "target": "PKR 231.66",
       "rr": "1:2.0",
-      "notes": "New gas discovery commercialization defending 650 breakout floor."
+      "notes": "High institutional turnover (10,203,726 shares, +6.54%) defending key pivot."
     },
     {
       "rank": 5,
-      "ticker": "SYS",
-      "entry": "PKR 114.60",
-      "stop": "PKR 109.79",
-      "target": "PKR 124.34",
+      "ticker": "UBL",
+      "entry": "PKR 445.30",
+      "stop": "PKR 426.60",
+      "target": "PKR 483.15",
       "rr": "1:2.0",
-      "notes": "Institutional tech accumulation defending key foreign flow support."
+      "notes": "High institutional turnover (4,316,709 shares, +4.69%) defending key pivot."
     }
   ],
   "avoids": [
     {
       "rank": 1,
-      "ticker": "PSO",
-      "avoidRef": "PKR 373.12",
-      "downside": "PKR 319.04",
-      "price": "PKR 360.50",
-      "invalidation": "PKR 382.13",
-      "tag": "RETAIL TRAP",
-      "notes": "Retail trapped at 52-week supply resistance near 370; heavy circular debt overhang."
+      "ticker": "PRL",
+      "avoidRef": "PKR 79.96",
+      "downside": "PKR 68.38",
+      "price": "PKR 77.26",
+      "invalidation": "PKR 81.90",
+      "tag": "HEAVY SUPPLY",
+      "notes": "High volume distribution (27,322,288 shares, -9.69%) slipping below moving average."
     },
     {
       "rank": 2,
-      "ticker": "HUBC",
-      "avoidRef": "PKR 208.66",
-      "downside": "PKR 178.42",
-      "price": "PKR 201.60",
-      "invalidation": "PKR 213.70",
-      "tag": "DISTRIBUTION",
-      "notes": "Smart money liquidating into retail bids between 205-210 post-renegotiation."
+      "ticker": "NRL",
+      "avoidRef": "PKR 458.42",
+      "downside": "PKR 391.98",
+      "price": "PKR 442.92",
+      "invalidation": "PKR 469.50",
+      "tag": "HEAVY SUPPLY",
+      "notes": "High volume distribution (2,760,618 shares, -6.65%) slipping below moving average."
     },
     {
       "rank": 3,
-      "ticker": "HASCOL",
-      "avoidRef": "PKR 17.70",
-      "downside": "PKR 15.13",
-      "price": "PKR 17.10",
-      "invalidation": "PKR 18.13",
-      "tag": "SPECULATIVE TRAP",
-      "notes": "Severe negative equity balance sheet; speculative momentum fading at 18."
+      "ticker": "CNERGY",
+      "avoidRef": "PKR 11.75",
+      "downside": "PKR 10.04",
+      "price": "PKR 11.35",
+      "invalidation": "PKR 12.03",
+      "tag": "HEAVY SUPPLY",
+      "notes": "High volume distribution (70,087,756 shares, -6.20%) slipping below moving average."
     },
     {
       "rank": 4,
-      "ticker": "PRL",
-      "avoidRef": "PKR 32.91",
-      "downside": "PKR 28.14",
-      "price": "PKR 31.80",
-      "invalidation": "PKR 33.71",
-      "tag": "POLICY RISK",
-      "notes": "Refinery policy upgrade delays; massive supply overhead near 34."
+      "ticker": "ATRL",
+      "avoidRef": "PKR 982.34",
+      "downside": "PKR 839.97",
+      "price": "PKR 949.12",
+      "invalidation": "PKR 1006.07",
+      "tag": "HEAVY SUPPLY",
+      "notes": "High volume distribution (725,883 shares, -3.36%) slipping below moving average."
     },
     {
       "rank": 5,
-      "ticker": "WTL",
-      "avoidRef": "PKR 1.53",
-      "downside": "PKR 1.31",
-      "price": "PKR 1.48",
-      "invalidation": "PKR 1.57",
-      "tag": "PENNY CHURN",
-      "notes": "Zero institutional sponsorship; pure retail churning without asset backing."
+      "ticker": "AICL",
+      "avoidRef": "PKR 94.30",
+      "downside": "PKR 80.63",
+      "price": "PKR 91.11",
+      "invalidation": "PKR 96.58",
+      "tag": "HEAVY SUPPLY",
+      "notes": "High volume distribution (2,084,366 shares, -2.20%) slipping below moving average."
     }
   ]
 }
