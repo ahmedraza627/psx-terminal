@@ -1,6 +1,6 @@
 {
   "sessionDate": "Wednesday, Nov 11, 2026",
-  "sessionTime": "02:31 PKT",
+  "sessionTime": "02:40 PKT",
   "buys": [
     {
       "rank": 1,
@@ -9,53 +9,53 @@
       "stop": "PKR 104.76 (-2.3%)",
       "target": "PKR 111.46 (+3.9%)",
       "rr": "1:1.7",
-      "probability": "72.0%",
-      "rvol": "45.8x",
-      "notes": "High volume buy support (33,237,663 shares traded). Normal swing target +3.9%."
+      "probability": "74.8%",
+      "rvol": "3.8x",
+      "notes": "High volume accumulation (33,237,663 shares). Short-term swing target +3.9%."
     },
     {
       "rank": 2,
-      "ticker": "LUCK",
-      "entry": "PKR 451.11",
-      "stop": "PKR 440.02 (-2.5%)",
-      "target": "PKR 469.60 (+4.1%)",
+      "ticker": "FCCL",
+      "entry": "PKR 63.61",
+      "stop": "PKR 62.01 (-2.5%)",
+      "target": "PKR 66.28 (+4.2%)",
       "rr": "1:1.7",
-      "probability": "70.6%",
-      "rvol": "34.3x",
-      "notes": "High volume buy support (5,870,082 shares traded). Normal swing target +4.1%."
+      "probability": "74.8%",
+      "rvol": "3.2x",
+      "notes": "High volume accumulation (38,514,765 shares). Short-term swing target +4.2%."
     },
     {
       "rank": 3,
-      "ticker": "FCCL",
-      "entry": "PKR 63.61",
-      "stop": "PKR 61.89 (-2.7%)",
-      "target": "PKR 66.47 (+4.5%)",
+      "ticker": "NGLEL",
+      "entry": "PKR 13.88",
+      "stop": "PKR 13.53 (-2.5%)",
+      "target": "PKR 14.46 (+4.2%)",
       "rr": "1:1.7",
-      "probability": "72.7%",
-      "rvol": "31.8x",
-      "notes": "High volume buy support (38,514,765 shares traded). Normal swing target +4.5%."
+      "probability": "72.6%",
+      "rvol": "1.6x",
+      "notes": "High volume accumulation (30,370,069 shares). Short-term swing target +4.2%."
     },
     {
       "rank": 4,
-      "ticker": "DGKC",
-      "entry": "PKR 213.51",
-      "stop": "PKR 208.01 (-2.6%)",
-      "target": "PKR 222.67 (+4.3%)",
+      "ticker": "WAHDAT",
+      "entry": "PKR 14.92",
+      "stop": "PKR 14.54 (-2.5%)",
+      "target": "PKR 15.55 (+4.2%)",
       "rr": "1:1.7",
-      "probability": "71.7%",
-      "rvol": "28.4x",
-      "notes": "High volume buy support (10,203,726 shares traded). Normal swing target +4.3%."
+      "probability": "71.9%",
+      "rvol": "1.3x",
+      "notes": "High volume accumulation (11,650,960 shares). Short-term swing target +4.2%."
     },
     {
       "rank": 5,
-      "ticker": "UBL",
-      "entry": "PKR 445.30",
-      "stop": "PKR 436.90 (-1.9%)",
-      "target": "PKR 459.30 (+3.1%)",
+      "ticker": "PASL",
+      "entry": "PKR 8.96",
+      "stop": "PKR 8.77 (-2.1%)",
+      "target": "PKR 9.27 (+3.5%)",
       "rr": "1:1.7",
-      "probability": "69.9%",
-      "rvol": "25.2x",
-      "notes": "High volume buy support (4,316,709 shares traded). Normal swing target +3.1%."
+      "probability": "71.9%",
+      "rvol": "1.3x",
+      "notes": "High volume accumulation (16,805,494 shares). Short-term swing target +3.5%."
     }
   ],
   "avoids": [
@@ -63,51 +63,51 @@
       "rank": 1,
       "ticker": "PRL",
       "price": "PKR 77.26",
-      "downside": "PKR 73.78 (-4.5%)",
+      "downside": "PKR 74.02 (-4.2%)",
       "tag": "SELLING PRESSURE",
-      "probability": "46.0%",
-      "rvol": "27.6x",
-      "notes": "Heavy selling volume (27,322,288 shares). Downside risk of -4.5% to key support."
+      "probability": "70.7%",
+      "rvol": "3.0x",
+      "notes": "Heavy selling volume (27,322,288 shares). Downside risk of -4.2% to key support."
     },
     {
       "rank": 2,
-      "ticker": "NRL",
-      "price": "PKR 442.92",
-      "downside": "PKR 422.99 (-4.5%)",
+      "ticker": "JATM",
+      "price": "PKR 78.76",
+      "downside": "PKR 75.45 (-4.2%)",
       "tag": "SELLING PRESSURE",
-      "probability": "46.0%",
-      "rvol": "16.5x",
-      "notes": "Heavy selling volume (2,760,618 shares). Downside risk of -4.5% to key support."
+      "probability": "66.8%",
+      "rvol": "1.2x",
+      "notes": "Heavy selling volume (214,584 shares). Downside risk of -4.2% to key support."
     },
     {
       "rank": 3,
-      "ticker": "CNERGY",
-      "price": "PKR 11.35",
-      "downside": "PKR 10.84 (-4.5%)",
+      "ticker": "NRL",
+      "price": "PKR 442.92",
+      "downside": "PKR 424.32 (-4.2%)",
       "tag": "SELLING PRESSURE",
-      "probability": "46.0%",
-      "rvol": "11.1x",
-      "notes": "Heavy selling volume (70,087,756 shares). Downside risk of -4.5% to key support."
+      "probability": "64.6%",
+      "rvol": "2.2x",
+      "notes": "Heavy selling volume (2,760,618 shares). Downside risk of -4.2% to key support."
     },
     {
       "rank": 4,
-      "ticker": "ATRL",
-      "price": "PKR 949.12",
-      "downside": "PKR 906.41 (-4.5%)",
+      "ticker": "DSIL",
+      "price": "PKR 36.58",
+      "downside": "PKR 35.04 (-4.2%)",
       "tag": "SELLING PRESSURE",
-      "probability": "46.0%",
-      "rvol": "9.8x",
-      "notes": "Heavy selling volume (725,883 shares). Downside risk of -4.5% to key support."
+      "probability": "63.2%",
+      "rvol": "1.2x",
+      "notes": "Heavy selling volume (943,246 shares). Downside risk of -4.2% to key support."
     },
     {
       "rank": 5,
-      "ticker": "AICL",
-      "price": "PKR 91.11",
-      "downside": "PKR 87.01 (-4.5%)",
+      "ticker": "CLCPS",
+      "price": "PKR 4.44",
+      "downside": "PKR 4.25 (-4.3%)",
       "tag": "SELLING PRESSURE",
-      "probability": "46.0%",
-      "rvol": "3.6x",
-      "notes": "Heavy selling volume (2,084,366 shares). Downside risk of -4.5% to key support."
+      "probability": "61.7%",
+      "rvol": "1.2x",
+      "notes": "Heavy selling volume (2,243,440 shares). Downside risk of -4.3% to key support."
     }
   ]
 }
