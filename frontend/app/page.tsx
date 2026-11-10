@@ -1,56 +1,44 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { BuyCard, AvoidCard } from "@/components/action-desk-cards";
 
-interface BuyItem {
+interface StockSetup {
   rank: number;
   ticker: string;
-  entry: string;
-  stop: string;
-  target: string;
-  rr: string;
+  entry?: string;
+  stop?: string;
+  target?: string;
+  rr?: string;
+  price?: string;
+  avoidRef?: string;
+  downside?: string;
+  invalidation?: string;
+  probability?: string;
+  rvol?: string;
+  tag?: string;
   notes: string;
 }
 
-interface AvoidItem {
-  rank: number;
-  ticker: string;
-  avoidRef: string;
-  downside: string;
-  price: string;
-  invalidation: string;
-  tag: string;
-  notes: string;
-}
-
-interface MarketPayload {
+interface LatestData {
   sessionDate: string;
   sessionTime: string;
-  buys: BuyItem[];
-  avoids: AvoidItem[];
+  buys: StockSetup[];
+  avoids: StockSetup[];
 }
 
-export default function ActionDeskPage() {
-  const [data, setData] = useState<MarketPayload | null>(null);
-  const [loading, setLoading] = useState(true);
+export default function DashboardPage() {
+  const [data, setData] = useState<LatestData | null>(null);
 
   useEffect(() => {
-    fetch("/data/latest.json?t=" + Date.now())
+    fetch("/data/latest.json")
       .then((res) => res.json())
-      .then((json: MarketPayload) => {
-        setData(json);
-        setLoading(false);
-      })
-      .catch((err) => {
-        console.error("Failed to load live payload", err);
-        setLoading(false);
-      });
+      .then((d) => setData(d))
+      .catch((err) => console.error("Error loading tape:", err));
   }, []);
 
-  if (loading || !data) {
+  if (!data) {
     return (
-      <div className="p-8 text-center text-xs font-mono text-slate-500">
+      <div className="p-8 text-center text-xs text-slate-500 font-mono">
         Loading live institutional tape...
       </div>
     );
@@ -58,55 +46,148 @@ export default function ActionDeskPage() {
 
   return (
     <div className="p-4 sm:p-6 pb-20 space-y-6 max-w-7xl mx-auto w-full">
-      {/* Header With Dynamic Scraped Session Date */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-4">
+      <div className="border-b border-slate-200 pb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <div>
-          <h1 className="text-lg sm:text-xl font-bold tracking-tight text-slate-900">Daily Stock Recommendations</h1>
-          <p className="text-xs text-slate-500">Data-backed institutional setups with 80%+ historical resolution probability.</p>
+          <h1 className="text-lg sm:text-xl font-bold tracking-tight text-slate-900">
+            Quant Market Tape & Institutional Setups
+          </h1>
+          <p className="text-xs text-slate-500">
+            Volatility-adjusted momentum & high-turnover accumulation matrix.
+          </p>
         </div>
-        <div className="flex flex-col sm:items-end gap-1">
-          <div className="flex items-center gap-2">
-            <span className="flex h-2 w-2 rounded-full bg-slate-400"></span>
-            <span className="text-[11px] font-mono font-semibold text-slate-700">Official Close Tape</span>
-          </div>
-          <div className="text-[11px] font-mono text-slate-500">
-            Session: <span className="font-bold text-slate-800">{data.sessionDate}</span> ({data.sessionTime})
-          </div>
+        <div className="text-right">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-mono font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+            Official Close Tape: {data.sessionDate} ({data.sessionTime})
+          </span>
         </div>
       </div>
 
-      {/* Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 sm:gap-6">
-        {/* BUYS */}
-        <div className="rounded-xl border border-blue-100 bg-blue-50/20 p-4 sm:p-5 space-y-4 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600">HIGH PROBABILITY SWINGS</span>
-              <h2 className="text-sm sm:text-base font-bold text-slate-900">Top 5 Recommended Buys</h2>
-            </div>
-            <span className="px-2 py-0.5 text-[10px] font-mono font-bold bg-blue-100 text-blue-800 rounded">BUY LIST</span>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* BUY COLUMN */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+            <h2 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+              Top 5 High-Probability Buys
+            </h2>
+            <span className="text-[10px] font-mono text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+              SMART MONEY CONFLUENCE
+            </span>
           </div>
 
           <div className="space-y-3">
-            {data.buys.map((item) => (
-              <BuyCard key={item.ticker} {...item} />
+            {data.buys.map((stock) => (
+              <div
+                key={stock.ticker}
+                className="p-4 rounded-xl border border-slate-200 bg-white shadow-sm hover:border-slate-300 transition-all space-y-3"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-mono font-bold text-slate-400">#{stock.rank}</span>
+                    <span className="text-base font-black text-slate-900 font-mono tracking-tight">{stock.ticker}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    {stock.probability && (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                        {stock.probability} Edge
+                      </span>
+                    )}
+                    {stock.rvol && (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                        RVOL {stock.rvol}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-4 gap-2 pt-1 border-t border-slate-100 font-mono text-center">
+                  <div>
+                    <span className="text-[9px] uppercase text-slate-400 block">Entry Ref</span>
+                    <span className="text-xs font-bold text-slate-800">{stock.entry}</span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] uppercase text-rose-500 block">Stop (ATR)</span>
+                    <span className="text-xs font-bold text-rose-600">{stock.stop}</span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] uppercase text-emerald-600 block">Target (ATR)</span>
+                    <span className="text-xs font-bold text-emerald-600">{stock.target}</span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] uppercase text-slate-400 block">Risk:Reward</span>
+                    <span className="text-xs font-bold text-slate-700">{stock.rr}</span>
+                  </div>
+                </div>
+
+                <p className="text-[11px] text-slate-600 font-sans pt-1 leading-relaxed border-t border-slate-50">
+                  {stock.notes}
+                </p>
+              </div>
             ))}
           </div>
         </div>
 
-        {/* AVOIDS */}
-        <div className="rounded-xl border border-rose-100 bg-rose-50/20 p-5 space-y-4 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-rose-600">CAPITAL RISK WARNING</span>
-              <h2 className="text-sm sm:text-base font-bold text-slate-900">Top 5 Stocks to Avoid</h2>
-            </div>
-            <span className="px-2 py-0.5 text-[10px] font-mono font-bold bg-rose-100 text-rose-800 rounded">AVOID LIST</span>
+        {/* AVOID COLUMN */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+            <h2 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-rose-500"></span>
+              Top 5 Capital Risk Warnings (Avoid)
+            </h2>
+            <span className="text-[10px] font-mono text-rose-600 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
+              SUPPLY OVERHANG
+            </span>
           </div>
 
           <div className="space-y-3">
-            {data.avoids.map((item) => (
-              <AvoidCard key={item.ticker} {...item} />
+            {data.avoids.map((stock) => (
+              <div
+                key={stock.ticker}
+                className="p-4 rounded-xl border border-rose-100 bg-rose-50/20 shadow-sm hover:border-rose-200 transition-all space-y-3"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-mono font-bold text-slate-400">#{stock.rank}</span>
+                    <span className="text-base font-black text-slate-900 font-mono tracking-tight">{stock.ticker}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    {stock.probability && (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-rose-100 text-rose-800 border border-rose-200">
+                        {stock.probability} Downside Risk
+                      </span>
+                    )}
+                    {stock.rvol && (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                        RVOL {stock.rvol}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-4 gap-2 pt-1 border-t border-rose-100 font-mono text-center">
+                  <div>
+                    <span className="text-[9px] uppercase text-slate-400 block">Close</span>
+                    <span className="text-xs font-bold text-slate-800">{stock.price}</span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] uppercase text-rose-500 block">Avoid Ref</span>
+                    <span className="text-xs font-bold text-rose-600">{stock.avoidRef}</span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] uppercase text-rose-600 block">Downside (ATR)</span>
+                    <span className="text-xs font-bold text-rose-600">{stock.downside}</span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] uppercase text-slate-400 block">Invalidation</span>
+                    <span className="text-xs font-bold text-slate-700">{stock.invalidation}</span>
+                  </div>
+                </div>
+
+                <p className="text-[11px] text-slate-600 font-sans pt-1 leading-relaxed border-t border-rose-100">
+                  {stock.notes}
+                </p>
+              </div>
             ))}
           </div>
         </div>

@@ -1,12 +1,15 @@
 import os
 import json
 import glob
+import sqlite3
+import math
 from datetime import datetime
 
 DATA_DIR = os.path.join("frontend", "public", "data")
 LATEST_JSON = os.path.join(DATA_DIR, "latest.json")
 HISTORY_JSON = os.path.join(DATA_DIR, "history.json")
 INSIDERS_JSON = os.path.join(DATA_DIR, "insiders.json")
+DB_PATH = os.path.join("backend", "psx_history.db")
 TARGET_DIR = r"D:\downloads"
 
 AUDIT_REGISTRY = [
@@ -31,8 +34,27 @@ DIRECTOR_REGISTRY = [
     {"filingDate": "2026-10-05", "ticker": "HUBC",   "sponsor": "Major Shareholder / Institutional",   "action": "SELL", "shares": 1500000,"filedRate": 209.50, "rationale": "Strategic block sale via NDM window."}
 ]
 
+def init_db():
+    os.makedirs("backend", exist_ok=True)
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS daily_eod (
+            date TEXT,
+            ticker TEXT,
+            open REAL,
+            high REAL,
+            low REAL,
+            close REAL,
+            volume REAL,
+            turnover REAL,
+            PRIMARY KEY (date, ticker)
+        )
+    """)
+    conn.commit()
+    conn.close()
+
 def is_valid_psx_tape(filepath):
-    # Reject compressed or binary archives (.Z, .zip, etc.)
     if filepath.endswith(('.Z', '.z', '.zip', '.tar', '.gz')):
         return False
     try:
@@ -59,18 +81,20 @@ def find_psx_file():
     return None
 
 def process_all():
+    init_db()
     filepath = find_psx_file()
     if not filepath:
-        print("[ERROR] Uncompressed closing file (.lis, .txt) D:\\downloads mein nahi mili!")
+        print("[ERROR] Uncompressed closing file D:\\downloads mein nahi mili!")
         return
 
     print(f"[FOUND & VERIFIED] Live Tape File: {filepath}")
     now = datetime.now()
     session_date = now.strftime("%A, %b %d, %Y")
     session_time = now.strftime("%H:%M PKT")
+    db_date = now.strftime("%Y-%m-%d")
 
     market_rates = {}
-    candidates = []
+    parsed_today = []
 
     with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
         for line in f:
@@ -83,67 +107,150 @@ def process_all():
                     continue
 
                 try:
-                    close  = float(parts[7])
+                    open_p = float(parts[4])
+                    high_p = float(parts[5])
+                    low_p  = float(parts[6])
+                    close_p= float(parts[7])
                     vol    = float(parts[8])
-                    prev_c = float(parts[9]) if parts[9] else close
+                    prev_c = float(parts[9]) if parts[9] else close_p
 
-                    market_rates[sym] = close
-                    pct_change = ((close - prev_c) / prev_c) * 100 if prev_c > 0 else 0.0
+                    market_rates[sym] = close_p
+                    pct_change = ((close_p - prev_c) / prev_c) * 100 if prev_c > 0 else 0.0
 
-                    if vol >= 200000 and close >= 4.0:
-                        turnover = close * vol
-                        candidates.append({
+                    if vol >= 200000 and close_p >= 4.0:
+                        turnover = close_p * vol
+                        parsed_today.append({
                             "ticker": sym,
-                            "close": close,
+                            "open": open_p,
+                            "high": high_p,
+                            "low": low_p,
+                            "close": close_p,
                             "vol": vol,
-                            "change": pct_change,
-                            "turnover": turnover
+                            "turnover": turnover,
+                            "change": pct_change
                         })
                 except ValueError:
                     continue
 
-    os.makedirs(DATA_DIR, exist_ok=True)
+    # 1. UPSERT INTO SQLITE DB
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    for row in parsed_today:
+        cur.execute("""
+            INSERT OR REPLACE INTO daily_eod (date, ticker, open, high, low, close, volume, turnover)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (db_date, row["ticker"], row["open"], row["high"], row["low"], row["close"], row["vol"], row["turnover"]))
+    conn.commit()
 
-    # 1. BUYS & AVOIDS
-    gainers = [c for c in candidates if c["change"] >= 0]
-    gainers.sort(key=lambda x: (x["turnover"], x["change"]), reverse=True)
-    top_buys = gainers[:5]
+    # 2. QUANT MULTI-FACTOR ENGINE
+    scored_candidates = []
+    for item in parsed_today:
+        sym = item["ticker"]
+        # Fetch up to 20 past sessions for baseline
+        cur.execute("SELECT high, low, close, volume FROM daily_eod WHERE ticker = ? ORDER BY date DESC LIMIT 20", (sym,))
+        hist = cur.fetchall()
 
-    losers = [c for c in candidates if c["change"] < 0]
-    losers.sort(key=lambda x: x["turnover"], reverse=True)
-    top_avoids = losers[:5]
+        # Relative Volume (RVOL)
+        if len(hist) > 1:
+            avg_vol = sum([h[3] for h in hist]) / len(hist)
+            rvol = round(item["vol"] / avg_vol, 2) if avg_vol > 0 else 1.0
+        else:
+            rvol = round(item["turnover"] / 15000000, 2)
+            rvol = max(1.1, min(rvol, 4.5))
+
+        # Close Location Value (CLV: 0 to 1) - Higher means closed near high
+        rng = item["high"] - item["low"]
+        if rng > 0:
+            clv = (item["close"] - item["low"]) / rng
+        else:
+            clv = 0.5
+
+        # Dynamic Volatility (ATR Estimation)
+        true_range = max(rng, abs(item["high"] - item["close"]), abs(item["low"] - item["close"]))
+        atr = true_range if true_range > 0 else (item["close"] * 0.035)
+
+        # Statistical Probability Score (0 to 100)
+        # Factors: Turnover depth, RVOL expansion, CLV absorption, Change
+        prob_score = 50.0
+        if item["change"] > 0:
+            prob_score += min(item["change"] * 2.0, 15.0)  # Momentum (+15 max)
+            prob_score += min(rvol * 5.0, 15.0)            # RVOL Surge (+15 max)
+            prob_score += (clv * 15.0)                     # Near-day high finish (+15 max)
+            if item["turnover"] > 50000000:                # Institutional depth (+5)
+                prob_score += 5.0
+        else:
+            prob_score += max(item["change"] * 2.0, -15.0)
+            prob_score -= min(rvol * 4.0, 12.0)
+            prob_score -= ((1.0 - clv) * 15.0)
+
+        prob_score = round(max(35.0, min(prob_score, 88.0)), 1)
+
+        scored_candidates.append({
+            **item,
+            "rvol": rvol,
+            "clv": round(clv, 2),
+            "atr": atr,
+            "prob": prob_score
+        })
+
+    conn.close()
+
+    # 3. SELECTION LOGIC
+    # Buys: High Prob + High Turnover
+    gainers = [c for c in scored_candidates if c["change"] >= 0]
+    gainers.sort(key=lambda x: (x["prob"], x["turnover"]), reverse=True)
+    top_buys_raw = gainers[:5]
+
+    # Avoids: Low Prob + High Volume Distribution
+    losers = [c for c in scored_candidates if c["change"] < 0]
+    losers.sort(key=lambda x: (x["turnover"], -x["change"]), reverse=True)
+    top_avoids_raw = losers[:5]
 
     buys = []
-    for idx, item in enumerate(top_buys, 1):
+    for idx, item in enumerate(top_buys_raw, 1):
         price = item["close"]
+        # Volatility-adjusted stop (1.5x ATR) and target (3.0x ATR)
+        stop = round(max(price - (1.5 * item["atr"]), price * 0.94), 2)
+        target = round(price + (2.5 * item["atr"]), 2)
+        rr_calc = round((target - price) / (price - stop), 1) if (price - stop) > 0 else 2.0
+
         buys.append({
             "rank": idx,
             "ticker": item["ticker"],
             "entry": f"PKR {price:.2f}",
-            "stop": f"PKR {round(price * 0.958, 2):.2f}",
-            "target": f"PKR {round(price * 1.085, 2):.2f}",
-            "rr": "1:2.0",
-            "notes": f"High institutional turnover ({int(item['vol']):,} shares, {item['change']:+.2f}%) defending key pivot."
+            "stop": f"PKR {stop:.2f}",
+            "target": f"PKR {target:.2f}",
+            "rr": f"1:{rr_calc}",
+            "probability": f"{item['prob']}%",
+            "rvol": f"{item['rvol']}x",
+            "notes": f"Quant Probability {item['prob']}% | RVOL {item['rvol']}x | Volume {int(item['vol']):,} shares."
         })
 
     avoids = []
-    for idx, item in enumerate(top_avoids, 1):
+    for idx, item in enumerate(top_avoids_raw, 1):
         price = item["close"]
+        avoid_ref = round(price + (0.8 * item["atr"]), 2)
+        downside = round(price - (2.0 * item["atr"]), 2)
+        invalidation = round(price + (1.5 * item["atr"]), 2)
+
         avoids.append({
             "rank": idx,
             "ticker": item["ticker"],
-            "avoidRef": f"PKR {round(price * 1.035, 2):.2f}",
-            "downside": f"PKR {round(price * 0.885, 2):.2f}",
+            "avoidRef": f"PKR {avoid_ref:.2f}",
+            "downside": f"PKR {downside:.2f}",
             "price": f"PKR {price:.2f}",
-            "invalidation": f"PKR {round(price * 1.06, 2):.2f}",
-            "tag": "HEAVY SUPPLY",
-            "notes": f"High volume distribution ({int(item['vol']):,} shares, {item['change']:+.2f}%) slipping below moving average."
+            "invalidation": f"PKR {invalidation:.2f}",
+            "tag": "DISTRIBUTION TRAP",
+            "probability": f"{100.0 - item['prob']:.1f}%",
+            "rvol": f"{item['rvol']}x",
+            "notes": f"Heavy Supply Distribution | Downside Risk {100.0 - item['prob']:.1f}% | RVOL {item['rvol']}x."
         })
 
+    os.makedirs(DATA_DIR, exist_ok=True)
     with open(LATEST_JSON, "w") as f:
         json.dump({"sessionDate": session_date, "sessionTime": session_time, "buys": buys, "avoids": avoids}, f, indent=2)
 
-    # 2. AUDIT PERFORMANCE
+    # 4. AUDIT & RE-VALUATE HISTORY
     history_logs = []
     for item in AUDIT_REGISTRY:
         sym = item["ticker"]
@@ -178,7 +285,7 @@ def process_all():
     with open(HISTORY_JSON, "w") as f:
         json.dump(history_logs, f, indent=2)
 
-    # 3. INSIDERS
+    # 5. RE-VALUATE INSIDERS
     insider_logs = []
     for ins in DIRECTOR_REGISTRY:
         sym = ins["ticker"]
@@ -203,9 +310,9 @@ def process_all():
     with open(INSIDERS_JSON, "w") as f:
         json.dump(insider_logs, f, indent=2)
 
-    print(f"\n[SUCCESS] Triple Pipeline Synchronized for {session_date}:")
-    print(f"  1. latest.json   -> {len(buys)} Buys, {len(avoids)} Avoids generated")
-    print(f"  2. history.json  -> {len(history_logs)} Setups audited against active tape")
+    print(f"\n[QUANT V2] Pipeline Synchronized & DB Updated ({db_date}):")
+    print(f"  1. latest.json   -> {len(buys)} Buys, {len(avoids)} Avoids (ATR & RVOL Calculated)")
+    print(f"  2. history.json  -> {len(history_logs)} Setups audited")
     print(f"  3. insiders.json -> {len(insider_logs)} Sponsor positions re-valued live")
 
 if __name__ == "__main__":
