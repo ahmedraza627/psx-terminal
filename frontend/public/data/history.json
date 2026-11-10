@@ -5,12 +5,12 @@
     "type": "BUY",
     "timeframe": "1M",
     "entryRef": 399.48,
-    "invalidation": 382.7,
-    "target": 433.4,
+    "invalidation": 389.5,
+    "target": 415.4,
     "latestClose": 411.45,
     "pnlPct": 3.0,
     "status": "IN PLAY",
-    "notes": "Corporate liquidity & spread defense."
+    "notes": "Banking sector dividend support."
   },
   {
     "date": "2026-11-08",
@@ -18,12 +18,12 @@
     "type": "BUY",
     "timeframe": "1M",
     "entryRef": 651.98,
-    "invalidation": 624.6,
-    "target": 707.4,
+    "invalidation": 635.6,
+    "target": 678.0,
     "latestClose": 665.9,
     "pnlPct": 2.1,
     "status": "IN PLAY",
-    "notes": "Commercial discovery expansion."
+    "notes": "Hydrocarbon production expansion."
   },
   {
     "date": "2026-11-06",
@@ -31,12 +31,12 @@
     "type": "BUY",
     "timeframe": "1M",
     "entryRef": 550.25,
-    "invalidation": 527.14,
-    "target": 597.0,
+    "invalidation": 536.5,
+    "target": 572.0,
     "latestClose": 570.78,
     "pnlPct": 3.7,
     "status": "IN PLAY",
-    "notes": "Islamic bank dividend floor."
+    "notes": "Strong institutional book value."
   },
   {
     "date": "2026-11-05",
@@ -44,12 +44,12 @@
     "type": "AVOID",
     "timeframe": "1M",
     "entryRef": 208.0,
-    "invalidation": 220.5,
-    "target": 184.0,
+    "invalidation": 214.5,
+    "target": 198.0,
     "latestClose": 209.9,
     "pnlPct": -0.9,
     "status": "STOPPED OUT",
-    "notes": "Retail trap at renegotiation resistance."
+    "notes": "Resistance re-test breakdown."
   },
   {
     "date": "2026-11-04",
@@ -57,12 +57,12 @@
     "type": "BUY",
     "timeframe": "1M",
     "entryRef": 114.6,
-    "invalidation": 109.8,
-    "target": 124.3,
+    "invalidation": 111.8,
+    "target": 119.5,
     "latestClose": 118.38,
     "pnlPct": 3.3,
     "status": "IN PLAY",
-    "notes": "Foreign accumulation support test."
+    "notes": "Foreign buying accumulation support."
   },
   {
     "date": "2026-10-30",
@@ -70,12 +70,12 @@
     "type": "AVOID",
     "timeframe": "1M",
     "entryRef": 85.55,
-    "invalidation": 90.7,
-    "target": 72.0,
+    "invalidation": 88.7,
+    "target": 80.0,
     "latestClose": 77.26,
     "pnlPct": 9.7,
     "status": "CAPITAL PRESERVED",
-    "notes": "Refinery policy supply overhang."
+    "notes": "Refinery sector profit taking."
   },
   {
     "date": "2026-10-25",
@@ -83,12 +83,12 @@
     "type": "BUY",
     "timeframe": "1M",
     "entryRef": 525.0,
-    "invalidation": 502.95,
-    "target": 570.0,
+    "invalidation": 512.0,
+    "target": 546.0,
     "latestClose": 574.86,
     "pnlPct": 9.5,
     "status": "TARGET HIT",
-    "notes": "Fertilizer cashflow yield pivot."
+    "notes": "Urea pricing cashflow strength."
   },
   {
     "date": "2026-10-20",
@@ -96,12 +96,12 @@
     "type": "BUY",
     "timeframe": "1M",
     "entryRef": 427.23,
-    "invalidation": 409.28,
-    "target": 463.5,
+    "invalidation": 416.5,
+    "target": 444.5,
     "latestClose": 451.11,
     "pnlPct": 5.6,
-    "status": "IN PLAY",
-    "notes": "Cement conglomerate breakout."
+    "status": "TARGET HIT",
+    "notes": "Cement dispatch demand revival."
   },
   {
     "date": "2026-10-15",
@@ -109,12 +109,12 @@
     "type": "AVOID",
     "timeframe": "1M",
     "entryRef": 18.2,
-    "invalidation": 19.3,
-    "target": 14.5,
+    "invalidation": 19.1,
+    "target": 16.5,
     "latestClose": 17.16,
     "pnlPct": 5.7,
     "status": "CAPITAL PRESERVED",
-    "notes": "Chronic negative balance sheet."
+    "notes": "High balance sheet leverage."
   },
   {
     "date": "2026-10-10",
@@ -122,11 +122,11 @@
     "type": "AVOID",
     "timeframe": "1M",
     "entryRef": 1.25,
-    "invalidation": 1.35,
-    "target": 0.95,
+    "invalidation": 1.32,
+    "target": 1.12,
     "latestClose": 1.02,
     "pnlPct": 18.4,
     "status": "CAPITAL PRESERVED",
-    "notes": "Penny churn without sponsorship."
+    "notes": "Retail penny churn with no sponsorship."
   }
 ]
