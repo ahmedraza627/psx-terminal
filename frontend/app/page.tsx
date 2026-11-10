@@ -17,9 +17,18 @@ interface StockSetup {
   notes: string;
 }
 
+interface MarketRegime {
+  status: string;
+  kseChange: string;
+  breadth: string;
+  note: string;
+  isDefensive: boolean;
+}
+
 interface LatestData {
   sessionDate: string;
   sessionTime: string;
+  regime?: MarketRegime;
   buys: StockSetup[];
   avoids: StockSetup[];
 }
@@ -42,6 +51,8 @@ export default function DashboardPage() {
     );
   }
 
+  const isDefensive = data.regime?.isDefensive ?? false;
+
   return (
     <div className="p-4 sm:p-6 pb-20 space-y-6 max-w-7xl mx-auto w-full">
       {/* HEADER */}
@@ -51,7 +62,7 @@ export default function DashboardPage() {
             PSX Daily Trade Desk
           </h1>
           <p className="text-xs text-slate-500">
-            Daily high-volume swing setups with realistic targets and clear risk limits.
+            Daily Tier-1 institutional swing setups with real market regime protection.
           </p>
         </div>
         <div className="text-right">
@@ -60,6 +71,37 @@ export default function DashboardPage() {
           </span>
         </div>
       </div>
+
+      {/* MACRO REGIME BANNER */}
+      {data.regime && (
+        <div
+          className={`p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-xs font-mono ${
+            isDefensive
+              ? "bg-rose-50 border-rose-200 text-rose-900"
+              : "bg-emerald-50/70 border-emerald-200 text-emerald-950"
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            <span
+              className={`w-2.5 h-2.5 rounded-full ${
+                isDefensive ? "bg-rose-600 animate-pulse" : "bg-emerald-600"
+              }`}
+            ></span>
+            <span className="font-bold uppercase tracking-wide">
+              Market Regime: {data.regime.status}
+            </span>
+            <span className="text-[11px] px-2 py-0.5 rounded bg-white/80 border border-current font-bold">
+              KSE-100: {data.regime.kseChange}
+            </span>
+            <span className="text-[11px] px-2 py-0.5 rounded bg-white/80 border border-current">
+              {data.regime.breadth}
+            </span>
+          </div>
+          <p className="text-[11px] font-sans opacity-90 sm:text-right">
+            {data.regime.note}
+          </p>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* BUY COLUMN */}
@@ -70,52 +112,65 @@ export default function DashboardPage() {
               Top 5 Buy Opportunities (Swing)
             </h2>
             <span className="text-[10px] font-mono font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-              HIGH VOLUME BUYS
+              TIER-1 ACCUMULATION
             </span>
           </div>
 
-          <div className="space-y-3">
-            {data.buys.map((stock) => (
-              <div
-                key={stock.ticker}
-                className="p-4 rounded-xl border border-slate-200 bg-white shadow-sm hover:border-slate-300 transition-all space-y-3"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-mono font-bold text-slate-400">#{stock.rank}</span>
-                    <span className="text-base font-black text-slate-900 font-mono">{stock.ticker}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 font-mono text-[11px]">
-                    <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold">
-                      Prob: {stock.probability}
-                    </span>
-                    <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200 font-medium">
-                      Vol: {stock.rvol}
-                    </span>
-                  </div>
-                </div>
+          {isDefensive && (
+            <div className="p-6 rounded-xl border border-dashed border-rose-200 bg-rose-50/30 text-center space-y-1">
+              <span className="text-xs font-mono font-bold text-rose-800 block">
+                CASH MODE ACTIVE — NO NEW BUYS TRIGGERED
+              </span>
+              <p className="text-[11px] text-slate-500">
+                Index distribution exceeds risk threshold. Stay in cash until macro regime normalizes.
+              </p>
+            </div>
+          )}
 
-                <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-100 font-mono text-center">
-                  <div className="bg-slate-50 p-2 rounded">
-                    <span className="text-[10px] uppercase text-slate-500 block font-medium">Entry Rate</span>
-                    <span className="text-xs font-bold text-slate-900">{stock.entry}</span>
+          {!isDefensive && (
+            <div className="space-y-3">
+              {data.buys.map((stock) => (
+                <div
+                  key={stock.ticker}
+                  className="p-4 rounded-xl border border-slate-200 bg-white shadow-sm hover:border-slate-300 transition-all space-y-3"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-mono font-bold text-slate-400">#{stock.rank}</span>
+                      <span className="text-base font-black text-slate-900 font-mono">{stock.ticker}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 font-mono text-[11px]">
+                      <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold">
+                        Prob: {stock.probability}
+                      </span>
+                      <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200 font-medium">
+                        Vol: {stock.rvol}
+                      </span>
+                    </div>
                   </div>
-                  <div className="bg-rose-50/60 p-2 rounded border border-rose-100">
-                    <span className="text-[10px] uppercase text-rose-600 block font-medium">Stop Loss</span>
-                    <span className="text-xs font-bold text-rose-700">{stock.stop}</span>
-                  </div>
-                  <div className="bg-emerald-50/60 p-2 rounded border border-emerald-100">
-                    <span className="text-[10px] uppercase text-emerald-700 block font-medium">Take Profit</span>
-                    <span className="text-xs font-bold text-emerald-700">{stock.target}</span>
-                  </div>
-                </div>
 
-                <p className="text-[11px] text-slate-600 pt-1 leading-relaxed">
-                  {stock.notes}
-                </p>
-              </div>
-            ))}
-          </div>
+                  <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-100 font-mono text-center">
+                    <div className="bg-slate-50 p-2 rounded">
+                      <span className="text-[10px] uppercase text-slate-500 block font-medium">Entry Rate</span>
+                      <span className="text-xs font-bold text-slate-900">{stock.entry}</span>
+                    </div>
+                    <div className="bg-rose-50/60 p-2 rounded border border-rose-100">
+                      <span className="text-[10px] uppercase text-rose-600 block font-medium">Stop Loss</span>
+                      <span className="text-xs font-bold text-rose-700">{stock.stop}</span>
+                    </div>
+                    <div className="bg-emerald-50/60 p-2 rounded border border-emerald-100">
+                      <span className="text-[10px] uppercase text-emerald-700 block font-medium">Take Profit</span>
+                      <span className="text-xs font-bold text-emerald-700">{stock.target}</span>
+                    </div>
+                  </div>
+
+                  <p className="text-[11px] text-slate-600 pt-1 leading-relaxed">
+                    {stock.notes}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* AVOID COLUMN */}

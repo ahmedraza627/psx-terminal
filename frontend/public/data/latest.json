@@ -1,6 +1,13 @@
 {
   "sessionDate": "Wednesday, Nov 11, 2026",
-  "sessionTime": "02:52 PKT",
+  "sessionTime": "03:11 PKT",
+  "regime": {
+    "status": "BULLISH ACCUMULATION",
+    "kseChange": "+2.27%",
+    "breadth": "77.2% Advancing (362 Up / 107 Down)",
+    "note": "Healthy market breadth. Tier-1 institutional accumulation active across key sectors.",
+    "isDefensive": false
+  },
   "buys": [
     {
       "rank": 1,

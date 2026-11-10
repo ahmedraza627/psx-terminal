@@ -90,6 +90,9 @@ def process_all():
 
     market_rates = {}
     parsed_today = []
+    advances = 0
+    declines = 0
+    kse100_pct = None
 
     with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
         for line in f:
@@ -98,9 +101,6 @@ def process_all():
                 sym = parts[1].strip().upper()
                 sec = parts[2].strip()
 
-                if "-" in sym or sec in ["40", "41", "36"] or sym.startswith("KSE"):
-                    continue
-
                 try:
                     open_p = float(parts[4])
                     high_p = float(parts[5])
@@ -108,14 +108,22 @@ def process_all():
                     close_p= float(parts[7])
                     vol    = float(parts[8])
                     prev_c = float(parts[9]) if parts[9] else close_p
-
-                    market_rates[sym] = close_p
                     pct_change = ((close_p - prev_c) / prev_c) * 100 if prev_c > 0 else 0.0
 
+                    if "KSE100" in sym or sym == "KSE100" or sym == "KSE-100":
+                        kse100_pct = pct_change
+                        continue
+
+                    if "-" in sym or sec in ["40", "41", "36"] or sym.startswith("KSE"):
+                        continue
+
+                    market_rates[sym] = close_p
+                    if pct_change > 0:
+                        advances += 1
+                    elif pct_change < 0:
+                        declines += 1
+
                     # TIER-1 INSTITUTIONAL GATE:
-                    # Minimum Volume: 300,000 shares
-                    # Minimum Price: PKR 20.0 (Strict purge of micro-caps & pennies)
-                    # Minimum Turnover: PKR 50,000,000 (5 Crore PKR daily depth)
                     if vol >= 300000 and close_p >= 20.0:
                         turnover = close_p * vol
                         if turnover >= 50000000:
@@ -133,6 +141,22 @@ def process_all():
                 except ValueError:
                     continue
 
+    # MACRO REGIME FORMULA
+    total_active = advances + declines
+    breadth_pct = round((advances / total_active) * 100, 1) if total_active > 0 else 50.0
+    if kse100_pct is None:
+        kse100_pct = round((breadth_pct - 50.0) / 12.0, 2)
+
+    # DEFENSIVE GATE TRIGGER: Agar index -0.8% se zyada gira ho ya market breadth 38% se kam ho
+    is_defensive = (kse100_pct <= -0.8) or (breadth_pct <= 38.0)
+    
+    if is_defensive:
+        regime_status = "DEFENSIVE (CASH MODE)"
+        regime_note = "High macro distribution detected. KSE-100 under heavy selling. New buy setups blocked to protect capital."
+    else:
+        regime_status = "BULLISH ACCUMULATION"
+        regime_note = "Healthy market breadth. Tier-1 institutional accumulation active across key sectors."
+
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
     for row in parsed_today:
@@ -146,15 +170,10 @@ def process_all():
     for item in parsed_today:
         rng = item["high"] - item["low"]
         clv = (item["close"] - item["low"]) / rng if rng > 0 else 0.5
-
-        # Normal RVOL multiple (Relative to 1.5B market anchor)
         raw_rvol = 1.2 + (item["turnover"] / 1500000000)
         rvol = round(min(max(raw_rvol, 1.2), 3.8), 1)
-
-        # Dynamic ATR (2.5% to 4.2%)
         target_atr = min(max(rng, item["close"] * 0.025), item["close"] * 0.042)
 
-        # Dynamic Probability / Risk Score
         if item["change"] > 0:
             prob = 58.0 + (min(item["change"], 8.0) * 0.9) + (rvol * 2.1) + (clv * 4.0)
             prob_score = round(min(prob, 74.8), 1)
@@ -171,36 +190,38 @@ def process_all():
 
     conn.close()
 
-    # SORT BY TURNOVER FIRST (Real Institutional Smart Money Weight)
+    # DIVERSIFIED TOP 5 BUYS (Agar market defensive ho toh Buys Empty ho sakti hain ya cautious mode)
     gainers = [c for c in scored_candidates if c["change"] >= 0]
     gainers.sort(key=lambda x: (x["turnover"], x["prob"]), reverse=True)
 
     buys = []
-    sector_buy_count = {}
-    for item in gainers:
-        sec = item["sector"]
-        if sector_buy_count.get(sec, 0) < 2:
-            price = item["close"]
-            target = round(price + item["atr"], 2)
-            stop = round(price - (item["atr"] * 0.6), 2)
-            gain_pct = round(((target - price) / price) * 100, 1)
-            loss_pct = round(((price - stop) / price) * 100, 1)
+    if not is_defensive:
+        sector_buy_count = {}
+        for item in gainers:
+            sec = item["sector"]
+            if sector_buy_count.get(sec, 0) < 2:
+                price = item["close"]
+                target = round(price + item["atr"], 2)
+                stop = round(price - (item["atr"] * 0.6), 2)
+                gain_pct = round(((target - price) / price) * 100, 1)
+                loss_pct = round(((price - stop) / price) * 100, 1)
 
-            buys.append({
-                "rank": len(buys) + 1,
-                "ticker": item["ticker"],
-                "entry": f"PKR {price:.2f}",
-                "stop": f"PKR {stop:.2f} (-{loss_pct}%)",
-                "target": f"PKR {target:.2f} (+{gain_pct}%)",
-                "rr": "1:1.7",
-                "probability": f"{item['prob']}%",
-                "rvol": f"{item['rvol']}x",
-                "notes": f"Tier-1 accumulation ({int(item['vol']):,} shares, PKR {round(item['turnover']/10000000, 1)}Cr turnover). Swing target +{gain_pct}%."
-            })
-            sector_buy_count[sec] = sector_buy_count.get(sec, 0) + 1
-        if len(buys) == 5:
-            break
+                buys.append({
+                    "rank": len(buys) + 1,
+                    "ticker": item["ticker"],
+                    "entry": f"PKR {price:.2f}",
+                    "stop": f"PKR {stop:.2f} (-{loss_pct}%)",
+                    "target": f"PKR {target:.2f} (+{gain_pct}%)",
+                    "rr": "1:1.7",
+                    "probability": f"{item['prob']}%",
+                    "rvol": f"{item['rvol']}x",
+                    "notes": f"Tier-1 accumulation ({int(item['vol']):,} shares, PKR {round(item['turnover']/10000000, 1)}Cr turnover). Swing target +{gain_pct}%."
+                })
+                sector_buy_count[sec] = sector_buy_count.get(sec, 0) + 1
+            if len(buys) == 5:
+                break
 
+    # DIVERSIFIED TOP 5 AVOIDS
     losers = [c for c in scored_candidates if c["change"] < 0]
     losers.sort(key=lambda x: (x["turnover"], x["prob"]), reverse=True)
 
@@ -229,8 +250,21 @@ def process_all():
 
     os.makedirs(DATA_DIR, exist_ok=True)
     with open(LATEST_JSON, "w") as f:
-        json.dump({"sessionDate": session_date, "sessionTime": session_time, "buys": buys, "avoids": avoids}, f, indent=2)
+        json.dump({
+            "sessionDate": session_date,
+            "sessionTime": session_time,
+            "regime": {
+                "status": regime_status,
+                "kseChange": f"{kse100_pct:+.2f}%",
+                "breadth": f"{breadth_pct}% Advancing ({advances} Up / {declines} Down)",
+                "note": regime_note,
+                "isDefensive": is_defensive
+            },
+            "buys": buys,
+            "avoids": avoids
+        }, f, indent=2)
 
+    # AUDIT LOG
     history_logs = []
     for item in AUDIT_REGISTRY:
         sym = item["ticker"]
@@ -259,6 +293,7 @@ def process_all():
     with open(HISTORY_JSON, "w") as f:
         json.dump(history_logs, f, indent=2)
 
+    # INSIDERS
     insider_logs = []
     for ins in DIRECTOR_REGISTRY:
         sym = ins["ticker"]
@@ -283,11 +318,14 @@ def process_all():
     with open(INSIDERS_JSON, "w") as f:
         json.dump(insider_logs, f, indent=2)
 
-    print(f"\n[TIER-1 QUANT ENGINE] Synchronized Institutional Flow:")
-    for b in buys:
-        print(f"  BUY  #{b['rank']} {b['ticker']}: Target {b['target']} | Score: {b['probability']} | RVOL: {b['rvol']}")
+    print(f"\n[MACRO REGIME GATE] Status: {regime_status} | KSE-100: {kse100_pct:+.2f}% | Breadth: {breadth_pct}%")
+    if is_defensive:
+        print("  [ALERT] DEFENSIVE REGIME ACTIVE — Buys locked to protect capital.")
+    else:
+        for b in buys:
+            print(f"  BUY  #{b['rank']} {b['ticker']}: Target {b['target']} | Score: {b['probability']}")
     for a in avoids:
-        print(f"  AVOID #{a['rank']} {a['ticker']}: Downside {a['downside']} | Risk: {a['probability']} | RVOL: {a['rvol']}")
+        print(f"  AVOID #{a['rank']} {a['ticker']}: Downside {a['downside']} | Risk: {a['probability']}")
 
 if __name__ == "__main__":
     process_all()
