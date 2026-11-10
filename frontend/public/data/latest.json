@@ -1,6 +1,6 @@
 {
   "sessionDate": "Wednesday, Nov 11, 2026",
-  "sessionTime": "02:49 PKT",
+  "sessionTime": "02:52 PKT",
   "buys": [
     {
       "rank": 1,
@@ -11,51 +11,51 @@
       "rr": "1:1.7",
       "probability": "74.8%",
       "rvol": "3.6x",
-      "notes": "Institutional accumulation (33,237,663 shares, PKR 356.5Cr turnover). Swing target +3.9%."
+      "notes": "Tier-1 accumulation (33,237,663 shares, PKR 356.5Cr turnover). Swing target +3.9%."
     },
     {
       "rank": 2,
-      "ticker": "FCCL",
-      "entry": "PKR 63.61",
-      "stop": "PKR 62.01 (-2.5%)",
-      "target": "PKR 66.28 (+4.2%)",
+      "ticker": "LUCK",
+      "entry": "PKR 451.11",
+      "stop": "PKR 440.02 (-2.5%)",
+      "target": "PKR 469.60 (+4.1%)",
       "rr": "1:1.7",
-      "probability": "74.8%",
-      "rvol": "2.8x",
-      "notes": "Institutional accumulation (38,514,765 shares, PKR 245.0Cr turnover). Swing target +4.2%."
+      "probability": "72.6%",
+      "rvol": "3.0x",
+      "notes": "Tier-1 accumulation (5,870,082 shares, PKR 264.8Cr turnover). Swing target +4.1%."
     },
     {
       "rank": 3,
-      "ticker": "NGLEL",
-      "entry": "PKR 13.88",
-      "stop": "PKR 13.53 (-2.5%)",
-      "target": "PKR 14.46 (+4.2%)",
+      "ticker": "UBL",
+      "entry": "PKR 445.30",
+      "stop": "PKR 436.90 (-1.9%)",
+      "target": "PKR 459.30 (+3.1%)",
       "rr": "1:1.7",
-      "probability": "72.4%",
-      "rvol": "1.5x",
-      "notes": "Institutional accumulation (30,370,069 shares, PKR 42.2Cr turnover). Swing target +4.2%."
+      "probability": "71.0%",
+      "rvol": "2.5x",
+      "notes": "Tier-1 accumulation (4,316,709 shares, PKR 192.2Cr turnover). Swing target +3.1%."
     },
     {
       "rank": 4,
-      "ticker": "WAHDAT",
-      "entry": "PKR 14.92",
-      "stop": "PKR 14.54 (-2.5%)",
-      "target": "PKR 15.55 (+4.2%)",
+      "ticker": "OGDC",
+      "entry": "PKR 317.02",
+      "stop": "PKR 312.26 (-1.5%)",
+      "target": "PKR 324.95 (+2.5%)",
       "rr": "1:1.7",
-      "probability": "71.9%",
-      "rvol": "1.3x",
-      "notes": "Institutional accumulation (11,650,960 shares, PKR 17.4Cr turnover). Swing target +4.2%."
+      "probability": "68.9%",
+      "rvol": "2.4x",
+      "notes": "Tier-1 accumulation (5,507,843 shares, PKR 174.6Cr turnover). Swing target +2.5%."
     },
     {
       "rank": 5,
-      "ticker": "OML",
-      "entry": "PKR 185.39",
-      "stop": "PKR 180.72 (-2.5%)",
-      "target": "PKR 193.18 (+4.2%)",
+      "ticker": "PPL",
+      "entry": "PKR 227.90",
+      "stop": "PKR 222.16 (-2.5%)",
+      "target": "PKR 237.47 (+4.2%)",
       "rr": "1:1.7",
-      "probability": "71.9%",
-      "rvol": "1.3x",
-      "notes": "Institutional accumulation (483,881 shares, PKR 9.0Cr turnover). Swing target +4.2%."
+      "probability": "70.1%",
+      "rvol": "2.3x",
+      "notes": "Tier-1 accumulation (7,522,090 shares, PKR 171.4Cr turnover). Swing target +4.2%."
     }
   ],
   "avoids": [
@@ -67,7 +67,7 @@
       "tag": "SELLING PRESSURE",
       "probability": "69.8%",
       "rvol": "2.6x",
-      "notes": "High volume distribution (27,322,288 shares, PKR 211.1Cr turnover). Downside risk of -4.2%."
+      "notes": "Institutional distribution (27,322,288 shares, PKR 211.1Cr turnover). Downside risk of -4.2%."
     },
     {
       "rank": 2,
@@ -77,37 +77,37 @@
       "tag": "SELLING PRESSURE",
       "probability": "64.2%",
       "rvol": "2.0x",
-      "notes": "High volume distribution (2,760,618 shares, PKR 122.3Cr turnover). Downside risk of -4.2%."
+      "notes": "Institutional distribution (2,760,618 shares, PKR 122.3Cr turnover). Downside risk of -4.2%."
     },
     {
       "rank": 3,
-      "ticker": "SINDM",
-      "price": "PKR 62.17",
-      "downside": "PKR 59.56 (-4.2%)",
-      "tag": "SELLING PRESSURE",
-      "probability": "61.5%",
-      "rvol": "1.2x",
-      "notes": "High volume distribution (650,118 shares, PKR 4.0Cr turnover). Downside risk of -4.2%."
-    },
-    {
-      "rank": 4,
-      "ticker": "OBOY",
-      "price": "PKR 14.82",
-      "downside": "PKR 14.20 (-4.2%)",
-      "tag": "SELLING PRESSURE",
-      "probability": "60.4%",
-      "rvol": "1.3x",
-      "notes": "High volume distribution (7,392,251 shares, PKR 11.0Cr turnover). Downside risk of -4.2%."
-    },
-    {
-      "rank": 5,
       "ticker": "AICL",
       "price": "PKR 91.11",
       "downside": "PKR 87.28 (-4.2%)",
       "tag": "SELLING PRESSURE",
       "probability": "57.5%",
       "rvol": "1.3x",
-      "notes": "High volume distribution (2,084,366 shares, PKR 19.0Cr turnover). Downside risk of -4.2%."
+      "notes": "Institutional distribution (2,084,366 shares, PKR 19.0Cr turnover). Downside risk of -4.2%."
+    },
+    {
+      "rank": 4,
+      "ticker": "ZUMA",
+      "price": "PKR 30.75",
+      "downside": "PKR 29.46 (-4.2%)",
+      "tag": "SELLING PRESSURE",
+      "probability": "54.0%",
+      "rvol": "1.2x",
+      "notes": "Institutional distribution (2,334,544 shares, PKR 7.2Cr turnover). Downside risk of -4.2%."
+    },
+    {
+      "rank": 5,
+      "ticker": "EPCL",
+      "price": "PKR 32.89",
+      "downside": "PKR 31.51 (-4.2%)",
+      "tag": "SELLING PRESSURE",
+      "probability": "54.3%",
+      "rvol": "1.2x",
+      "notes": "Institutional distribution (1,655,303 shares, PKR 5.4Cr turnover). Downside risk of -4.2%."
     }
   ]
 }
