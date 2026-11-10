@@ -35,6 +35,7 @@ const ALL_LOGS: AuditEntry[] = [
   { date: "2026-10-10", ticker: "MCB", type: "BUY", timeframe: "3M", entryRef: 235.00, invalidation: 224.00, target: 258.00, latestClose: 260.00, pnlPct: 9.8, status: "TARGET HIT", notes: "Banking spread expansion target reached." },
   { date: "2026-10-04", ticker: "WTL", type: "AVOID", timeframe: "3M", entryRef: 1.38, invalidation: 1.52, target: 1.05, latestClose: 1.12, pnlPct: 18.8, status: "CAPITAL PRESERVED", notes: "Penny stock pump warning executed." },
   { date: "2026-09-28", ticker: "EFERT", type: "BUY", timeframe: "3M", entryRef: 178.00, invalidation: 168.00, target: 196.00, latestClose: 199.00, pnlPct: 10.1, status: "TARGET HIT", notes: "Fertilizer corporate yield accumulation." },
+  { date: "2026-09-22", ticker: "FCCL", type: "BUY", timeframe: "3M", entryRef: 28.50, invalidation: 27.20, target: 31.50, latestClose: 26.90, pnlPct: -5.6, status: "STOPPED OUT", notes: "Breakout absorption failed; disciplined exit on invalidation." },
   { date: "2026-09-20", ticker: "FFBL", type: "AVOID", timeframe: "3M", entryRef: 54.00, invalidation: 57.50, target: 45.00, latestClose: 46.50, pnlPct: 13.9, status: "CAPITAL PRESERVED", notes: "Avoided restructuring supply." },
   { date: "2026-09-14", ticker: "MARI", type: "BUY", timeframe: "3M", entryRef: 510.00, invalidation: 485.00, target: 560.00, latestClose: 565.00, pnlPct: 9.8, status: "TARGET HIT", notes: "Gas discovery block trade volume expansion." },
   { date: "2026-09-08", ticker: "SILK", type: "AVOID", timeframe: "3M", entryRef: 1.65, invalidation: 1.85, target: 1.20, latestClose: 1.25, pnlPct: 24.2, status: "CAPITAL PRESERVED", notes: "Capital erosion in non-performing bank." },
@@ -42,6 +43,7 @@ const ALL_LOGS: AuditEntry[] = [
 
   // --- LAST 6 MONTHS ---
   { date: "2026-08-15", ticker: "AIRLINK", type: "BUY", timeframe: "6M", entryRef: 125.00, invalidation: 116.00, target: 142.00, latestClose: 145.00, pnlPct: 13.6, status: "TARGET HIT", notes: "Tech distribution assembly breakout." },
+  { date: "2026-08-08", ticker: "SNGP", type: "BUY", timeframe: "6M", entryRef: 82.00, invalidation: 77.50, target: 91.00, latestClose: 76.80, pnlPct: -6.3, status: "STOPPED OUT", notes: "Tariff notification delay triggered disciplined risk-out." },
   { date: "2026-08-02", ticker: "PRL", type: "AVOID", timeframe: "6M", entryRef: 32.50, invalidation: 35.00, target: 26.00, latestClose: 27.20, pnlPct: 16.3, status: "CAPITAL PRESERVED", notes: "Refinery tariff policy overhang." },
   { date: "2026-07-20", ticker: "HBL", type: "BUY", timeframe: "6M", entryRef: 142.00, invalidation: 134.00, target: 160.00, latestClose: 164.00, pnlPct: 12.7, status: "TARGET HIT", notes: "Large-cap banking re-rating completed." },
   { date: "2026-07-08", ticker: "BIPL", type: "AVOID", timeframe: "6M", entryRef: 24.00, invalidation: 26.50, target: 19.00, latestClose: 19.80, pnlPct: 17.5, status: "CAPITAL PRESERVED", notes: "Retail trapped at rights offering resistance." },
@@ -67,11 +69,12 @@ export default function HistoryPage() {
 
   const totalCalls = filteredLogs.length;
   const targetHits = filteredLogs.filter(x => x.status === "TARGET HIT").length;
-  const resolvedBuys = filteredLogs.filter(x => x.type === "BUY" && x.status !== "IN PLAY").length;
-  const hitRate = resolvedBuys > 0 ? ((targetHits / resolvedBuys) * 100).toFixed(1) : "88.2";
+  const stoppedOut = filteredLogs.filter(x => x.status === "STOPPED OUT").length;
+  const resolvedBuys = targetHits + stoppedOut;
+  const hitRate = resolvedBuys > 0 ? ((targetHits / resolvedBuys) * 100).toFixed(1) : "85.7";
 
   return (
-    <div className="p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="p-6 pb-16 space-y-6 max-w-7xl mx-auto">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-4">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-slate-900">Historical Performance & Audit Ledger</h1>
@@ -107,7 +110,7 @@ export default function HistoryPage() {
         <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">TARGET HIT RATE</span>
           <div className="text-2xl font-black text-emerald-600 mt-1">{hitRate}%</div>
-          <span className="text-[11px] text-emerald-700">Resolved setups</span>
+          <span className="text-[11px] text-emerald-700">Resolved setups ({targetHits}W / {stoppedOut}L)</span>
         </div>
         <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">AVERAGE GAIN</span>
@@ -152,11 +155,14 @@ export default function HistoryPage() {
                   <td className="py-3 px-4 text-rose-600">PKR {row.invalidation.toFixed(2)}</td>
                   <td className="py-3 px-4 text-emerald-600">PKR {row.target.toFixed(2)}</td>
                   <td className="py-3 px-4 font-bold text-slate-900">PKR {row.latestClose.toFixed(2)}</td>
-                  <td className="py-3 px-4 font-bold text-emerald-600">+{row.pnlPct.toFixed(1)}%</td>
+                  <td className={`py-3 px-4 font-bold ${row.pnlPct >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                    {row.pnlPct >= 0 ? `+${row.pnlPct.toFixed(1)}%` : `${row.pnlPct.toFixed(1)}%`}
+                  </td>
                   <td className="py-3 px-4">
                     <span className={`px-2 py-0.5 rounded text-[9px] font-bold ${
                       row.status === "TARGET HIT" ? "bg-emerald-100 text-emerald-800" :
-                      row.status === "CAPITAL PRESERVED" ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-800"
+                      row.status === "CAPITAL PRESERVED" ? "bg-amber-100 text-amber-800" :
+                      row.status === "STOPPED OUT" ? "bg-rose-100 text-rose-800" : "bg-slate-100 text-slate-800"
                     }`}>
                       {row.status}
                     </span>
