@@ -1,103 +1,103 @@
 {
   "sessionDate": "Wednesday, Nov 11, 2026",
-  "sessionTime": "00:12 PKT",
+  "sessionTime": "00:33 PKT",
   "buys": [
     {
       "rank": 1,
-      "ticker": "MCB",
-      "entry": "PKR 262.00",
-      "stop": "PKR 251.00",
-      "target": "PKR 284.01",
+      "ticker": "MEBL",
+      "entry": "PKR 550.25",
+      "stop": "PKR 527.14",
+      "target": "PKR 597.02",
       "rr": "1:2.0",
-      "notes": "Institutional Banking accumulation defending key support floor into quarterly results."
+      "notes": "High-yield Islamic dividend capture defending post-result floor."
     },
     {
       "rank": 2,
-      "ticker": "MEBL",
-      "entry": "PKR 552.00",
-      "stop": "PKR 528.82",
-      "target": "PKR 598.37",
+      "ticker": "MCB",
+      "entry": "PKR 411.45",
+      "stop": "PKR 394.17",
+      "target": "PKR 446.42",
       "rr": "1:2.0",
-      "notes": "Institutional Banking accumulation defending key support floor into quarterly results."
+      "notes": "Large-cap banking spread re-rating on massive corporate liquidity."
     },
     {
       "rank": 3,
-      "ticker": "SYS",
-      "entry": "PKR 115.20",
-      "stop": "PKR 110.36",
-      "target": "PKR 124.88",
+      "ticker": "OGDC",
+      "entry": "PKR 312.00",
+      "stop": "PKR 298.90",
+      "target": "PKR 338.52",
       "rr": "1:2.0",
-      "notes": "Institutional Tech accumulation defending key support floor into quarterly results."
+      "notes": "Sovereign circular debt dividend settlement anticipation."
     },
     {
       "rank": 4,
-      "ticker": "OGDC",
-      "entry": "PKR 312.50",
-      "stop": "PKR 299.38",
-      "target": "PKR 338.75",
+      "ticker": "MARI",
+      "entry": "PKR 665.90",
+      "stop": "PKR 637.93",
+      "target": "PKR 722.50",
       "rr": "1:2.0",
-      "notes": "Institutional E&P accumulation defending key support floor into quarterly results."
+      "notes": "New gas discovery commercialization defending 650 breakout floor."
     },
     {
       "rank": 5,
-      "ticker": "MARI",
-      "entry": "PKR 565.00",
-      "stop": "PKR 541.27",
-      "target": "PKR 612.46",
+      "ticker": "SYS",
+      "entry": "PKR 114.60",
+      "stop": "PKR 109.79",
+      "target": "PKR 124.34",
       "rr": "1:2.0",
-      "notes": "Institutional E&P accumulation defending key support floor into quarterly results."
+      "notes": "Institutional tech accumulation defending key foreign flow support."
     }
   ],
   "avoids": [
     {
       "rank": 1,
+      "ticker": "PSO",
+      "avoidRef": "PKR 373.12",
+      "downside": "PKR 319.04",
+      "price": "PKR 360.50",
+      "invalidation": "PKR 382.13",
+      "tag": "RETAIL TRAP",
+      "notes": "Retail trapped at 52-week supply resistance near 370; heavy circular debt overhang."
+    },
+    {
+      "rank": 2,
+      "ticker": "HUBC",
+      "avoidRef": "PKR 208.66",
+      "downside": "PKR 178.42",
+      "price": "PKR 201.60",
+      "invalidation": "PKR 213.70",
+      "tag": "DISTRIBUTION",
+      "notes": "Smart money liquidating into retail bids between 205-210 post-renegotiation."
+    },
+    {
+      "rank": 3,
       "ticker": "HASCOL",
       "avoidRef": "PKR 17.70",
       "downside": "PKR 15.13",
       "price": "PKR 17.10",
       "invalidation": "PKR 18.13",
       "tag": "SPECULATIVE TRAP",
-      "notes": "Negative equity overhang; speculative momentum fading at resistance."
-    },
-    {
-      "rank": 2,
-      "ticker": "WTL",
-      "avoidRef": "PKR 1.18",
-      "downside": "PKR 1.01",
-      "price": "PKR 1.14",
-      "invalidation": "PKR 1.21",
-      "tag": "RETAIL TRAP",
-      "notes": "Zero institutional sponsor holding; speculative volume trap."
-    },
-    {
-      "rank": 3,
-      "ticker": "HUBC",
-      "avoidRef": "PKR 208.86",
-      "downside": "PKR 178.59",
-      "price": "PKR 201.80",
-      "invalidation": "PKR 213.91",
-      "tag": "DISTRIBUTION",
-      "notes": "Smart money distributing into retail bids post-PPA settlement."
+      "notes": "Severe negative equity balance sheet; speculative momentum fading at 18."
     },
     {
       "rank": 4,
       "ticker": "PRL",
-      "avoidRef": "PKR 27.74",
-      "downside": "PKR 23.72",
-      "price": "PKR 26.80",
-      "invalidation": "PKR 28.41",
+      "avoidRef": "PKR 32.91",
+      "downside": "PKR 28.14",
+      "price": "PKR 31.80",
+      "invalidation": "PKR 33.71",
       "tag": "POLICY RISK",
-      "notes": "Refinery upgrade delay creating overhead distribution pressure."
+      "notes": "Refinery policy upgrade delays; massive supply overhead near 34."
     },
     {
       "rank": 5,
-      "ticker": "PSO",
-      "avoidRef": "PKR 373.63",
-      "downside": "PKR 319.49",
-      "price": "PKR 361.00",
-      "invalidation": "PKR 382.66",
-      "tag": "CIRCULAR DEBT",
-      "notes": "Receivables overhang blocking sustainable breakout above 370 resistance."
+      "ticker": "WTL",
+      "avoidRef": "PKR 1.53",
+      "downside": "PKR 1.31",
+      "price": "PKR 1.48",
+      "invalidation": "PKR 1.57",
+      "tag": "PENNY CHURN",
+      "notes": "Zero institutional sponsorship; pure retail churning without asset backing."
     }
   ]
 }
