@@ -26,7 +26,7 @@ export function BuyCard({ rank, ticker, entry, stop, target, rr, notes }: BuyCar
       <div className="grid grid-cols-4 gap-2 mt-3 pt-3 border-t border-slate-100 font-mono text-[10px]">
         <div>
           <span className="text-slate-400 block text-[9px]">ENTRY REF</span>
-          <span className="font-bold text-slate-800">{entry}</span>
+          <span className="font-bold text-slate-900">{entry}</span>
         </div>
         <div>
           <span className="text-slate-400 block text-[9px]">INVALIDATION</span>
@@ -72,7 +72,7 @@ export function AvoidCard({ rank, ticker, avoidRef, downside, price, invalidatio
       <div className="grid grid-cols-4 gap-2 mt-3 pt-3 border-t border-slate-100 font-mono text-[10px]">
         <div>
           <span className="text-slate-400 block text-[9px]">AVOID REF</span>
-          <span className="font-bold text-slate-800">{avoidRef}</span>
+          <span className="font-bold text-slate-900">{avoidRef}</span>
         </div>
         <div>
           <span className="text-slate-400 block text-[9px]">DOWNSIDE</span>
@@ -80,7 +80,7 @@ export function AvoidCard({ rank, ticker, avoidRef, downside, price, invalidatio
         </div>
         <div>
           <span className="text-slate-400 block text-[9px]">LATEST CLOSE</span>
-          <span className="font-bold text-slate-800">{price}</span>
+          <span className="font-bold text-slate-900">{price}</span>
         </div>
         <div>
           <span className="text-slate-400 block text-[9px]">INVALIDATION</span>
