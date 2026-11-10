@@ -45,7 +45,7 @@ const ALL_LOGS: AuditEntry[] = [
   { date: "2026-08-02", ticker: "PRL", type: "AVOID", timeframe: "6M", entryRef: 32.50, invalidation: 35.00, target: 26.00, latestClose: 27.20, pnlPct: 16.3, status: "CAPITAL PRESERVED", notes: "Refinery tariff policy overhang." },
   { date: "2026-07-20", ticker: "HBL", type: "BUY", timeframe: "6M", entryRef: 142.00, invalidation: 134.00, target: 160.00, latestClose: 164.00, pnlPct: 12.7, status: "TARGET HIT", notes: "Large-cap banking re-rating completed." },
   { date: "2026-07-08", ticker: "BIPL", type: "AVOID", timeframe: "6M", entryRef: 24.00, invalidation: 26.50, target: 19.00, latestClose: 19.80, pnlPct: 17.5, status: "CAPITAL PRESERVED", notes: "Retail trapped at rights offering resistance." },
-  { date: "2026-06-25", ticker: "ENGRO", type: "BUY", timeframe: "6M", entryRef: 320.00, invalidation: 305.00, target: 355.00, latestClose: 362.00, pnlPct: 10.9, status: "TARGET HIT", notes: "Restructuring dividend capture completed." },
+  { date: "2026-06-25", ticker: "BAHL", type: "BUY", timeframe: "6M", entryRef: 110.00, invalidation: 104.00, target: 122.00, latestClose: 124.50, pnlPct: 10.9, status: "TARGET HIT", notes: "Commercial banking spread expansion target met." },
   { date: "2026-06-12", ticker: "CNERGY", type: "AVOID", timeframe: "6M", entryRef: 4.85, invalidation: 5.25, target: 3.70, latestClose: 3.85, pnlPct: 20.6, status: "CAPITAL PRESERVED", notes: "Heavy debt penny trap avoided." },
 
   // --- 1 YEAR ---

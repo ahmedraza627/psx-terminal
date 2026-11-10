@@ -16,7 +16,7 @@ interface InsiderFiling {
 
 export default function InsidersPage() {
   const filings: InsiderFiling[] = [
-    { date: "2026-11-09", ticker: "ENGRO", insider: "Dawood Hercules Corp", designation: "Sponsor Group", action: "BUY", shares: "250,000", avgRate: "PKR 358.50", value: "PKR 89.62M", nature: "Open Market Purchase" },
+    { date: "2026-11-09", ticker: "FFC", insider: "Fauji Foundation", designation: "Sponsor Group", action: "BUY", shares: "200,000", avgRate: "PKR 384.50", value: "PKR 76.90M", nature: "Open Market Purchase" },
     { date: "2026-11-08", ticker: "SYS", insider: "Asif Peer", designation: "CEO / Director", action: "BUY", shares: "150,000", avgRate: "PKR 113.80", value: "PKR 17.07M", nature: "Open Market Purchase" },
     { date: "2026-11-07", ticker: "MARI", insider: "Mari Foundation", designation: "Associated Trust", action: "BUY", shares: "80,000", avgRate: "PKR 555.00", value: "PKR 44.40M", nature: "Long Term Allocation" },
     { date: "2026-11-06", ticker: "MLCF", insider: "Sponsor Group", designation: "Associated Company", action: "BUY", shares: "500,000", avgRate: "PKR 99.40", value: "PKR 49.70M", nature: "Floor Absorption" },
@@ -25,7 +25,7 @@ export default function InsidersPage() {
     { date: "2026-11-03", ticker: "PSO", insider: "Corporate Sponsor", designation: "Institutional Entity", action: "SELL", shares: "80,000", avgRate: "PKR 372.00", value: "PKR 29.76M", nature: "Overhead Distribution" },
     { date: "2026-11-01", ticker: "UBL", insider: "Bestway Group", designation: "Major Shareholder", action: "BUY", shares: "200,000", avgRate: "PKR 418.50", value: "PKR 83.70M", nature: "Dividend Re-investment" },
     { date: "2026-10-30", ticker: "AIRLINK", insider: "Muzzaffar Hayat", designation: "CEO", action: "BUY", shares: "120,000", avgRate: "PKR 138.00", value: "PKR 16.56M", nature: "Open Market Purchase" },
-    { date: "2026-10-28", ticker: "FFC", insider: "Fauji Foundation", designation: "Holding Entity", action: "BUY", shares: "300,000", avgRate: "PKR 382.00", value: "PKR 114.60M", nature: "Treasury Defense" },
+    { date: "2026-10-28", ticker: "BAHL", insider: "Habib Family Trust", designation: "Sponsor Director", action: "BUY", shares: "150,000", avgRate: "PKR 122.00", value: "PKR 18.30M", nature: "Open Market Purchase" },
     { date: "2026-10-25", ticker: "HUBC", insider: "Executive Director", designation: "Key Management", action: "SELL", shares: "120,000", avgRate: "PKR 126.50", value: "PKR 15.18M", nature: "Post-settlement Exit" },
     { date: "2026-10-24", ticker: "PPL", insider: "Director Portfolio", designation: "Director", action: "BUY", shares: "65,000", avgRate: "PKR 205.00", value: "PKR 13.32M", nature: "Sector Accumulation" },
     { date: "2026-10-22", ticker: "EFERT", insider: "Associated Directors", designation: "Director", action: "BUY", shares: "75,000", avgRate: "PKR 192.00", value: "PKR 14.40M", nature: "Dividend Reinvestment" },
@@ -53,7 +53,7 @@ export default function InsidersPage() {
         </div>
         <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">SPONSOR NET BUYING</span>
-          <div className="text-2xl font-black text-emerald-600 mt-1">PKR 768.4M</div>
+          <div className="text-2xl font-black text-emerald-600 mt-1">PKR 755.7M</div>
           <span className="text-[11px] text-emerald-700">16 Accumulation Filings</span>
         </div>
         <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
@@ -63,7 +63,7 @@ export default function InsidersPage() {
         </div>
         <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">SMART MONEY BIAS</span>
-          <div className="text-2xl font-black text-blue-600 mt-1">93.1% Buy</div>
+          <div className="text-2xl font-black text-blue-600 mt-1">93.0% Buy</div>
           <span className="text-[11px] text-blue-700">Heavy Sponsor Conviction</span>
         </div>
       </div>
