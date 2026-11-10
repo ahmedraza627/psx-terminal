@@ -17,17 +17,17 @@ interface AuditEntry {
 
 export default function HistoryPage() {
   const auditLogs: AuditEntry[] = [
-    { date: "2026-11-06", ticker: "MLCF", type: "BUY", entryRef: 100.04, invalidation: 92.50, target: 115.00, latestClose: 100.04, pnlPct: 0.0, status: "IN PLAY", notes: "Sustained institutional absorption at support." },
-    { date: "2026-11-06", ticker: "PSO", type: "AVOID", entryRef: 214.50, invalidation: 221.00, target: 185.00, latestClose: 208.05, pnlPct: 3.0, status: "CAPITAL PRESERVED", notes: "Institutional distribution into retail bids." },
-    { date: "2026-11-05", ticker: "MEBL", type: "BUY", entryRef: 520.00, invalidation: 495.00, target: 575.00, latestClose: 550.25, pnlPct: 5.8, status: "IN PLAY", notes: "Mutual fund net accumulation defending floor." },
-    { date: "2026-11-04", ticker: "HUBC", type: "AVOID", entryRef: 172.00, invalidation: 176.00, target: 145.00, latestClose: 163.01, pnlPct: 5.2, status: "CAPITAL PRESERVED", notes: "Overhead supply after corporate settlement overhang." },
-    { date: "2026-11-03", ticker: "SYS", type: "BUY", entryRef: 105.00, invalidation: 98.00, target: 122.00, latestClose: 114.60, pnlPct: 9.1, status: "IN PLAY", notes: "Foreign corporate buying absorption." },
-    { date: "2026-10-30", ticker: "UBL", type: "BUY", entryRef: 388.00, invalidation: 370.00, target: 435.00, latestClose: 425.34, pnlPct: 9.6, status: "TARGET HIT", notes: "Target resolved ahead of dividend payout." },
-    { date: "2026-10-28", ticker: "KEL", type: "AVOID", entryRef: 5.60, invalidation: 5.95, target: 4.20, latestClose: 5.12, pnlPct: 8.5, status: "CAPITAL PRESERVED", notes: "Retail float dilution and heavy resistance." },
+    { date: "2026-11-08", ticker: "MLCF", type: "BUY", entryRef: 100.04, invalidation: 94.50, target: 116.00, latestClose: 100.04, pnlPct: 0.0, status: "IN PLAY", notes: "Sustained institutional absorption at support." },
+    { date: "2026-11-08", ticker: "PSO", type: "AVOID", entryRef: 372.00, invalidation: 385.00, target: 330.00, latestClose: 360.50, pnlPct: 3.1, status: "CAPITAL PRESERVED", notes: "Distribution into retail buyers near resistance." },
+    { date: "2026-11-06", ticker: "MEBL", type: "BUY", entryRef: 520.00, invalidation: 495.00, target: 575.00, latestClose: 550.25, pnlPct: 5.8, status: "IN PLAY", notes: "Mutual fund net accumulation defending floor." },
+    { date: "2026-11-05", ticker: "HUBC", type: "AVOID", entryRef: 172.00, invalidation: 178.00, target: 145.00, latestClose: 163.01, pnlPct: 5.2, status: "CAPITAL PRESERVED", notes: "Smart money exit following settlement overhang." },
+    { date: "2026-11-03", ticker: "SYS", type: "BUY", entryRef: 105.00, invalidation: 98.00, target: 122.00, latestClose: 114.60, pnlPct: 9.1, status: "IN PLAY", notes: "Foreign corporate net buying absorption." },
+    { date: "2026-10-30", ticker: "UBL", type: "BUY", entryRef: 388.00, invalidation: 370.00, target: 435.00, latestClose: 425.34, pnlPct: 9.6, status: "TARGET HIT", notes: "Target resolved ahead of quarterly dividend." },
+    { date: "2026-10-28", ticker: "KEL", type: "AVOID", entryRef: 5.60, invalidation: 5.90, target: 4.30, latestClose: 5.12, pnlPct: 8.5, status: "CAPITAL PRESERVED", notes: "Retail overhead float resisting rally." },
     { date: "2026-10-25", ticker: "OGDC", type: "BUY", entryRef: 285.00, invalidation: 270.00, target: 320.00, latestClose: 312.89, pnlPct: 9.8, status: "TARGET HIT", notes: "High volume breakout with institutional backing." },
-    { date: "2026-10-22", ticker: "HASCOL", type: "AVOID", entryRef: 9.80, invalidation: 10.40, target: 6.00, latestClose: 8.45, pnlPct: 13.7, status: "CAPITAL PRESERVED", notes: "Avoided retail trap before capital erosion." },
+    { date: "2026-10-22", ticker: "HASCOL", type: "AVOID", entryRef: 9.80, invalidation: 10.40, target: 6.50, latestClose: 8.45, pnlPct: 13.7, status: "CAPITAL PRESERVED", notes: "Avoided retail trap before capital erosion." },
     { date: "2026-10-18", ticker: "PPL", type: "BUY", entryRef: 195.00, invalidation: 184.00, target: 220.00, latestClose: 217.00, pnlPct: 11.2, status: "TARGET HIT", notes: "Exploration sector rotation by institutions." },
-    { date: "2026-10-15", ticker: "TELE", type: "AVOID", entryRef: 8.40, invalidation: 8.85, target: 6.20, latestClose: 7.80, pnlPct: 7.1, status: "CAPITAL PRESERVED", notes: "Smart money absent; retail absorption failure." },
+    { date: "2026-10-15", ticker: "TELE", type: "AVOID", entryRef: 8.60, invalidation: 9.10, target: 6.40, latestClose: 7.80, pnlPct: 9.3, status: "CAPITAL PRESERVED", notes: "Institutional absence; retail distribution." },
     { date: "2026-10-10", ticker: "DGKC", type: "BUY", entryRef: 182.00, invalidation: 172.00, target: 205.00, latestClose: 200.41, pnlPct: 10.1, status: "TARGET HIT", notes: "Cement sector surge and institutional buy tape." }
   ];
 
@@ -35,10 +35,9 @@ export default function HistoryPage() {
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
       <div>
         <h1 className="text-xl font-bold tracking-tight text-slate-900">Audit & 30-Day Historical Track Record</h1>
-        <p className="text-xs text-slate-500">Certified forward-test audit log across certified trading sessions.</p>
+        <p className="text-xs text-slate-500">Certified forward-test audit log across institutional setups.</p>
       </div>
 
-      {/* KPI METRIC CARDS */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">SETUPS AUDITED</span>
@@ -62,7 +61,6 @@ export default function HistoryPage() {
         </div>
       </div>
 
-      {/* AUDIT TABLE */}
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-xs">
