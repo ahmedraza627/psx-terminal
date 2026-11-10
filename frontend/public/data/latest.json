@@ -1,6 +1,103 @@
 {
   "sessionDate": "Wednesday, Nov 11, 2026",
-  "sessionTime": "02:04 PKT",
-  "buys": [],
-  "avoids": []
+  "sessionTime": "02:06 PKT",
+  "buys": [
+    {
+      "rank": 1,
+      "ticker": "MLCF",
+      "entry": "PKR 107.27",
+      "stop": "PKR 102.76",
+      "target": "PKR 116.39",
+      "rr": "1:2.0",
+      "notes": "High institutional turnover (33,237,663 shares, +7.23%) defending key pivot."
+    },
+    {
+      "rank": 2,
+      "ticker": "LUCK",
+      "entry": "PKR 451.11",
+      "stop": "PKR 432.16",
+      "target": "PKR 489.45",
+      "rr": "1:2.0",
+      "notes": "High institutional turnover (5,870,082 shares, +5.59%) defending key pivot."
+    },
+    {
+      "rank": 3,
+      "ticker": "FCCL",
+      "entry": "PKR 63.61",
+      "stop": "PKR 60.94",
+      "target": "PKR 69.02",
+      "rr": "1:2.0",
+      "notes": "High institutional turnover (38,514,765 shares, +9.58%) defending key pivot."
+    },
+    {
+      "rank": 4,
+      "ticker": "DGKC",
+      "entry": "PKR 213.51",
+      "stop": "PKR 204.54",
+      "target": "PKR 231.66",
+      "rr": "1:2.0",
+      "notes": "High institutional turnover (10,203,726 shares, +6.54%) defending key pivot."
+    },
+    {
+      "rank": 5,
+      "ticker": "UBL",
+      "entry": "PKR 445.30",
+      "stop": "PKR 426.60",
+      "target": "PKR 483.15",
+      "rr": "1:2.0",
+      "notes": "High institutional turnover (4,316,709 shares, +4.69%) defending key pivot."
+    }
+  ],
+  "avoids": [
+    {
+      "rank": 1,
+      "ticker": "PRL",
+      "avoidRef": "PKR 79.96",
+      "downside": "PKR 68.38",
+      "price": "PKR 77.26",
+      "invalidation": "PKR 81.90",
+      "tag": "HEAVY SUPPLY",
+      "notes": "High volume distribution (27,322,288 shares, -9.69%) slipping below moving average."
+    },
+    {
+      "rank": 2,
+      "ticker": "NRL",
+      "avoidRef": "PKR 458.42",
+      "downside": "PKR 391.98",
+      "price": "PKR 442.92",
+      "invalidation": "PKR 469.50",
+      "tag": "HEAVY SUPPLY",
+      "notes": "High volume distribution (2,760,618 shares, -6.65%) slipping below moving average."
+    },
+    {
+      "rank": 3,
+      "ticker": "CNERGY",
+      "avoidRef": "PKR 11.75",
+      "downside": "PKR 10.04",
+      "price": "PKR 11.35",
+      "invalidation": "PKR 12.03",
+      "tag": "HEAVY SUPPLY",
+      "notes": "High volume distribution (70,087,756 shares, -6.20%) slipping below moving average."
+    },
+    {
+      "rank": 4,
+      "ticker": "ATRL",
+      "avoidRef": "PKR 982.34",
+      "downside": "PKR 839.97",
+      "price": "PKR 949.12",
+      "invalidation": "PKR 1006.07",
+      "tag": "HEAVY SUPPLY",
+      "notes": "High volume distribution (725,883 shares, -3.36%) slipping below moving average."
+    },
+    {
+      "rank": 5,
+      "ticker": "AICL",
+      "avoidRef": "PKR 94.30",
+      "downside": "PKR 80.63",
+      "price": "PKR 91.11",
+      "invalidation": "PKR 96.58",
+      "tag": "HEAVY SUPPLY",
+      "notes": "High volume distribution (2,084,366 shares, -2.20%) slipping below moving average."
+    }
+  ]
 }

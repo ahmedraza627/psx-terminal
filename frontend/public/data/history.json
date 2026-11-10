@@ -7,8 +7,8 @@
     "entryRef": 399.48,
     "invalidation": 382.7,
     "target": 433.4,
-    "latestClose": 399.48,
-    "pnlPct": 0.0,
+    "latestClose": 411.45,
+    "pnlPct": 3.0,
     "status": "IN PLAY",
     "notes": "Corporate liquidity & spread defense."
   },
@@ -20,8 +20,8 @@
     "entryRef": 651.98,
     "invalidation": 624.6,
     "target": 707.4,
-    "latestClose": 651.98,
-    "pnlPct": 0.0,
+    "latestClose": 665.9,
+    "pnlPct": 2.1,
     "status": "IN PLAY",
     "notes": "Commercial discovery expansion."
   },
@@ -33,8 +33,8 @@
     "entryRef": 550.25,
     "invalidation": 527.14,
     "target": 597.0,
-    "latestClose": 550.25,
-    "pnlPct": 0.0,
+    "latestClose": 570.78,
+    "pnlPct": 3.7,
     "status": "IN PLAY",
     "notes": "Islamic bank dividend floor."
   },
@@ -46,9 +46,9 @@
     "entryRef": 208.0,
     "invalidation": 220.5,
     "target": 184.0,
-    "latestClose": 208.0,
-    "pnlPct": 0.0,
-    "status": "CAPITAL PRESERVED",
+    "latestClose": 209.9,
+    "pnlPct": -0.9,
+    "status": "STOPPED OUT",
     "notes": "Retail trap at renegotiation resistance."
   },
   {
@@ -59,8 +59,8 @@
     "entryRef": 114.6,
     "invalidation": 109.8,
     "target": 124.3,
-    "latestClose": 114.6,
-    "pnlPct": 0.0,
+    "latestClose": 118.38,
+    "pnlPct": 3.3,
     "status": "IN PLAY",
     "notes": "Foreign accumulation support test."
   },
@@ -72,8 +72,8 @@
     "entryRef": 85.55,
     "invalidation": 90.7,
     "target": 72.0,
-    "latestClose": 85.55,
-    "pnlPct": 0.0,
+    "latestClose": 77.26,
+    "pnlPct": 9.7,
     "status": "CAPITAL PRESERVED",
     "notes": "Refinery policy supply overhang."
   },
@@ -85,9 +85,9 @@
     "entryRef": 525.0,
     "invalidation": 502.95,
     "target": 570.0,
-    "latestClose": 525.0,
-    "pnlPct": 0.0,
-    "status": "IN PLAY",
+    "latestClose": 574.86,
+    "pnlPct": 9.5,
+    "status": "TARGET HIT",
     "notes": "Fertilizer cashflow yield pivot."
   },
   {
@@ -98,8 +98,8 @@
     "entryRef": 427.23,
     "invalidation": 409.28,
     "target": 463.5,
-    "latestClose": 427.23,
-    "pnlPct": 0.0,
+    "latestClose": 451.11,
+    "pnlPct": 5.6,
     "status": "IN PLAY",
     "notes": "Cement conglomerate breakout."
   },
@@ -111,8 +111,8 @@
     "entryRef": 18.2,
     "invalidation": 19.3,
     "target": 14.5,
-    "latestClose": 18.2,
-    "pnlPct": 0.0,
+    "latestClose": 17.16,
+    "pnlPct": 5.7,
     "status": "CAPITAL PRESERVED",
     "notes": "Chronic negative balance sheet."
   },
@@ -124,8 +124,8 @@
     "entryRef": 1.25,
     "invalidation": 1.35,
     "target": 0.95,
-    "latestClose": 1.25,
-    "pnlPct": 0.0,
+    "latestClose": 1.02,
+    "pnlPct": 18.4,
     "status": "CAPITAL PRESERVED",
     "notes": "Penny churn without sponsorship."
   }

@@ -9,7 +9,6 @@ HISTORY_JSON = os.path.join(DATA_DIR, "history.json")
 INSIDERS_JSON = os.path.join(DATA_DIR, "insiders.json")
 TARGET_DIR = r"D:\downloads"
 
-# Master audit registry of historical recommendations
 AUDIT_REGISTRY = [
     {"date": "2026-11-09", "ticker": "MCB",  "type": "BUY",   "entry": 399.48, "stop": 382.70, "target": 433.40, "notes": "Corporate liquidity & spread defense."},
     {"date": "2026-11-08", "ticker": "MARI", "type": "BUY",   "entry": 651.98, "stop": 624.60, "target": 707.40, "notes": "Commercial discovery expansion."},
@@ -23,7 +22,6 @@ AUDIT_REGISTRY = [
     {"date": "2026-10-10", "ticker": "WTL",  "type": "AVOID", "entry": 1.25,   "stop": 1.35,   "target": 0.95,   "notes": "Penny churn without sponsorship."}
 ]
 
-# Verified Director & Sponsor Filings Ledger
 DIRECTOR_REGISTRY = [
     {"filingDate": "2026-11-05", "ticker": "SYS",    "sponsor": "Executive Director / Sponsor Family", "action": "BUY",  "shares": 350000, "filedRate": 114.20, "rationale": "Direct market purchase disclosed to PSX."},
     {"filingDate": "2026-10-28", "ticker": "LUCK",   "sponsor": "Yunus Brothers Group (Associated)",   "action": "BUY",  "shares": 125000, "filedRate": 435.00, "rationale": "Associated group treasury accumulation."},
@@ -33,19 +31,37 @@ DIRECTOR_REGISTRY = [
     {"filingDate": "2026-10-05", "ticker": "HUBC",   "sponsor": "Major Shareholder / Institutional",   "action": "SELL", "shares": 1500000,"filedRate": 209.50, "rationale": "Strategic block sale via NDM window."}
 ]
 
+def is_valid_psx_tape(filepath):
+    # Reject compressed or binary archives (.Z, .zip, etc.)
+    if filepath.endswith(('.Z', '.z', '.zip', '.tar', '.gz')):
+        return False
+    try:
+        with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
+            for _ in range(15):
+                line = f.readline()
+                parts = line.strip().split("|")
+                if len(parts) >= 10 and len(parts[1].strip()) >= 2:
+                    return True
+    except Exception:
+        pass
+    return False
+
 def find_psx_file():
     candidates = []
-    for pattern in ["*.txt", "*.csv", "*.dat", "*.lis", "*closing*", "*"]:
+    for pattern in ["*.lis", "*.txt", "*.csv", "*.dat", "*closing*"]:
         for match in glob.glob(os.path.join(TARGET_DIR, pattern)):
-            if os.path.isfile(match) and not match.lower().endswith(('.zip', '.py', '.bat', '.json', '.exe')):
+            if os.path.isfile(match) and not match.endswith(('.Z', '.z', '.zip', '.py', '.bat', '.json')):
                 candidates.append(match)
     candidates.sort(key=os.path.getmtime, reverse=True)
-    return candidates[0] if candidates else None
+    for f in candidates:
+        if is_valid_psx_tape(f):
+            return f
+    return None
 
 def process_all():
     filepath = find_psx_file()
     if not filepath:
-        print("[ERROR] File nahi mili!")
+        print("[ERROR] Uncompressed closing file (.lis, .txt) D:\\downloads mein nahi mili!")
         return
 
     print(f"[FOUND & VERIFIED] Live Tape File: {filepath}")
@@ -88,7 +104,7 @@ def process_all():
 
     os.makedirs(DATA_DIR, exist_ok=True)
 
-    # 1. GENERATE TODAY'S LATEST BUYS & AVOIDS
+    # 1. BUYS & AVOIDS
     gainers = [c for c in candidates if c["change"] >= 0]
     gainers.sort(key=lambda x: (x["turnover"], x["change"]), reverse=True)
     top_buys = gainers[:5]
@@ -127,7 +143,7 @@ def process_all():
     with open(LATEST_JSON, "w") as f:
         json.dump({"sessionDate": session_date, "sessionTime": session_time, "buys": buys, "avoids": avoids}, f, indent=2)
 
-    # 2. AUDIT & RE-CALCULATE HISTORICAL PERFORMANCE AGAINST TODAY'S TAPE
+    # 2. AUDIT PERFORMANCE
     history_logs = []
     for item in AUDIT_REGISTRY:
         sym = item["ticker"]
@@ -141,7 +157,7 @@ def process_all():
                 status = "STOPPED OUT"
             else:
                 status = "IN PLAY"
-        else: # AVOID
+        else:
             pnl = round(((item["entry"] - live_close) / item["entry"]) * 100, 1)
             status = "CAPITAL PRESERVED" if live_close <= item["entry"] else "STOPPED OUT"
 
@@ -162,7 +178,7 @@ def process_all():
     with open(HISTORY_JSON, "w") as f:
         json.dump(history_logs, f, indent=2)
 
-    # 3. RE-CALCULATE DIRECTOR & SPONSOR FILINGS AGAINST TODAY'S TAPE
+    # 3. INSIDERS
     insider_logs = []
     for ins in DIRECTOR_REGISTRY:
         sym = ins["ticker"]
