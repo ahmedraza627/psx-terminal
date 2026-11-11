@@ -26,6 +26,17 @@ interface MarketRegime {
   isDefensive: boolean;
 }
 
+interface InstitutionalFlow {
+  date: string;
+  sentiment: string;
+  smartMoneyDeltaM: number;
+  mutualFundsM: number;
+  banksDfiM: number;
+  foreignUsdK: number;
+  individualsM: number;
+  isSmartMoneyBuying: boolean;
+}
+
 interface LatestData {
   sessionDate: string;
   sessionTime: string;
@@ -36,12 +47,18 @@ interface LatestData {
 
 export default function DashboardPage() {
   const [data, setData] = useState<LatestData | null>(null);
+  const [flow, setFlow] = useState<InstitutionalFlow | null>(null);
 
   useEffect(() => {
     fetch("/data/latest.json")
       .then((res) => res.json())
       .then((d) => setData(d))
       .catch((err) => console.error("Error loading data:", err));
+
+    fetch("/data/flow.json")
+      .then((res) => res.json())
+      .then((f) => setFlow(f))
+      .catch((err) => console.error("Error loading flow:", err));
   }, []);
 
   if (!data) {
@@ -63,7 +80,7 @@ export default function DashboardPage() {
             PSX Daily Trade Desk
           </h1>
           <p className="text-xs text-slate-500">
-            Daily Tier-1 institutional swing setups with real market regime protection.
+            Tier-1 institutional swing setups backed by 1-year historical bars & NCCPL smart money flow.
           </p>
         </div>
         <div className="text-right">
@@ -101,6 +118,30 @@ export default function DashboardPage() {
           <p className="text-[11px] font-sans opacity-90 sm:text-right">
             {data.regime.note}
           </p>
+        </div>
+      )}
+
+      {/* SMART MONEY FLOW STRIP (NCCPL FIPI / LIPI) */}
+      {flow && (
+        <div className="p-3.5 rounded-xl border border-slate-200 bg-white shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-3 font-mono text-xs">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-blue-600"></span>
+            <span className="text-[11px] font-bold text-slate-500 uppercase">NCCPL Smart Money:</span>
+            <span className={`font-bold ${flow.isSmartMoneyBuying ? "text-emerald-700" : "text-rose-700"}`}>
+              {flow.sentiment}
+            </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-3 text-[11px]">
+            <span className="bg-slate-50 px-2.5 py-1 rounded border border-slate-200">
+              Mutual Funds: <strong className="text-emerald-600">+{flow.mutualFundsM}M PKR</strong>
+            </span>
+            <span className="bg-slate-50 px-2.5 py-1 rounded border border-slate-200">
+              Foreign: <strong className="text-emerald-600">+${flow.foreignUsdK}K</strong>
+            </span>
+            <span className="bg-slate-50 px-2.5 py-1 rounded border border-slate-200">
+              Retail (Individuals): <strong className="text-rose-600">{flow.individualsM}M PKR</strong>
+            </span>
+          </div>
         </div>
       )}
 
@@ -145,7 +186,7 @@ export default function DashboardPage() {
                         Prob: {stock.probability}
                       </span>
                       <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200 font-medium">
-                        Vol: {stock.rvol}
+                        RVOL: {stock.rvol}
                       </span>
                     </div>
                   </div>
@@ -207,7 +248,7 @@ export default function DashboardPage() {
                       Risk: {stock.probability}
                     </span>
                     <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200 font-medium">
-                      Vol: {stock.rvol}
+                      RVOL: {stock.rvol}
                     </span>
                   </div>
                 </div>
