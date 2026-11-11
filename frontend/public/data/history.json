@@ -1,32 +1,6 @@
 [
   {
     "date": "2026-11-11",
-    "ticker": "AICL",
-    "type": "AVOID",
-    "timeframe": "1M",
-    "entryRef": 91.11,
-    "invalidation": 93.62,
-    "target": 86.1,
-    "latestClose": 91.62,
-    "pnlPct": -0.6,
-    "status": "IN PLAY",
-    "notes": "Institutional distribution (2,084,366 shares, PKR 19.0Cr turnover). Downside risk of -5.5%."
-  },
-  {
-    "date": "2026-11-11",
-    "ticker": "CNERGY",
-    "type": "AVOID",
-    "timeframe": "1M",
-    "entryRef": 11.35,
-    "invalidation": 11.72,
-    "target": 10.51,
-    "latestClose": 11.77,
-    "pnlPct": -3.7,
-    "status": "STOPPED OUT",
-    "notes": "Institutional distribution (70,087,756 shares, PKR 79.5Cr turnover). Downside risk of -7.4%."
-  },
-  {
-    "date": "2026-11-11",
     "ticker": "EFERT",
     "type": "BUY",
     "timeframe": "1M",
@@ -36,20 +10,7 @@
     "latestClose": 210.88,
     "pnlPct": 0.0,
     "status": "IN PLAY",
-    "notes": "Historical BULLISH trend (2,766,232 shares, PKR 58.3Cr turnover). Swing target +2.3%."
-  },
-  {
-    "date": "2026-11-11",
-    "ticker": "EPCL",
-    "type": "AVOID",
-    "timeframe": "1M",
-    "entryRef": 32.89,
-    "invalidation": 33.6,
-    "target": 31.34,
-    "latestClose": 32.52,
-    "pnlPct": 1.1,
-    "status": "IN PLAY",
-    "notes": "Institutional distribution (1,655,303 shares, PKR 5.4Cr turnover). Downside risk of -4.7%."
+    "notes": "Institutional accumulation (2,766,232 shares, PKR 58.3Cr turnover). Swing target +2.3%."
   },
   {
     "date": "2026-11-11",
@@ -57,12 +18,12 @@
     "type": "AVOID",
     "timeframe": "1M",
     "entryRef": 62.09,
-    "invalidation": 63.01,
-    "target": 59.65,
+    "invalidation": 63.12,
+    "target": 60.03,
     "latestClose": 62.09,
     "pnlPct": 0.0,
     "status": "IN PLAY",
-    "notes": "Institutional distribution (18,674,404 shares, PKR 115.9Cr turnover). Downside risk of -3.9%."
+    "notes": "Distribution from Bullish Structure (18,674,404 shares, PKR 115.9Cr turnover). Downside risk of -3.3%."
   },
   {
     "date": "2026-11-11",
@@ -70,38 +31,12 @@
     "type": "BUY",
     "timeframe": "1M",
     "entryRef": 313.24,
-    "invalidation": 308.35,
-    "target": 321.38,
+    "invalidation": 308.65,
+    "target": 320.89,
     "latestClose": 313.24,
     "pnlPct": 0.0,
     "status": "IN PLAY",
-    "notes": "Tier-1 accumulation (5,557,176 shares, PKR 174.1Cr turnover). Swing target +2.6%."
-  },
-  {
-    "date": "2026-11-11",
-    "ticker": "LUCK",
-    "type": "BUY",
-    "timeframe": "1M",
-    "entryRef": 451.11,
-    "invalidation": 440.02,
-    "target": 469.6,
-    "latestClose": 445.06,
-    "pnlPct": -1.3,
-    "status": "IN PLAY",
-    "notes": "Tier-1 accumulation (5,870,082 shares, PKR 264.8Cr turnover). Swing target +4.1%."
-  },
-  {
-    "date": "2026-11-11",
-    "ticker": "MLCF",
-    "type": "BUY",
-    "timeframe": "1M",
-    "entryRef": 107.27,
-    "invalidation": 104.76,
-    "target": 111.46,
-    "latestClose": 105.27,
-    "pnlPct": -1.9,
-    "status": "IN PLAY",
-    "notes": "Tier-1 accumulation (33,237,663 shares, PKR 356.5Cr turnover). Swing target +3.9%."
+    "notes": "Institutional accumulation (5,557,176 shares, PKR 174.1Cr turnover). Swing target +2.4%."
   },
   {
     "date": "2026-11-11",
@@ -109,51 +44,12 @@
     "type": "AVOID",
     "timeframe": "1M",
     "entryRef": 105.27,
-    "invalidation": 107.35,
-    "target": 99.55,
+    "invalidation": 106.94,
+    "target": 101.92,
     "latestClose": 105.27,
     "pnlPct": 0.0,
     "status": "IN PLAY",
-    "notes": "Institutional distribution (19,334,720 shares, PKR 203.5Cr turnover). Downside risk of -5.4%."
-  },
-  {
-    "date": "2026-11-11",
-    "ticker": "NRL",
-    "type": "BUY",
-    "timeframe": "1M",
-    "entryRef": 451.02,
-    "invalidation": 442.24,
-    "target": 465.65,
-    "latestClose": 451.02,
-    "pnlPct": 0.0,
-    "status": "IN PLAY",
-    "notes": "Tier-1 accumulation (1,874,188 shares, PKR 84.5Cr turnover). Swing target +3.2%."
-  },
-  {
-    "date": "2026-11-11",
-    "ticker": "NRL",
-    "type": "AVOID",
-    "timeframe": "1M",
-    "entryRef": 442.92,
-    "invalidation": 455.1,
-    "target": 418.56,
-    "latestClose": 451.02,
-    "pnlPct": -1.8,
-    "status": "IN PLAY",
-    "notes": "Institutional distribution (2,760,618 shares, PKR 122.3Cr turnover). Downside risk of -5.5%."
-  },
-  {
-    "date": "2026-11-11",
-    "ticker": "OGDC",
-    "type": "BUY",
-    "timeframe": "1M",
-    "entryRef": 317.02,
-    "invalidation": 312.07,
-    "target": 325.26,
-    "latestClose": 316.09,
-    "pnlPct": -0.3,
-    "status": "IN PLAY",
-    "notes": "Tier-1 accumulation (5,507,843 shares, PKR 174.6Cr turnover). Swing target +2.6%."
+    "notes": "Distribution from Bullish Structure (19,334,720 shares, PKR 203.5Cr turnover). Downside risk of -3.2%."
   },
   {
     "date": "2026-11-11",
@@ -161,12 +57,12 @@
     "type": "AVOID",
     "timeframe": "1M",
     "entryRef": 316.09,
-    "invalidation": 320.2,
-    "target": 305.34,
+    "invalidation": 318.52,
+    "target": 311.23,
     "latestClose": 316.09,
     "pnlPct": 0.0,
     "status": "IN PLAY",
-    "notes": "Institutional distribution (4,039,950 shares, PKR 127.7Cr turnover). Downside risk of -3.4%."
+    "notes": "Distribution from Bullish Structure (4,039,950 shares, PKR 127.7Cr turnover). Downside risk of -1.5%."
   },
   {
     "date": "2026-11-11",
@@ -174,25 +70,12 @@
     "type": "BUY",
     "timeframe": "1M",
     "entryRef": 35.44,
-    "invalidation": 34.81,
-    "target": 36.49,
+    "invalidation": 34.94,
+    "target": 36.27,
     "latestClose": 35.44,
     "pnlPct": 0.0,
     "status": "IN PLAY",
-    "notes": "Tier-1 accumulation (22,236,032 shares, PKR 78.8Cr turnover). Swing target +3.0%."
-  },
-  {
-    "date": "2026-11-11",
-    "ticker": "PPL",
-    "type": "BUY",
-    "timeframe": "1M",
-    "entryRef": 227.9,
-    "invalidation": 222.12,
-    "target": 237.53,
-    "latestClose": 225.35,
-    "pnlPct": -1.1,
-    "status": "IN PLAY",
-    "notes": "Tier-1 accumulation (7,522,090 shares, PKR 171.4Cr turnover). Swing target +4.2%."
+    "notes": "Institutional accumulation (22,236,032 shares, PKR 78.8Cr turnover). Swing target +2.3%."
   },
   {
     "date": "2026-11-11",
@@ -200,38 +83,12 @@
     "type": "AVOID",
     "timeframe": "1M",
     "entryRef": 225.35,
-    "invalidation": 228.28,
-    "target": 217.69,
+    "invalidation": 227.73,
+    "target": 220.58,
     "latestClose": 225.35,
     "pnlPct": 0.0,
     "status": "IN PLAY",
-    "notes": "Institutional distribution (4,482,759 shares, PKR 101.0Cr turnover). Downside risk of -3.4%."
-  },
-  {
-    "date": "2026-11-11",
-    "ticker": "PRL",
-    "type": "BUY",
-    "timeframe": "1M",
-    "entryRef": 80.39,
-    "invalidation": 77.82,
-    "target": 84.67,
-    "latestClose": 80.39,
-    "pnlPct": 0.0,
-    "status": "IN PLAY",
-    "notes": "Tier-1 accumulation (26,668,836 shares, PKR 214.4Cr turnover). Swing target +5.3%."
-  },
-  {
-    "date": "2026-11-11",
-    "ticker": "PRL",
-    "type": "AVOID",
-    "timeframe": "1M",
-    "entryRef": 77.26,
-    "invalidation": 79.38,
-    "target": 73.01,
-    "latestClose": 80.39,
-    "pnlPct": -4.1,
-    "status": "STOPPED OUT",
-    "notes": "Institutional distribution (27,322,288 shares, PKR 211.1Cr turnover). Downside risk of -5.5%."
+    "notes": "Distribution from Bullish Structure (4,482,759 shares, PKR 101.0Cr turnover). Downside risk of -2.1%."
   },
   {
     "date": "2026-11-11",
@@ -239,25 +96,25 @@
     "type": "BUY",
     "timeframe": "1M",
     "entryRef": 374.68,
-    "invalidation": 361.86,
-    "target": 396.06,
+    "invalidation": 368.77,
+    "target": 384.53,
     "latestClose": 374.68,
     "pnlPct": 0.0,
     "status": "IN PLAY",
-    "notes": "Tier-1 accumulation (12,862,011 shares, PKR 481.9Cr turnover). Swing target +5.7%."
+    "notes": "Institutional accumulation (12,862,011 shares, PKR 481.9Cr turnover). Swing target +2.6%."
   },
   {
     "date": "2026-11-11",
-    "ticker": "UBL",
+    "ticker": "SSGC",
     "type": "BUY",
     "timeframe": "1M",
-    "entryRef": 445.3,
-    "invalidation": 436.9,
-    "target": 459.3,
-    "latestClose": 441.72,
-    "pnlPct": -0.8,
+    "entryRef": 24.41,
+    "invalidation": 23.92,
+    "target": 25.23,
+    "latestClose": 24.41,
+    "pnlPct": 0.0,
     "status": "IN PLAY",
-    "notes": "Tier-1 accumulation (4,316,709 shares, PKR 192.2Cr turnover). Swing target +3.1%."
+    "notes": "Institutional accumulation (20,988,558 shares, PKR 51.2Cr turnover). Swing target +3.4%."
   },
   {
     "date": "2026-11-11",
@@ -265,25 +122,12 @@
     "type": "AVOID",
     "timeframe": "1M",
     "entryRef": 441.72,
-    "invalidation": 447.46,
-    "target": 426.33,
+    "invalidation": 447.09,
+    "target": 430.98,
     "latestClose": 441.72,
     "pnlPct": 0.0,
     "status": "IN PLAY",
-    "notes": "Institutional distribution (2,993,692 shares, PKR 132.2Cr turnover). Downside risk of -3.5%."
-  },
-  {
-    "date": "2026-11-11",
-    "ticker": "ZUMA",
-    "type": "AVOID",
-    "timeframe": "1M",
-    "entryRef": 30.75,
-    "invalidation": 31.6,
-    "target": 29.06,
-    "latestClose": 30.45,
-    "pnlPct": 1.0,
-    "status": "IN PLAY",
-    "notes": "Institutional distribution (2,334,544 shares, PKR 7.2Cr turnover). Downside risk of -5.5%."
+    "notes": "Distribution from Bullish Structure (2,993,692 shares, PKR 132.2Cr turnover). Downside risk of -2.4%."
   },
   {
     "date": "2026-11-09",

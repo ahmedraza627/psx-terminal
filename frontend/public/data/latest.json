@@ -1,6 +1,6 @@
 {
   "sessionDate": "Wednesday, Nov 11, 2026",
-  "sessionTime": "18:20 PKT",
+  "sessionTime": "18:32 PKT",
   "regime": {
     "status": "BULLISH ACCUMULATION",
     "kseChange": "+0.36%",
@@ -22,40 +22,10 @@
       "rr": "1:1.7",
       "probability": "74.7%",
       "rvol": "4.7x",
-      "notes": "Historical BULLISH trend (12,862,011 shares, PKR 481.9Cr turnover). Swing target +2.6%."
+      "notes": "Institutional accumulation (12,862,011 shares, PKR 481.9Cr turnover). Swing target +2.6%."
     },
     {
       "rank": 2,
-      "ticker": "HBL",
-      "entry": "PKR 313.24",
-      "entryZone": "PKR 311.36 - 314.49",
-      "stop": "PKR 308.65 (-1.5%)",
-      "target": "PKR 320.89 (+2.4%)",
-      "raw_entry": 313.24,
-      "raw_stop": 308.65,
-      "raw_target": 320.89,
-      "rr": "1:1.7",
-      "probability": "68.5%",
-      "rvol": "3.1x",
-      "notes": "Historical BULLISH trend (5,557,176 shares, PKR 174.1Cr turnover). Swing target +2.4%."
-    },
-    {
-      "rank": 3,
-      "ticker": "PRL",
-      "entry": "PKR 80.39",
-      "entryZone": "PKR 79.91 - 80.71",
-      "stop": "PKR 77.28 (-3.9%)",
-      "target": "PKR 85.58 (+6.5%)",
-      "raw_entry": 80.39,
-      "raw_stop": 77.28,
-      "raw_target": 85.58,
-      "rr": "1:1.7",
-      "probability": "58.2%",
-      "rvol": "0.9x",
-      "notes": "Historical BEARISH trend (26,668,836 shares, PKR 214.4Cr turnover). Swing target +6.5%."
-    },
-    {
-      "rank": 4,
       "ticker": "PAEL",
       "entry": "PKR 35.44",
       "entryZone": "PKR 35.23 - 35.58",
@@ -67,10 +37,25 @@
       "rr": "1:1.7",
       "probability": "74.0%",
       "rvol": "4.6x",
-      "notes": "Historical BULLISH trend (22,236,032 shares, PKR 78.8Cr turnover). Swing target +2.3%."
+      "notes": "Institutional accumulation (22,236,032 shares, PKR 78.8Cr turnover). Swing target +2.3%."
     },
     {
-      "rank": 5,
+      "rank": 3,
+      "ticker": "SSGC",
+      "entry": "PKR 24.41",
+      "entryZone": "PKR 24.26 - 24.51",
+      "stop": "PKR 23.92 (-2.0%)",
+      "target": "PKR 25.23 (+3.4%)",
+      "raw_entry": 24.41,
+      "raw_stop": 23.92,
+      "raw_target": 25.23,
+      "rr": "1:1.7",
+      "probability": "72.8%",
+      "rvol": "3.4x",
+      "notes": "Institutional accumulation (20,988,558 shares, PKR 51.2Cr turnover). Swing target +3.4%."
+    },
+    {
+      "rank": 4,
       "ticker": "EFERT",
       "entry": "PKR 210.88",
       "entryZone": "PKR 209.61 - 211.72",
@@ -82,7 +67,22 @@
       "rr": "1:1.7",
       "probability": "68.7%",
       "rvol": "1.8x",
-      "notes": "Historical BULLISH trend (2,766,232 shares, PKR 58.3Cr turnover). Swing target +2.3%."
+      "notes": "Institutional accumulation (2,766,232 shares, PKR 58.3Cr turnover). Swing target +2.3%."
+    },
+    {
+      "rank": 5,
+      "ticker": "HBL",
+      "entry": "PKR 313.24",
+      "entryZone": "PKR 311.36 - 314.49",
+      "stop": "PKR 308.65 (-1.5%)",
+      "target": "PKR 320.89 (+2.4%)",
+      "raw_entry": 313.24,
+      "raw_stop": 308.65,
+      "raw_target": 320.89,
+      "rr": "1:1.7",
+      "probability": "68.5%",
+      "rvol": "3.1x",
+      "notes": "Institutional accumulation (5,557,176 shares, PKR 174.1Cr turnover). Swing target +2.4%."
     }
   ],
   "avoids": [
@@ -97,7 +97,7 @@
       "tag": "SELLING PRESSURE",
       "probability": "55.4%",
       "rvol": "2.3x",
-      "notes": "Historical BULLISH breakdown (19,334,720 shares, PKR 203.5Cr turnover). Downside risk of -3.2%."
+      "notes": "Distribution from Bullish Structure (19,334,720 shares, PKR 203.5Cr turnover). Downside risk of -3.2%."
     },
     {
       "rank": 2,
@@ -110,7 +110,7 @@
       "tag": "SELLING PRESSURE",
       "probability": "53.2%",
       "rvol": "2.1x",
-      "notes": "Historical BULLISH breakdown (2,993,692 shares, PKR 132.2Cr turnover). Downside risk of -2.4%."
+      "notes": "Distribution from Bullish Structure (2,993,692 shares, PKR 132.2Cr turnover). Downside risk of -2.4%."
     },
     {
       "rank": 3,
@@ -123,7 +123,7 @@
       "tag": "SELLING PRESSURE",
       "probability": "52.0%",
       "rvol": "1.9x",
-      "notes": "Historical BULLISH breakdown (4,039,950 shares, PKR 127.7Cr turnover). Downside risk of -1.5%."
+      "notes": "Distribution from Bullish Structure (4,039,950 shares, PKR 127.7Cr turnover). Downside risk of -1.5%."
     },
     {
       "rank": 4,
@@ -136,7 +136,7 @@
       "tag": "SELLING PRESSURE",
       "probability": "57.1%",
       "rvol": "2.7x",
-      "notes": "Historical BULLISH breakdown (18,674,404 shares, PKR 115.9Cr turnover). Downside risk of -3.3%."
+      "notes": "Distribution from Bullish Structure (18,674,404 shares, PKR 115.9Cr turnover). Downside risk of -3.3%."
     },
     {
       "rank": 5,
@@ -149,7 +149,7 @@
       "tag": "SELLING PRESSURE",
       "probability": "51.5%",
       "rvol": "1.7x",
-      "notes": "Historical BULLISH breakdown (4,482,759 shares, PKR 101.0Cr turnover). Downside risk of -2.1%."
+      "notes": "Distribution from Bullish Structure (4,482,759 shares, PKR 101.0Cr turnover). Downside risk of -2.1%."
     }
   ]
 }

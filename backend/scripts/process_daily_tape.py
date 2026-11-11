@@ -32,6 +32,17 @@ DIRECTOR_REGISTRY = [
     {"filingDate": "2026-10-05", "ticker": "HUBC",   "sponsor": "Major Shareholder / Institutional",   "action": "SELL", "shares": 1500000,"filedRate": 209.50, "rationale": "Strategic block sale via NDM window."}
 ]
 
+def init_clean_trades_table(conn):
+    cur = conn.cursor()
+    # Migration: date + ticker should be unique (no stock can be both BUY and AVOID on same date)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS active_trades (
+            date TEXT, ticker TEXT, type TEXT, entry REAL, stop REAL, target REAL, status TEXT, notes TEXT,
+            PRIMARY KEY (date, ticker)
+        )
+    """)
+    conn.commit()
+
 def is_valid_psx_tape(filepath):
     if filepath.endswith(('.Z', '.z', '.zip', '.tar', '.gz')):
         return False
@@ -66,8 +77,7 @@ def compute_historical_metrics(cur, ticker, current_close, current_vol):
     rows = cur.fetchall()
 
     if not rows or len(rows) < 5:
-        # Fallback if brand new ticker
-        return {"rvol": 1.2, "sma50": current_close, "atr14": current_close * 0.035, "trend": "NEUTRAL"}
+        return {"rvol": 1.0, "sma50": current_close, "atr14": current_close * 0.032, "trend": "NEUTRAL"}
 
     vols_20 = [r[3] for r in rows[:20] if r[3] is not None and r[3] > 0]
     avg_vol_20 = sum(vols_20) / len(vols_20) if vols_20 else current_vol
@@ -78,7 +88,6 @@ def compute_historical_metrics(cur, ticker, current_close, current_vol):
     sma50 = sum(closes_50) / len(closes_50) if closes_50 else current_close
     trend = "BULLISH" if current_close >= sma50 else "BEARISH"
 
-    # True 14-day ATR calculation
     tr_list = []
     for i in range(min(14, len(rows) - 1)):
         c_prev = rows[i+1][0]
@@ -164,9 +173,9 @@ def process_all():
     regime_note = "High macro distribution detected. KSE-100 under heavy selling. New buy setups blocked to protect capital." if is_defensive else "Healthy market breadth. Tier-1 institutional accumulation active across key sectors."
 
     conn = sqlite3.connect(DB_PATH)
+    init_clean_trades_table(conn)
     cur = conn.cursor()
 
-    # Ingest today's session into database
     for row in parsed_today:
         cur.execute("""
             INSERT OR REPLACE INTO daily_eod (date, ticker, sector, open, high, low, close, volume, turnover)
@@ -182,11 +191,10 @@ def process_all():
         rvol = metrics["rvol"]
         atr14 = metrics["atr14"]
 
-        # MULTI-FACTOR COMPOSITE QUANT FORMULA
         if item["change"] > 0:
-            trend_bonus = 6.0 if metrics["trend"] == "BULLISH" else -4.0
+            trend_bonus = 6.0 if metrics["trend"] == "BULLISH" else -6.0
             prob = 54.0 + (min(item["change"], 7.0) * 0.9) + (min(rvol, 3.5) * 2.4) + (clv * 4.5) + trend_bonus
-            prob_score = round(min(max(prob, 55.0), 78.5), 1)
+            prob_score = round(min(max(prob, 52.0), 78.5), 1)
         else:
             trend_penalty = 5.0 if metrics["trend"] == "BEARISH" else -2.0
             downside_risk = 46.0 + (min(abs(item["change"]), 8.0) * 1.4) + (min(rvol, 3.5) * 2.2) + ((1.0 - clv) * 4.5) + trend_penalty
@@ -200,13 +208,13 @@ def process_all():
             "trend": metrics["trend"]
         })
 
-    # TOP 5 BUYS (Diversified across sectors, supported by 50-SMA trend)
-    gainers = [c for c in scored_candidates if c["change"] >= 0]
-    gainers.sort(key=lambda x: (x["turnover"] * (1.2 if x["trend"] == "BULLISH" else 0.8), x["prob"]), reverse=True)
+    # QUALITY-GATED BUYS (Requires prob >= 64% and positive change)
+    gainers = [c for c in scored_candidates if c["change"] > 0 and c["prob"] >= 64.0 and c["trend"] == "BULLISH"]
+    gainers.sort(key=lambda x: (x["prob"], x["rvol"], x["turnover"]), reverse=True)
 
     buys = []
+    sector_buy_count = {}
     if not is_defensive:
-        sector_buy_count = {}
         for item in gainers:
             sec = item["sector"]
             if sector_buy_count.get(sec, 0) < 2:
@@ -232,14 +240,15 @@ def process_all():
                     "rr": "1:1.7",
                     "probability": f"{item['prob']}%",
                     "rvol": f"{item['rvol']}x",
-                    "notes": f"Historical {item['trend']} trend ({int(item['vol']):,} shares, PKR {round(item['turnover']/10000000, 1)}Cr turnover). Swing target +{gain_pct}%."
+                    "notes": f"Institutional accumulation ({int(item['vol']):,} shares, PKR {round(item['turnover']/10000000, 1)}Cr turnover). Swing target +{gain_pct}%."
                 })
                 sector_buy_count[sec] = sector_buy_count.get(sec, 0) + 1
             if len(buys) == 5:
                 break
 
-    # TOP 5 AVOIDS (Pass 1: Max 2 per sector, Pass 2: Fallback fill for 5th slot)
-    losers = [c for c in scored_candidates if c["change"] < 0]
+    # STRICT AVOIDS (Must NOT overlap with any selected BUY)
+    selected_buy_tickers = {b["ticker"] for b in buys}
+    losers = [c for c in scored_candidates if c["change"] < 0 and c["ticker"] not in selected_buy_tickers]
     losers.sort(key=lambda x: (x["turnover"], x["prob"]), reverse=True)
 
     def build_avoid_item(item, rank):
@@ -247,6 +256,7 @@ def process_all():
         downside = round(price - item["atr"], 2)
         risk_pct = round(((price - downside) / price) * 100, 1)
         stop_ref = round(price + (item["atr"] * 0.5), 2)
+        structure_note = "Distribution from Bullish Structure" if item["trend"] == "BULLISH" else "Bearish Trend Breakdown"
         return {
             "rank": rank,
             "ticker": item["ticker"],
@@ -258,7 +268,7 @@ def process_all():
             "tag": "SELLING PRESSURE",
             "probability": f"{item['prob']}%",
             "rvol": f"{item['rvol']}x",
-            "notes": f"Historical {item['trend']} breakdown ({int(item['vol']):,} shares, PKR {round(item['turnover']/10000000, 1)}Cr turnover). Downside risk of -{risk_pct}%."
+            "notes": f"{structure_note} ({int(item['vol']):,} shares, PKR {round(item['turnover']/10000000, 1)}Cr turnover). Downside risk of -{risk_pct}%."
         }
 
     avoids = []
@@ -272,29 +282,31 @@ def process_all():
             break
 
     if len(avoids) < 5:
-        selected_tickers = {a["ticker"] for a in avoids}
+        selected_avoid_tickers = {a["ticker"] for a in avoids}
         for item in losers:
-            if item["ticker"] not in selected_tickers:
+            if item["ticker"] not in selected_avoid_tickers:
                 avoids.append(build_avoid_item(item, len(avoids) + 1))
-                selected_tickers.add(item["ticker"])
+                selected_avoid_tickers.add(item["ticker"])
             if len(avoids) == 5:
                 break
 
-    # Dynamic Ledger: Insert today's recommended calls into DB
+    # STRICT DEDUPLICATED DB LEDGER INSERTION (1 Ticker = 1 Verdict per Date)
+    cur.execute("DELETE FROM active_trades WHERE date = ?", (db_date,))
+
     for b in buys:
         cur.execute("""
-            INSERT OR IGNORE INTO active_trades (date, ticker, type, entry, stop, target, status, notes)
+            INSERT OR REPLACE INTO active_trades (date, ticker, type, entry, stop, target, status, notes)
             VALUES (?, ?, 'BUY', ?, ?, ?, 'IN PLAY', ?)
         """, (db_date, b["ticker"], b["raw_entry"], b["raw_stop"], b["raw_target"], b["notes"]))
 
     for a in avoids:
         cur.execute("""
-            INSERT OR IGNORE INTO active_trades (date, ticker, type, entry, stop, target, status, notes)
+            INSERT OR REPLACE INTO active_trades (date, ticker, type, entry, stop, target, status, notes)
             VALUES (?, ?, 'AVOID', ?, ?, ?, 'IN PLAY', ?)
         """, (db_date, a["ticker"], a["raw_price"], a["raw_stop"], a["raw_downside"], a["notes"]))
     conn.commit()
 
-    # Audit all trades against active tape
+    # Re-audit active trades against live closing tape
     cur.execute("SELECT date, ticker, type, entry, stop, target, status, notes FROM active_trades ORDER BY date DESC, ticker ASC")
     db_trades = cur.fetchall()
 
@@ -309,7 +321,7 @@ def process_all():
             status = "CAPITAL PRESERVED" if live_close <= t_target else ("STOPPED OUT" if live_close >= t_stop else "IN PLAY")
 
         if status != prev_status:
-            cur.execute("UPDATE active_trades SET status = ? WHERE date = ? AND ticker = ? AND type = ?", (status, t_date, sym, t_type))
+            cur.execute("UPDATE active_trades SET status = ? WHERE date = ? AND ticker = ?", (status, t_date, sym))
 
         history_logs.append({
             "date": t_date,
@@ -371,11 +383,11 @@ def process_all():
     with open(INSIDERS_JSON, "w") as f:
         json.dump(insider_logs, f, indent=2)
 
-    print(f"\n[HISTORICAL MULTI-FACTOR ENGINE] Synchronized for {session_date}:")
+    print(f"\n[SANITIZED QUANT ENGINE] Synchronized for {session_date}:")
     print(f"  Regime: {regime_status} | KSE-100: {kse100_pct:+.2f}% | Breadth: {breadth_pct}%")
-    print(f"  Active Ledger: {len(history_logs)} lifetime setups audited against 1-year database.")
+    print(f"  Clean Ledger: {len(history_logs)} unique historical setups (No duplicates).")
     for b in buys:
-        print(f"  BUY  #{b['rank']} {b['ticker']}: Zone {b['entryZone']} | Target: {b['target']} | RVOL: {b['rvol']}")
+        print(f"  BUY  #{b['rank']} {b['ticker']}: Zone {b['entryZone']} | Target: {b['target']} | RVOL: {b['rvol']} | Prob: {b['probability']}")
     for a in avoids:
         print(f"  AVOID #{a['rank']} {a['ticker']}: Downside {a['downside']} | Risk: {a['probability']} | RVOL: {a['rvol']}")
 
