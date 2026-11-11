@@ -11,6 +11,24 @@ INSIDERS_JSON = os.path.join(DATA_DIR, "insiders.json")
 DB_PATH = os.path.join("backend", "psx_history.db")
 TARGET_DIR = r"D:\downloads"
 
+# KSE CORE INSTITUTIONAL UNIVERSE (Strictly blocks speculative low-floats like ZUMA)
+KSE_INSTITUTIONAL_CORE = {
+    # Banking
+    "UBL", "MCB", "MEBL", "HBL", "BAHL", "BAFL", "NBP", "BOP", "AKBL", "FABBL",
+    # Cement
+    "MLCF", "LUCK", "DGKC", "FCCL", "PIOC", "CHCC", "ACPL", "BWCL", "KOHC",
+    # Oil, Gas & E&P
+    "OGDC", "PPL", "MARI", "POL", "PSO", "SHEL", "SNGP", "SSGC", "HASCOL",
+    # Fertilizer
+    "FFC", "ENGRO", "EFERT", "FATIMA", "FFBL",
+    # Technology
+    "SYS", "TRG", "AIRLINK", "AVN", "NETSOL", "OCTOPUS",
+    # Refineries
+    "PRL", "NRL", "ATRL", "CNERGY",
+    # Power, Chemicals, Pharma & Manufacturing
+    "HUBC", "KAPCO", "KEL", "EPCL", "LOTCHEM", "SEARL", "AGP", "ABOT", "ILP", "NML", "PAEL", "UNITY", "INIL", "ISL", "MTL", "INDU", "HCAR", "PSMC", "THALL", "GTYR", "TREET", "AICL"
+}
+
 BASELINE_HISTORY = [
     {"date": "2026-11-09", "ticker": "MCB",  "type": "BUY",   "entry": 399.48, "stop": 389.50, "target": 415.40, "notes": "Banking sector dividend support."},
     {"date": "2026-11-08", "ticker": "MARI", "type": "BUY",   "entry": 651.98, "stop": 635.60, "target": 678.00, "notes": "Hydrocarbon production expansion."},
@@ -54,7 +72,6 @@ def init_db():
     if "sector" not in cols:
         cur.execute("ALTER TABLE daily_eod ADD COLUMN sector TEXT DEFAULT ''")
 
-    # Seed baseline audit history if active_trades is empty
     cur.execute("SELECT COUNT(*) FROM active_trades")
     if cur.fetchone()[0] == 0:
         for t in BASELINE_HISTORY:
@@ -139,13 +156,12 @@ def process_all():
                     elif pct_change < 0:
                         declines += 1
 
-                    # TIER-1 INSTITUTIONAL LIQUIDITY GATE:
-                    # Minimum Volume: 300,000 shares
-                    # Minimum Price: PKR 25.0 (Strictly purges low-float penny/modaraba junk like ZUMA)
-                    # Minimum Turnover: PKR 65,000,000 (6.5 Crore PKR)
-                    if vol >= 300000 and close_p >= 25.0:
+                    # TIER-1 INSTITUTIONAL FILTER:
+                    # Must belong to KSE_INSTITUTIONAL_CORE universe
+                    # Volume >= 200,000 shares & Daily Turnover >= 25,000,000 PKR
+                    if sym in KSE_INSTITUTIONAL_CORE and vol >= 200000:
                         turnover = close_p * vol
-                        if turnover >= 65000000:
+                        if turnover >= 25000000:
                             parsed_today.append({
                                 "ticker": sym,
                                 "sector": sec,
@@ -160,7 +176,6 @@ def process_all():
                 except ValueError:
                     continue
 
-    # MACRO REGIME DETECTION
     total_active = advances + declines
     breadth_pct = round((advances / total_active) * 100, 1) if total_active > 0 else 50.0
     if kse100_pct is None:
@@ -186,9 +201,8 @@ def process_all():
         raw_rvol = 1.2 + (item["turnover"] / 1500000000)
         rvol = round(min(max(raw_rvol, 1.2), 3.8), 1)
 
-        # UNCLAMPED DYNAMIC ATR (Between 2.6% and 5.5% based on actual stock range)
-        rng_pct = (rng / item["close"]) if item["close"] > 0 else 0.03
-        target_atr = item["close"] * max(0.026, min(rng_pct, 0.055))
+        # Dynamic, individual swing ATR
+        target_atr = max(rng * 0.95, item["close"] * 0.026)
 
         if item["change"] > 0:
             prob = 58.0 + (min(item["change"], 8.0) * 0.9) + (rvol * 2.1) + (clv * 4.0)
@@ -204,7 +218,7 @@ def process_all():
             "prob": prob_score
         })
 
-    # DIVERSIFIED TOP 5 BUYS (Max 2 stocks per sector)
+    # DIVERSIFIED TOP 5 BUYS (With Execution Entry Buffer)
     gainers = [c for c in scored_candidates if c["change"] >= 0]
     gainers.sort(key=lambda x: (x["turnover"], x["prob"]), reverse=True)
 
@@ -220,10 +234,15 @@ def process_all():
                 gain_pct = round(((target - price) / price) * 100, 1)
                 loss_pct = round(((price - stop) / price) * 100, 1)
 
+                # Entry execution buffer zone (0.6% pullback - 0.4% momentum allowance)
+                zone_low = round(price * 0.994, 2)
+                zone_high = round(price * 1.004, 2)
+
                 buys.append({
                     "rank": len(buys) + 1,
                     "ticker": item["ticker"],
                     "entry": f"PKR {price:.2f}",
+                    "entryZone": f"PKR {zone_low:.2f} - {zone_high:.2f}",
                     "stop": f"PKR {stop:.2f} (-{loss_pct}%)",
                     "target": f"PKR {target:.2f} (+{gain_pct}%)",
                     "raw_entry": price,
@@ -238,7 +257,7 @@ def process_all():
             if len(buys) == 5:
                 break
 
-    # DIVERSIFIED TOP 5 AVOIDS (Dynamic Downside - No Flat Clamping)
+    # DIVERSIFIED TOP 5 AVOIDS (Unclamped, Distinct Downside Percentages)
     losers = [c for c in scored_candidates if c["change"] < 0]
     losers.sort(key=lambda x: (x["turnover"], x["prob"]), reverse=True)
 
@@ -248,8 +267,12 @@ def process_all():
         sec = item["sector"]
         if sector_avoid_count.get(sec, 0) < 2:
             price = item["close"]
-            # Dynamic downside: calculated from individual stock ATR
-            downside = round(price - item["atr"], 2)
+            # Dynamic individual downside based on selling depth + relative volume
+            base_drop = (item["high"] - item["low"]) / price
+            vol_boost = (item["rvol"] - 1.0) * 0.008
+            downside_ratio = max(0.034, min(base_drop + vol_boost, 0.078))
+
+            downside = round(price * (1.0 - downside_ratio), 2)
             risk_pct = round(((price - downside) / price) * 100, 1)
             stop_ref = round(price + (item["atr"] * 0.5), 2)
 
@@ -372,11 +395,11 @@ def process_all():
     with open(INSIDERS_JSON, "w") as f:
         json.dump(insider_logs, f, indent=2)
 
-    print(f"\n[TIER-1 QUANT ENGINE] Synchronized for {session_date}:")
+    print(f"\n[KSE CORE INSTITUTIONAL DESK] Synchronized for {session_date}:")
     print(f"  Regime: {regime_status} | KSE-100: {kse100_pct:+.2f}% | Breadth: {breadth_pct}%")
-    print(f"  Auto-Rolling History: {len(history_logs)} lifetime calls tracked in ledger.")
+    print(f"  Active Ledger: {len(history_logs)} lifetime setups audited.")
     for b in buys:
-        print(f"  BUY  #{b['rank']} {b['ticker']}: Target {b['target']} | Score: {b['probability']}")
+        print(f"  BUY  #{b['rank']} {b['ticker']}: Entry {b['entry']} (Zone: {b['entryZone']}) | Target: {b['target']}")
     for a in avoids:
         print(f"  AVOID #{a['rank']} {a['ticker']}: Downside {a['downside']} | Risk: {a['probability']}")
 

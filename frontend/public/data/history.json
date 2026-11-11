@@ -14,6 +14,19 @@
   },
   {
     "date": "2026-11-11",
+    "ticker": "EPCL",
+    "type": "AVOID",
+    "timeframe": "1M",
+    "entryRef": 32.89,
+    "invalidation": 33.6,
+    "target": 31.34,
+    "latestClose": 32.89,
+    "pnlPct": 0.0,
+    "status": "IN PLAY",
+    "notes": "Institutional distribution (1,655,303 shares, PKR 5.4Cr turnover). Downside risk of -4.7%."
+  },
+  {
+    "date": "2026-11-11",
     "ticker": "LUCK",
     "type": "BUY",
     "timeframe": "1M",

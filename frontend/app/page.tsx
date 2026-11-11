@@ -6,6 +6,7 @@ interface StockSetup {
   rank: number;
   ticker: string;
   entry?: string;
+  entryZone?: string;
   stop?: string;
   target?: string;
   rr?: string;
@@ -46,7 +47,7 @@ export default function DashboardPage() {
   if (!data) {
     return (
       <div className="p-8 text-center text-xs text-slate-500 font-mono">
-        Loading PSX daily session data...
+        Loading PSX institutional session data...
       </div>
     );
   }
@@ -150,15 +151,20 @@ export default function DashboardPage() {
                   </div>
 
                   <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-100 font-mono text-center">
-                    <div className="bg-slate-50 p-2 rounded">
+                    <div className="bg-slate-50 p-2 rounded flex flex-col justify-center">
                       <span className="text-[10px] uppercase text-slate-500 block font-medium">Entry Rate</span>
                       <span className="text-xs font-bold text-slate-900">{stock.entry}</span>
+                      {stock.entryZone && (
+                        <span className="text-[9px] text-slate-400 block font-mono mt-0.5">
+                          Zone: {stock.entryZone.replace("PKR ", "")}
+                        </span>
+                      )}
                     </div>
-                    <div className="bg-rose-50/60 p-2 rounded border border-rose-100">
+                    <div className="bg-rose-50/60 p-2 rounded border border-rose-100 flex flex-col justify-center">
                       <span className="text-[10px] uppercase text-rose-600 block font-medium">Stop Loss</span>
                       <span className="text-xs font-bold text-rose-700">{stock.stop}</span>
                     </div>
-                    <div className="bg-emerald-50/60 p-2 rounded border border-emerald-100">
+                    <div className="bg-emerald-50/60 p-2 rounded border border-emerald-100 flex flex-col justify-center">
                       <span className="text-[10px] uppercase text-emerald-700 block font-medium">Take Profit</span>
                       <span className="text-xs font-bold text-emerald-700">{stock.target}</span>
                     </div>
