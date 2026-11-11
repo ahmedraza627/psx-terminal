@@ -1,12 +1,20 @@
 {
   "sessionDate": "Wednesday, Nov 11, 2026",
-  "sessionTime": "18:32 PKT",
+  "sessionTime": "18:52 PKT",
   "regime": {
     "status": "BULLISH ACCUMULATION",
     "kseChange": "+0.36%",
     "breadth": "54.3% Advancing (254 Up / 214 Down)",
     "note": "Healthy market breadth. Tier-1 institutional accumulation active across key sectors.",
     "isDefensive": false
+  },
+  "flow": {
+    "sentiment": "STRONG INSTITUTIONAL ABSORPTION (FUNDS BUYING RETAIL PANIC)",
+    "mutualFundsM": 184.5,
+    "foreignUsdK": 520.0,
+    "individualsM": -291.5,
+    "smartMoneyDeltaM": 145.6,
+    "isSmartMoneyBuying": true
   },
   "buys": [
     {

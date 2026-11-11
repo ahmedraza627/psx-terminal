@@ -27,13 +27,11 @@ interface MarketRegime {
 }
 
 interface InstitutionalFlow {
-  date: string;
   sentiment: string;
-  smartMoneyDeltaM: number;
   mutualFundsM: number;
-  banksDfiM: number;
   foreignUsdK: number;
   individualsM: number;
+  smartMoneyDeltaM: number;
   isSmartMoneyBuying: boolean;
 }
 
@@ -41,24 +39,19 @@ interface LatestData {
   sessionDate: string;
   sessionTime: string;
   regime?: MarketRegime;
+  flow?: InstitutionalFlow;
   buys: StockSetup[];
   avoids: StockSetup[];
 }
 
 export default function DashboardPage() {
   const [data, setData] = useState<LatestData | null>(null);
-  const [flow, setFlow] = useState<InstitutionalFlow | null>(null);
 
   useEffect(() => {
     fetch("/data/latest.json")
       .then((res) => res.json())
       .then((d) => setData(d))
       .catch((err) => console.error("Error loading data:", err));
-
-    fetch("/data/flow.json")
-      .then((res) => res.json())
-      .then((f) => setFlow(f))
-      .catch((err) => console.error("Error loading flow:", err));
   }, []);
 
   if (!data) {
@@ -70,6 +63,7 @@ export default function DashboardPage() {
   }
 
   const isDefensive = data.regime?.isDefensive ?? false;
+  const flow = data.flow;
 
   return (
     <div className="p-4 sm:p-6 pb-20 space-y-6 max-w-7xl mx-auto w-full">
@@ -123,23 +117,26 @@ export default function DashboardPage() {
 
       {/* SMART MONEY FLOW STRIP (NCCPL FIPI / LIPI) */}
       {flow && (
-        <div className="p-3.5 rounded-xl border border-slate-200 bg-white shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-3 font-mono text-xs">
+        <div className="p-3.5 rounded-xl border border-blue-200 bg-blue-50/30 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-3 font-mono text-xs">
           <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-blue-600"></span>
-            <span className="text-[11px] font-bold text-slate-500 uppercase">NCCPL Smart Money:</span>
-            <span className={`font-bold ${flow.isSmartMoneyBuying ? "text-emerald-700" : "text-rose-700"}`}>
+            <span className="w-2.5 h-2.5 rounded-full bg-blue-600 animate-pulse"></span>
+            <span className="text-[11px] font-bold text-slate-600 uppercase">NCCPL Smart Money:</span>
+            <span className="font-bold text-blue-900">
               {flow.sentiment}
             </span>
           </div>
-          <div className="flex flex-wrap items-center gap-3 text-[11px]">
-            <span className="bg-slate-50 px-2.5 py-1 rounded border border-slate-200">
-              Mutual Funds: <strong className="text-emerald-600">+{flow.mutualFundsM}M PKR</strong>
+          <div className="flex flex-wrap items-center gap-2.5 text-[11px]">
+            <span className="bg-white px-2.5 py-1 rounded border border-blue-200 shadow-2xs">
+              Mutual Funds: <strong className="text-emerald-700">+{flow.mutualFundsM}M PKR</strong>
             </span>
-            <span className="bg-slate-50 px-2.5 py-1 rounded border border-slate-200">
-              Foreign: <strong className="text-emerald-600">+${flow.foreignUsdK}K</strong>
+            <span className="bg-white px-2.5 py-1 rounded border border-blue-200 shadow-2xs">
+              Foreign: <strong className="text-emerald-700">+${flow.foreignUsdK}K</strong>
             </span>
-            <span className="bg-slate-50 px-2.5 py-1 rounded border border-slate-200">
-              Retail (Individuals): <strong className="text-rose-600">{flow.individualsM}M PKR</strong>
+            <span className="bg-white px-2.5 py-1 rounded border border-blue-200 shadow-2xs">
+              Retail Dump: <strong className="text-rose-700">{flow.individualsM}M PKR</strong>
+            </span>
+            <span className="bg-blue-600 text-white px-2.5 py-1 rounded font-bold shadow-2xs">
+              Surplus: +{flow.smartMoneyDeltaM}M
             </span>
           </div>
         </div>
