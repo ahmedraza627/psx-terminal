@@ -14,6 +14,7 @@ interface StockSetup {
   downside?: string;
   probability?: string;
   rvol?: string;
+  dfxSignal?: string;
   tag?: string;
   notes: string;
 }
@@ -185,6 +186,11 @@ export default function DashboardPage() {
                       <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200 font-medium">
                         RVOL: {stock.rvol}
                       </span>
+                      {stock.dfxSignal && (
+                        <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 font-bold">
+                          DFX: {stock.dfxSignal}
+                        </span>
+                      )}
                     </div>
                   </div>
 
@@ -247,6 +253,11 @@ export default function DashboardPage() {
                     <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200 font-medium">
                       RVOL: {stock.rvol}
                     </span>
+                    {stock.dfxSignal && (
+                      <span className="px-2 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200 font-bold">
+                        DFX: {stock.dfxSignal}
+                      </span>
+                    )}
                   </div>
                 </div>
 

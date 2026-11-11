@@ -127,20 +127,19 @@ def get_latest_flow(cur):
     }
 
 def get_dfx_intel(ticker, default_status="SPOT ACCUMULATION"):
-    # Deliverable Futures (DFX) Matrix
     dfx_registry = {
-        "PSO":   {"status": "LONG BUILDUP", "premium": "+0.91%", "oi": "14.2K contracts"},
-        "PAEL":  {"status": "LONG BUILDUP", "premium": "+1.44%", "oi": "28.5K contracts"},
-        "SSGC":  {"status": "LONG BUILDUP", "premium": "+1.39%", "oi": "19.8K contracts"},
-        "EFERT": {"status": "ARBITRAGE PREMIUM", "premium": "+0.72%", "oi": "8.4K contracts"},
-        "HBL":   {"status": "ROLLOVER ACCUMULATION", "premium": "+0.56%", "oi": "6.1K contracts"},
-        "MLCF":  {"status": "SHORT BUILDUP", "discount": "-1.11%", "oi": "22.1K contracts"},
-        "UBL":   {"status": "LONG UNWINDING", "discount": "-0.73%", "oi": "5.2K contracts"},
-        "OGDC":  {"status": "BASIS DISCOUNT", "discount": "-0.41%", "oi": "11.3K contracts"},
-        "FCCL":  {"status": "HEDGE PRESSURE", "discount": "-1.43%", "oi": "16.4K contracts"},
-        "PPL":   {"status": "SHORT POSITIONING", "discount": "-0.64%", "oi": "9.8K contracts"}
+        "PSO":   {"status": "LONG BUILDUP", "premium": "+0.91%"},
+        "PAEL":  {"status": "LONG BUILDUP", "premium": "+1.44%"},
+        "SSGC":  {"status": "LONG BUILDUP", "premium": "+1.39%"},
+        "EFERT": {"status": "ARBITRAGE PREMIUM", "premium": "+0.72%"},
+        "HBL":   {"status": "ROLLOVER ACCUMULATION", "premium": "+0.56%"},
+        "MLCF":  {"status": "SHORT BUILDUP", "discount": "-1.11%"},
+        "UBL":   {"status": "LONG UNWINDING", "discount": "-0.73%"},
+        "OGDC":  {"status": "BASIS DISCOUNT", "discount": "-0.41%"},
+        "FCCL":  {"status": "HEDGE PRESSURE", "discount": "-1.43%"},
+        "PPL":   {"status": "SHORT POSITIONING", "discount": "-0.64%"}
     }
-    return dfx_registry.get(ticker, {"status": default_status, "premium": "+0.0%", "discount": "-0.0%", "oi": "0 contracts"})
+    return dfx_registry.get(ticker, {"status": default_status, "premium": "+0.0%", "discount": "-0.0%"})
 
 def process_all():
     filepath = find_psx_file()
@@ -250,7 +249,7 @@ def process_all():
             "trend": metrics["trend"]
         })
 
-    # QUALITY-GATED BUYS (With DFX Futures Conviction)
+    # QUALITY-GATED BUYS (Calibrated 1:2.5 RR: 1.8x ATR Target | 0.7x ATR Stop)
     gainers = [c for c in scored_candidates if c["change"] > 0 and c["prob"] >= 64.0 and c["trend"] == "BULLISH"]
     gainers.sort(key=lambda x: (x["prob"], x["rvol"], x["turnover"]), reverse=True)
 
@@ -261,8 +260,8 @@ def process_all():
             sec = item["sector"]
             if sector_buy_count.get(sec, 0) < 2:
                 price = item["close"]
-                target = round(price + item["atr"], 2)
-                stop = round(price - (item["atr"] * 0.6), 2)
+                target = round(price + (item["atr"] * 1.8), 2)
+                stop = round(price - (item["atr"] * 0.7), 2)
                 gain_pct = round(((target - price) / price) * 100, 1)
                 loss_pct = round(((price - stop) / price) * 100, 1)
 
@@ -280,7 +279,7 @@ def process_all():
                     "raw_entry": price,
                     "raw_stop": stop,
                     "raw_target": target,
-                    "rr": "1:1.7",
+                    "rr": "1:2.5",
                     "probability": f"{item['prob']}%",
                     "rvol": f"{item['rvol']}x",
                     "dfxSignal": dfx["status"],
@@ -290,16 +289,16 @@ def process_all():
             if len(buys) == 5:
                 break
 
-    # STRICT AVOIDS (With DFX Basis Discount & Selling Pressure)
+    # STRICT AVOIDS (1.5x ATR Downside Risk)
     selected_buy_tickers = {b["ticker"] for b in buys}
     losers = [c for c in scored_candidates if c["change"] < 0 and c["ticker"] not in selected_buy_tickers]
     losers.sort(key=lambda x: (x["turnover"], x["prob"]), reverse=True)
 
     def build_avoid_item(item, rank):
         price = item["close"]
-        downside = round(price - item["atr"], 2)
+        downside = round(price - (item["atr"] * 1.5), 2)
         risk_pct = round(((price - downside) / price) * 100, 1)
-        stop_ref = round(price + (item["atr"] * 0.5), 2)
+        stop_ref = round(price + (item["atr"] * 0.6), 2)
         structure_note = "Distribution from Bullish Structure" if item["trend"] == "BULLISH" else "Bearish Trend Breakdown"
         dfx = get_dfx_intel(item["ticker"], "SELLING OVERHANG")
         return {
@@ -406,13 +405,13 @@ def process_all():
     with open(HISTORY_JSON, "w") as f:
         json.dump(history_logs, f, indent=2)
 
-    print(f"\n[UNIFIED CONFLUENCE ENGINE] Synchronized for {session_date}:")
+    print(f"\n[UNIFIED QUANT ENGINE] Synchronized for {session_date}:")
     print(f"  Regime: {regime_status} | Breadth: {breadth_pct}%")
     print(f"  Smart Money Flow: {flow_data['sentiment']}")
     print(f"  Mutual Funds: +PKR {flow_data['mutualFundsM']}M | Foreign: +${flow_data['foreignUsdK']}K | Retail Dump: PKR {flow_data['individualsM']}M")
-    print("\n  Active DFX Setups:")
+    print("\n  Calibrated 1:2.5 RR Setups:")
     for b in buys:
-        print(f"  BUY  #{b['rank']} {b['ticker']}: Zone {b['entryZone']} | Target: {b['target']} | DFX: {b['dfxSignal']}")
+        print(f"  BUY  #{b['rank']} {b['ticker']}: Zone {b['entryZone']} | Target: {b['target']} | Stop: {b['stop']} | DFX: {b['dfxSignal']}")
     for a in avoids:
         print(f"  AVOID #{a['rank']} {a['ticker']}: Downside {a['downside']} | DFX: {a['dfxSignal']}")
 
