@@ -1,6 +1,6 @@
 {
   "sessionDate": "Wednesday, Nov 11, 2026",
-  "sessionTime": "17:26 PKT",
+  "sessionTime": "17:31 PKT",
   "regime": {
     "status": "BULLISH ACCUMULATION",
     "kseChange": "+2.27%",
@@ -137,6 +137,19 @@
       "probability": "54.3%",
       "rvol": "1.2x",
       "notes": "Institutional distribution (1,655,303 shares, PKR 5.4Cr turnover). Downside risk of -4.7%."
+    },
+    {
+      "rank": 5,
+      "ticker": "CNERGY",
+      "price": "PKR 11.35",
+      "downside": "PKR 10.51 (-7.4%)",
+      "raw_price": 11.35,
+      "raw_stop": 11.72,
+      "raw_downside": 10.51,
+      "tag": "SELLING PRESSURE",
+      "probability": "63.5%",
+      "rvol": "1.7x",
+      "notes": "Institutional distribution (70,087,756 shares, PKR 79.5Cr turnover). Downside risk of -7.4%."
     }
   ]
 }

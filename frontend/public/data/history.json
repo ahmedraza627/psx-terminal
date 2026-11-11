@@ -14,6 +14,19 @@
   },
   {
     "date": "2026-11-11",
+    "ticker": "CNERGY",
+    "type": "AVOID",
+    "timeframe": "1M",
+    "entryRef": 11.35,
+    "invalidation": 11.72,
+    "target": 10.51,
+    "latestClose": 11.35,
+    "pnlPct": 0.0,
+    "status": "IN PLAY",
+    "notes": "Institutional distribution (70,087,756 shares, PKR 79.5Cr turnover). Downside risk of -7.4%."
+  },
+  {
+    "date": "2026-11-11",
     "ticker": "EPCL",
     "type": "AVOID",
     "timeframe": "1M",

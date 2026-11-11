@@ -11,7 +11,7 @@ INSIDERS_JSON = os.path.join(DATA_DIR, "insiders.json")
 DB_PATH = os.path.join("backend", "psx_history.db")
 TARGET_DIR = r"D:\downloads"
 
-# KSE CORE INSTITUTIONAL UNIVERSE (Strictly blocks speculative low-floats like ZUMA)
+# KSE CORE INSTITUTIONAL UNIVERSE
 KSE_INSTITUTIONAL_CORE = {
     # Banking
     "UBL", "MCB", "MEBL", "HBL", "BAHL", "BAFL", "NBP", "BOP", "AKBL", "FABBL",
@@ -156,12 +156,11 @@ def process_all():
                     elif pct_change < 0:
                         declines += 1
 
-                    # TIER-1 INSTITUTIONAL FILTER:
-                    # Must belong to KSE_INSTITUTIONAL_CORE universe
-                    # Volume >= 200,000 shares & Daily Turnover >= 25,000,000 PKR
-                    if sym in KSE_INSTITUTIONAL_CORE and vol >= 200000:
+                    # TIER-1 INSTITUTIONAL LIQUIDITY FILTER:
+                    # Whitelist check + Minimum volume and turnover
+                    if sym in KSE_INSTITUTIONAL_CORE and vol >= 150000:
                         turnover = close_p * vol
-                        if turnover >= 25000000:
+                        if turnover >= 20000000:
                             parsed_today.append({
                                 "ticker": sym,
                                 "sector": sec,
@@ -201,7 +200,6 @@ def process_all():
         raw_rvol = 1.2 + (item["turnover"] / 1500000000)
         rvol = round(min(max(raw_rvol, 1.2), 3.8), 1)
 
-        # Dynamic, individual swing ATR
         target_atr = max(rng * 0.95, item["close"] * 0.026)
 
         if item["change"] > 0:
@@ -218,7 +216,7 @@ def process_all():
             "prob": prob_score
         })
 
-    # DIVERSIFIED TOP 5 BUYS (With Execution Entry Buffer)
+    # TOP 5 BUYS (With Execution Entry Buffer)
     gainers = [c for c in scored_candidates if c["change"] >= 0]
     gainers.sort(key=lambda x: (x["turnover"], x["prob"]), reverse=True)
 
@@ -234,7 +232,6 @@ def process_all():
                 gain_pct = round(((target - price) / price) * 100, 1)
                 loss_pct = round(((price - stop) / price) * 100, 1)
 
-                # Entry execution buffer zone (0.6% pullback - 0.4% momentum allowance)
                 zone_low = round(price * 0.994, 2)
                 zone_high = round(price * 1.004, 2)
 
@@ -257,41 +254,53 @@ def process_all():
             if len(buys) == 5:
                 break
 
-    # DIVERSIFIED TOP 5 AVOIDS (Unclamped, Distinct Downside Percentages)
+    # TOP 5 AVOIDS (Pass 1: Max 2 per sector, Pass 2: Fallback fill for 5th slot)
     losers = [c for c in scored_candidates if c["change"] < 0]
     losers.sort(key=lambda x: (x["turnover"], x["prob"]), reverse=True)
 
+    def build_avoid_item(item, rank):
+        price = item["close"]
+        base_drop = (item["high"] - item["low"]) / price if price > 0 else 0.04
+        vol_boost = (item["rvol"] - 1.0) * 0.008
+        downside_ratio = max(0.034, min(base_drop + vol_boost, 0.078))
+        downside = round(price * (1.0 - downside_ratio), 2)
+        risk_pct = round(((price - downside) / price) * 100, 1)
+        stop_ref = round(price + (item["atr"] * 0.5), 2)
+        return {
+            "rank": rank,
+            "ticker": item["ticker"],
+            "price": f"PKR {price:.2f}",
+            "downside": f"PKR {downside:.2f} (-{risk_pct}%)",
+            "raw_price": price,
+            "raw_stop": stop_ref,
+            "raw_downside": downside,
+            "tag": "SELLING PRESSURE",
+            "probability": f"{item['prob']}%",
+            "rvol": f"{item['rvol']}x",
+            "notes": f"Institutional distribution ({int(item['vol']):,} shares, PKR {round(item['turnover']/10000000, 1)}Cr turnover). Downside risk of -{risk_pct}%."
+        }
+
     avoids = []
     sector_avoid_count = {}
+
+    # Pass 1: Strict diversification (Max 2 per sector)
     for item in losers:
         sec = item["sector"]
         if sector_avoid_count.get(sec, 0) < 2:
-            price = item["close"]
-            # Dynamic individual downside based on selling depth + relative volume
-            base_drop = (item["high"] - item["low"]) / price
-            vol_boost = (item["rvol"] - 1.0) * 0.008
-            downside_ratio = max(0.034, min(base_drop + vol_boost, 0.078))
-
-            downside = round(price * (1.0 - downside_ratio), 2)
-            risk_pct = round(((price - downside) / price) * 100, 1)
-            stop_ref = round(price + (item["atr"] * 0.5), 2)
-
-            avoids.append({
-                "rank": len(avoids) + 1,
-                "ticker": item["ticker"],
-                "price": f"PKR {price:.2f}",
-                "downside": f"PKR {downside:.2f} (-{risk_pct}%)",
-                "raw_price": price,
-                "raw_stop": stop_ref,
-                "raw_downside": downside,
-                "tag": "SELLING PRESSURE",
-                "probability": f"{item['prob']}%",
-                "rvol": f"{item['rvol']}x",
-                "notes": f"Institutional distribution ({int(item['vol']):,} shares, PKR {round(item['turnover']/10000000, 1)}Cr turnover). Downside risk of -{risk_pct}%."
-            })
+            avoids.append(build_avoid_item(item, len(avoids) + 1))
             sector_avoid_count[sec] = sector_avoid_count.get(sec, 0) + 1
         if len(avoids) == 5:
             break
+
+    # Pass 2: If under 5, fill from remaining liquid losers
+    if len(avoids) < 5:
+        selected_tickers = {a["ticker"] for a in avoids}
+        for item in losers:
+            if item["ticker"] not in selected_tickers:
+                avoids.append(build_avoid_item(item, len(avoids) + 1))
+                selected_tickers.add(item["ticker"])
+            if len(avoids) == 5:
+                break
 
     # AUTO-ROLLING HISTORY LOG (Insert today's recommended calls into DB)
     for b in buys:
