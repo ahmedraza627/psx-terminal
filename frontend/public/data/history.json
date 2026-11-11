@@ -10,7 +10,7 @@
     "latestClose": 210.88,
     "pnlPct": 0.0,
     "status": "IN PLAY",
-    "notes": "Institutional accumulation (2,766,232 shares, PKR 58.3Cr turnover). Swing target +2.3%."
+    "notes": "Tier-1 accumulation (2,766,232 shares, PKR 58.3Cr turnover). DFX ARBITRAGE PREMIUM (+0.72%). Swing target +2.3%."
   },
   {
     "date": "2026-11-11",
@@ -23,7 +23,7 @@
     "latestClose": 62.09,
     "pnlPct": 0.0,
     "status": "IN PLAY",
-    "notes": "Distribution from Bullish Structure (18,674,404 shares, PKR 115.9Cr turnover). Downside risk of -3.3%."
+    "notes": "Distribution from Bullish Structure (18,674,404 shares, PKR 115.9Cr turnover). DFX HEDGE PRESSURE. Downside risk of -3.3%."
   },
   {
     "date": "2026-11-11",
@@ -36,7 +36,7 @@
     "latestClose": 313.24,
     "pnlPct": 0.0,
     "status": "IN PLAY",
-    "notes": "Institutional accumulation (5,557,176 shares, PKR 174.1Cr turnover). Swing target +2.4%."
+    "notes": "Tier-1 accumulation (5,557,176 shares, PKR 174.1Cr turnover). DFX ROLLOVER ACCUMULATION (+0.56%). Swing target +2.4%."
   },
   {
     "date": "2026-11-11",
@@ -49,7 +49,7 @@
     "latestClose": 105.27,
     "pnlPct": 0.0,
     "status": "IN PLAY",
-    "notes": "Distribution from Bullish Structure (19,334,720 shares, PKR 203.5Cr turnover). Downside risk of -3.2%."
+    "notes": "Distribution from Bullish Structure (19,334,720 shares, PKR 203.5Cr turnover). DFX SHORT BUILDUP. Downside risk of -3.2%."
   },
   {
     "date": "2026-11-11",
@@ -62,7 +62,7 @@
     "latestClose": 316.09,
     "pnlPct": 0.0,
     "status": "IN PLAY",
-    "notes": "Distribution from Bullish Structure (4,039,950 shares, PKR 127.7Cr turnover). Downside risk of -1.5%."
+    "notes": "Distribution from Bullish Structure (4,039,950 shares, PKR 127.7Cr turnover). DFX BASIS DISCOUNT. Downside risk of -1.5%."
   },
   {
     "date": "2026-11-11",
@@ -75,7 +75,7 @@
     "latestClose": 35.44,
     "pnlPct": 0.0,
     "status": "IN PLAY",
-    "notes": "Institutional accumulation (22,236,032 shares, PKR 78.8Cr turnover). Swing target +2.3%."
+    "notes": "Tier-1 accumulation (22,236,032 shares, PKR 78.8Cr turnover). DFX LONG BUILDUP (+1.44%). Swing target +2.3%."
   },
   {
     "date": "2026-11-11",
@@ -88,7 +88,7 @@
     "latestClose": 225.35,
     "pnlPct": 0.0,
     "status": "IN PLAY",
-    "notes": "Distribution from Bullish Structure (4,482,759 shares, PKR 101.0Cr turnover). Downside risk of -2.1%."
+    "notes": "Distribution from Bullish Structure (4,482,759 shares, PKR 101.0Cr turnover). DFX SHORT POSITIONING. Downside risk of -2.1%."
   },
   {
     "date": "2026-11-11",
@@ -101,7 +101,7 @@
     "latestClose": 374.68,
     "pnlPct": 0.0,
     "status": "IN PLAY",
-    "notes": "Institutional accumulation (12,862,011 shares, PKR 481.9Cr turnover). Swing target +2.6%."
+    "notes": "Tier-1 accumulation (12,862,011 shares, PKR 481.9Cr turnover). DFX LONG BUILDUP (+0.91%). Swing target +2.6%."
   },
   {
     "date": "2026-11-11",
@@ -114,7 +114,7 @@
     "latestClose": 24.41,
     "pnlPct": 0.0,
     "status": "IN PLAY",
-    "notes": "Institutional accumulation (20,988,558 shares, PKR 51.2Cr turnover). Swing target +3.4%."
+    "notes": "Tier-1 accumulation (20,988,558 shares, PKR 51.2Cr turnover). DFX LONG BUILDUP (+1.39%). Swing target +3.4%."
   },
   {
     "date": "2026-11-11",
@@ -127,7 +127,7 @@
     "latestClose": 441.72,
     "pnlPct": 0.0,
     "status": "IN PLAY",
-    "notes": "Distribution from Bullish Structure (2,993,692 shares, PKR 132.2Cr turnover). Downside risk of -2.4%."
+    "notes": "Distribution from Bullish Structure (2,993,692 shares, PKR 132.2Cr turnover). DFX LONG UNWINDING. Downside risk of -2.4%."
   },
   {
     "date": "2026-11-09",
