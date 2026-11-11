@@ -27,6 +27,19 @@
   },
   {
     "date": "2026-11-11",
+    "ticker": "EFERT",
+    "type": "BUY",
+    "timeframe": "1M",
+    "entryRef": 210.88,
+    "invalidation": 207.92,
+    "target": 215.81,
+    "latestClose": 210.88,
+    "pnlPct": 0.0,
+    "status": "IN PLAY",
+    "notes": "Historical BULLISH trend (2,766,232 shares, PKR 58.3Cr turnover). Swing target +2.3%."
+  },
+  {
+    "date": "2026-11-11",
     "ticker": "EPCL",
     "type": "AVOID",
     "timeframe": "1M",

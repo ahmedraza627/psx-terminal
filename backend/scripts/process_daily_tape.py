@@ -11,36 +11,17 @@ INSIDERS_JSON = os.path.join(DATA_DIR, "insiders.json")
 DB_PATH = os.path.join("backend", "psx_history.db")
 TARGET_DIR = r"D:\downloads"
 
-# KSE CORE INSTITUTIONAL UNIVERSE
 KSE_INSTITUTIONAL_CORE = {
-    # Banking
-    "UBL", "MCB", "MEBL", "HBL", "BAHL", "BAFL", "NBP", "BOP", "AKBL", "FABBL",
-    # Cement
+    "UBL", "MCB", "MEBL", "HBL", "BAHL", "BAFL", "NBP", "BOP", "AKBL",
     "MLCF", "LUCK", "DGKC", "FCCL", "PIOC", "CHCC", "ACPL", "BWCL", "KOHC",
-    # Oil, Gas & E&P
-    "OGDC", "PPL", "MARI", "POL", "PSO", "SHEL", "SNGP", "SSGC", "HASCOL",
-    # Fertilizer
-    "FFC", "ENGRO", "EFERT", "FATIMA", "FFBL",
-    # Technology
+    "OGDC", "PPL", "MARI", "POL", "PSO", "SNGP", "SSGC",
+    "FFC", "EFERT", "FATIMA",
     "SYS", "TRG", "AIRLINK", "AVN", "NETSOL", "OCTOPUS",
-    # Refineries
     "PRL", "NRL", "ATRL", "CNERGY",
-    # Power, Chemicals, Pharma & Manufacturing
-    "HUBC", "KAPCO", "KEL", "EPCL", "LOTCHEM", "SEARL", "AGP", "ABOT", "ILP", "NML", "PAEL", "UNITY", "INIL", "ISL", "MTL", "INDU", "HCAR", "PSMC", "THALL", "GTYR", "TREET", "AICL"
+    "HUBC", "KAPCO", "KEL", "EPCL", "LOTCHEM", "SEARL", "AGP", "ABOT",
+    "ILP", "NML", "PAEL", "UNITY", "INIL", "ISL", "MTL", "INDU", "HCAR",
+    "THALL", "GTYR", "TREET", "AICL"
 }
-
-BASELINE_HISTORY = [
-    {"date": "2026-11-09", "ticker": "MCB",  "type": "BUY",   "entry": 399.48, "stop": 389.50, "target": 415.40, "notes": "Banking sector dividend support."},
-    {"date": "2026-11-08", "ticker": "MARI", "type": "BUY",   "entry": 651.98, "stop": 635.60, "target": 678.00, "notes": "Hydrocarbon production expansion."},
-    {"date": "2026-11-06", "ticker": "MEBL", "type": "BUY",   "entry": 550.25, "stop": 536.50, "target": 572.00, "notes": "Strong institutional book value."},
-    {"date": "2026-11-05", "ticker": "HUBC", "type": "AVOID", "entry": 208.00, "stop": 214.50, "target": 198.00, "notes": "Resistance re-test breakdown."},
-    {"date": "2026-11-04", "ticker": "SYS",  "type": "BUY",   "entry": 114.60, "stop": 111.80, "target": 119.50, "notes": "Foreign buying accumulation support."},
-    {"date": "2026-10-30", "ticker": "PRL",  "type": "AVOID", "entry": 85.55,  "stop": 88.70,  "target": 80.00,  "notes": "Refinery sector profit taking."},
-    {"date": "2026-10-25", "ticker": "FFC",  "type": "BUY",   "entry": 525.00, "stop": 512.00, "target": 546.00, "notes": "Urea pricing cashflow strength."},
-    {"date": "2026-10-20", "ticker": "LUCK", "type": "BUY",   "entry": 427.23, "stop": 416.50, "target": 444.50, "notes": "Cement dispatch demand revival."},
-    {"date": "2026-10-15", "ticker": "HASCOL","type": "AVOID","entry": 18.20,  "stop": 19.10,  "target": 16.50,  "notes": "High balance sheet leverage."},
-    {"date": "2026-10-10", "ticker": "WTL",  "type": "AVOID", "entry": 1.25,   "stop": 1.32,   "target": 1.12,   "notes": "Retail penny churn with no sponsorship."}
-]
 
 DIRECTOR_REGISTRY = [
     {"filingDate": "2026-11-05", "ticker": "SYS",    "sponsor": "Executive Director / Sponsor Family", "action": "BUY",  "shares": 350000, "filedRate": 114.20, "rationale": "Direct market purchase disclosed to PSX."},
@@ -50,38 +31,6 @@ DIRECTOR_REGISTRY = [
     {"filingDate": "2026-10-12", "ticker": "SEARL",  "sponsor": "International Brands Limited (IBL)",  "action": "BUY",  "shares": 450000, "filedRate": 76.50,  "rationale": "Parent company debt-to-equity consolidation."},
     {"filingDate": "2026-10-05", "ticker": "HUBC",   "sponsor": "Major Shareholder / Institutional",   "action": "SELL", "shares": 1500000,"filedRate": 209.50, "rationale": "Strategic block sale via NDM window."}
 ]
-
-def init_db():
-    os.makedirs("backend", exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS daily_eod (
-            date TEXT, ticker TEXT, sector TEXT, open REAL, high REAL, low REAL, close REAL, volume REAL, turnover REAL,
-            PRIMARY KEY (date, ticker)
-        )
-    """)
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS active_trades (
-            date TEXT, ticker TEXT, type TEXT, entry REAL, stop REAL, target REAL, status TEXT, notes TEXT,
-            PRIMARY KEY (date, ticker, type)
-        )
-    """)
-    cur.execute("PRAGMA table_info(daily_eod)")
-    cols = [col[1] for col in cur.fetchall()]
-    if "sector" not in cols:
-        cur.execute("ALTER TABLE daily_eod ADD COLUMN sector TEXT DEFAULT ''")
-
-    cur.execute("SELECT COUNT(*) FROM active_trades")
-    if cur.fetchone()[0] == 0:
-        for t in BASELINE_HISTORY:
-            cur.execute("""
-                INSERT OR IGNORE INTO active_trades (date, ticker, type, entry, stop, target, status, notes)
-                VALUES (?, ?, ?, ?, ?, ?, 'IN PLAY', ?)
-            """, (t["date"], t["ticker"], t["type"], t["entry"], t["stop"], t["target"], t["notes"]))
-
-    conn.commit()
-    conn.close()
 
 def is_valid_psx_tape(filepath):
     if filepath.endswith(('.Z', '.z', '.zip', '.tar', '.gz')):
@@ -109,8 +58,40 @@ def find_psx_file():
             return f
     return None
 
+def compute_historical_metrics(cur, ticker, current_close, current_vol):
+    cur.execute("""
+        SELECT close, high, low, volume FROM daily_eod
+        WHERE ticker = ? ORDER BY date DESC LIMIT 50
+    """, (ticker,))
+    rows = cur.fetchall()
+
+    if not rows or len(rows) < 5:
+        # Fallback if brand new ticker
+        return {"rvol": 1.2, "sma50": current_close, "atr14": current_close * 0.035, "trend": "NEUTRAL"}
+
+    vols_20 = [r[3] for r in rows[:20] if r[3] is not None and r[3] > 0]
+    avg_vol_20 = sum(vols_20) / len(vols_20) if vols_20 else current_vol
+    rvol = round(current_vol / avg_vol_20, 1) if avg_vol_20 > 0 else 1.0
+    rvol = min(max(rvol, 0.5), 6.5)
+
+    closes_50 = [r[0] for r in rows if r[0] is not None]
+    sma50 = sum(closes_50) / len(closes_50) if closes_50 else current_close
+    trend = "BULLISH" if current_close >= sma50 else "BEARISH"
+
+    # True 14-day ATR calculation
+    tr_list = []
+    for i in range(min(14, len(rows) - 1)):
+        c_prev = rows[i+1][0]
+        h_curr = rows[i][1]
+        l_curr = rows[i][2]
+        if c_prev and h_curr and l_curr:
+            tr = max(h_curr - l_curr, abs(h_curr - c_prev), abs(l_curr - c_prev))
+            tr_list.append(tr)
+
+    atr14 = sum(tr_list) / len(tr_list) if tr_list else (current_close * 0.032)
+    return {"rvol": rvol, "sma50": round(sma50, 2), "atr14": round(atr14, 2), "trend": trend}
+
 def process_all():
-    init_db()
     filepath = find_psx_file()
     if not filepath:
         print("[ERROR] Closing file nahi mili!")
@@ -156,8 +137,6 @@ def process_all():
                     elif pct_change < 0:
                         declines += 1
 
-                    # TIER-1 INSTITUTIONAL LIQUIDITY FILTER:
-                    # Whitelist check + Minimum volume and turnover
                     if sym in KSE_INSTITUTIONAL_CORE and vol >= 150000:
                         turnover = close_p * vol
                         if turnover >= 20000000:
@@ -186,6 +165,8 @@ def process_all():
 
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
+
+    # Ingest today's session into database
     for row in parsed_today:
         cur.execute("""
             INSERT OR REPLACE INTO daily_eod (date, ticker, sector, open, high, low, close, volume, turnover)
@@ -195,30 +176,33 @@ def process_all():
 
     scored_candidates = []
     for item in parsed_today:
+        metrics = compute_historical_metrics(cur, item["ticker"], item["close"], item["vol"])
         rng = item["high"] - item["low"]
         clv = (item["close"] - item["low"]) / rng if rng > 0 else 0.5
-        raw_rvol = 1.2 + (item["turnover"] / 1500000000)
-        rvol = round(min(max(raw_rvol, 1.2), 3.8), 1)
+        rvol = metrics["rvol"]
+        atr14 = metrics["atr14"]
 
-        target_atr = max(rng * 0.95, item["close"] * 0.026)
-
+        # MULTI-FACTOR COMPOSITE QUANT FORMULA
         if item["change"] > 0:
-            prob = 58.0 + (min(item["change"], 8.0) * 0.9) + (rvol * 2.1) + (clv * 4.0)
-            prob_score = round(min(prob, 74.8), 1)
+            trend_bonus = 6.0 if metrics["trend"] == "BULLISH" else -4.0
+            prob = 54.0 + (min(item["change"], 7.0) * 0.9) + (min(rvol, 3.5) * 2.4) + (clv * 4.5) + trend_bonus
+            prob_score = round(min(max(prob, 55.0), 78.5), 1)
         else:
-            downside_risk = 48.0 + (min(abs(item["change"]), 9.0) * 1.3) + (rvol * 2.2) + ((1.0 - clv) * 4.5)
-            prob_score = round(min(downside_risk, 71.5), 1)
+            trend_penalty = 5.0 if metrics["trend"] == "BEARISH" else -2.0
+            downside_risk = 46.0 + (min(abs(item["change"]), 8.0) * 1.4) + (min(rvol, 3.5) * 2.2) + ((1.0 - clv) * 4.5) + trend_penalty
+            prob_score = round(min(max(downside_risk, 50.0), 76.0), 1)
 
         scored_candidates.append({
             **item,
             "rvol": rvol,
-            "atr": target_atr,
-            "prob": prob_score
+            "atr": atr14,
+            "prob": prob_score,
+            "trend": metrics["trend"]
         })
 
-    # TOP 5 BUYS (With Execution Entry Buffer)
+    # TOP 5 BUYS (Diversified across sectors, supported by 50-SMA trend)
     gainers = [c for c in scored_candidates if c["change"] >= 0]
-    gainers.sort(key=lambda x: (x["turnover"], x["prob"]), reverse=True)
+    gainers.sort(key=lambda x: (x["turnover"] * (1.2 if x["trend"] == "BULLISH" else 0.8), x["prob"]), reverse=True)
 
     buys = []
     if not is_defensive:
@@ -248,7 +232,7 @@ def process_all():
                     "rr": "1:1.7",
                     "probability": f"{item['prob']}%",
                     "rvol": f"{item['rvol']}x",
-                    "notes": f"Tier-1 accumulation ({int(item['vol']):,} shares, PKR {round(item['turnover']/10000000, 1)}Cr turnover). Swing target +{gain_pct}%."
+                    "notes": f"Historical {item['trend']} trend ({int(item['vol']):,} shares, PKR {round(item['turnover']/10000000, 1)}Cr turnover). Swing target +{gain_pct}%."
                 })
                 sector_buy_count[sec] = sector_buy_count.get(sec, 0) + 1
             if len(buys) == 5:
@@ -260,10 +244,7 @@ def process_all():
 
     def build_avoid_item(item, rank):
         price = item["close"]
-        base_drop = (item["high"] - item["low"]) / price if price > 0 else 0.04
-        vol_boost = (item["rvol"] - 1.0) * 0.008
-        downside_ratio = max(0.034, min(base_drop + vol_boost, 0.078))
-        downside = round(price * (1.0 - downside_ratio), 2)
+        downside = round(price - item["atr"], 2)
         risk_pct = round(((price - downside) / price) * 100, 1)
         stop_ref = round(price + (item["atr"] * 0.5), 2)
         return {
@@ -277,13 +258,11 @@ def process_all():
             "tag": "SELLING PRESSURE",
             "probability": f"{item['prob']}%",
             "rvol": f"{item['rvol']}x",
-            "notes": f"Institutional distribution ({int(item['vol']):,} shares, PKR {round(item['turnover']/10000000, 1)}Cr turnover). Downside risk of -{risk_pct}%."
+            "notes": f"Historical {item['trend']} breakdown ({int(item['vol']):,} shares, PKR {round(item['turnover']/10000000, 1)}Cr turnover). Downside risk of -{risk_pct}%."
         }
 
     avoids = []
     sector_avoid_count = {}
-
-    # Pass 1: Strict diversification (Max 2 per sector)
     for item in losers:
         sec = item["sector"]
         if sector_avoid_count.get(sec, 0) < 2:
@@ -292,7 +271,6 @@ def process_all():
         if len(avoids) == 5:
             break
 
-    # Pass 2: If under 5, fill from remaining liquid losers
     if len(avoids) < 5:
         selected_tickers = {a["ticker"] for a in avoids}
         for item in losers:
@@ -302,7 +280,7 @@ def process_all():
             if len(avoids) == 5:
                 break
 
-    # AUTO-ROLLING HISTORY LOG (Insert today's recommended calls into DB)
+    # Dynamic Ledger: Insert today's recommended calls into DB
     for b in buys:
         cur.execute("""
             INSERT OR IGNORE INTO active_trades (date, ticker, type, entry, stop, target, status, notes)
@@ -316,30 +294,19 @@ def process_all():
         """, (db_date, a["ticker"], a["raw_price"], a["raw_stop"], a["raw_downside"], a["notes"]))
     conn.commit()
 
-    # AUDIT ALL TRADES IN DATABASE AGAINST ACTIVE TAPE
+    # Audit all trades against active tape
     cur.execute("SELECT date, ticker, type, entry, stop, target, status, notes FROM active_trades ORDER BY date DESC, ticker ASC")
     db_trades = cur.fetchall()
 
     history_logs = []
     for t_date, sym, t_type, t_entry, t_stop, t_target, prev_status, t_notes in db_trades:
         live_close = market_rates.get(sym, t_entry)
-        
         if t_type == "BUY":
             pnl = round(((live_close - t_entry) / t_entry) * 100, 1)
-            if live_close >= t_target:
-                status = "TARGET HIT"
-            elif live_close <= t_stop:
-                status = "STOPPED OUT"
-            else:
-                status = "IN PLAY"
+            status = "TARGET HIT" if live_close >= t_target else ("STOPPED OUT" if live_close <= t_stop else "IN PLAY")
         else:
             pnl = round(((t_entry - live_close) / t_entry) * 100, 1)
-            if live_close <= t_target:
-                status = "CAPITAL PRESERVED"
-            elif live_close >= t_stop:
-                status = "STOPPED OUT"
-            else:
-                status = "IN PLAY"
+            status = "CAPITAL PRESERVED" if live_close <= t_target else ("STOPPED OUT" if live_close >= t_stop else "IN PLAY")
 
         if status != prev_status:
             cur.execute("UPDATE active_trades SET status = ? WHERE date = ? AND ticker = ? AND type = ?", (status, t_date, sym, t_type))
@@ -379,7 +346,7 @@ def process_all():
     with open(HISTORY_JSON, "w") as f:
         json.dump(history_logs, f, indent=2)
 
-    # RE-VALUATE INSIDERS
+    # Re-evaluate Insiders
     insider_logs = []
     for ins in DIRECTOR_REGISTRY:
         sym = ins["ticker"]
@@ -404,13 +371,13 @@ def process_all():
     with open(INSIDERS_JSON, "w") as f:
         json.dump(insider_logs, f, indent=2)
 
-    print(f"\n[KSE CORE INSTITUTIONAL DESK] Synchronized for {session_date}:")
+    print(f"\n[HISTORICAL MULTI-FACTOR ENGINE] Synchronized for {session_date}:")
     print(f"  Regime: {regime_status} | KSE-100: {kse100_pct:+.2f}% | Breadth: {breadth_pct}%")
-    print(f"  Active Ledger: {len(history_logs)} lifetime setups audited.")
+    print(f"  Active Ledger: {len(history_logs)} lifetime setups audited against 1-year database.")
     for b in buys:
-        print(f"  BUY  #{b['rank']} {b['ticker']}: Entry {b['entry']} (Zone: {b['entryZone']}) | Target: {b['target']}")
+        print(f"  BUY  #{b['rank']} {b['ticker']}: Zone {b['entryZone']} | Target: {b['target']} | RVOL: {b['rvol']}")
     for a in avoids:
-        print(f"  AVOID #{a['rank']} {a['ticker']}: Downside {a['downside']} | Risk: {a['probability']}")
+        print(f"  AVOID #{a['rank']} {a['ticker']}: Downside {a['downside']} | Risk: {a['probability']} | RVOL: {a['rvol']}")
 
 if __name__ == "__main__":
     process_all()
