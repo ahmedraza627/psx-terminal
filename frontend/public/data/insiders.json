@@ -6,11 +6,10 @@
     "action": "BUY",
     "shares": 350000,
     "filedRate": 114.2,
-    "currentRate": 119.48,
-    "marketValueM": 41.82,
-    "pnlPct": 4.6,
-    "status": "ACCUMULATING",
-    "notes": "Direct market purchase disclosed to PSX."
+    "rationale": "Direct market purchase disclosed to PSX.",
+    "liveClose": 116.3,
+    "marketValueM": 40.7,
+    "pnlPct": 1.8
   },
   {
     "filingDate": "2026-10-28",
@@ -19,11 +18,10 @@
     "action": "BUY",
     "shares": 125000,
     "filedRate": 435.0,
-    "currentRate": 445.06,
-    "marketValueM": 55.63,
-    "pnlPct": 2.3,
-    "status": "ACCUMULATING",
-    "notes": "Associated group treasury accumulation."
+    "rationale": "Associated group treasury accumulation.",
+    "liveClose": 436.38,
+    "marketValueM": 54.5,
+    "pnlPct": 0.3
   },
   {
     "filingDate": "2026-10-22",
@@ -32,11 +30,10 @@
     "action": "BUY",
     "shares": 200000,
     "filedRate": 542.5,
-    "currentRate": 563.92,
-    "marketValueM": 112.78,
-    "pnlPct": 3.9,
-    "status": "ACCUMULATING",
-    "notes": "Long-term institutional ownership defense."
+    "rationale": "Long-term institutional ownership defense.",
+    "liveClose": 558.18,
+    "marketValueM": 111.6,
+    "pnlPct": 2.9
   },
   {
     "filingDate": "2026-10-18",
@@ -45,11 +42,10 @@
     "action": "BUY",
     "shares": 500000,
     "filedRate": 112.0,
-    "currentRate": 114.99,
-    "marketValueM": 57.49,
-    "pnlPct": 2.7,
-    "status": "ACCUMULATING",
-    "notes": "Sponsor open market purchase via CDC."
+    "rationale": "Sponsor open market purchase via CDC.",
+    "liveClose": 114.01,
+    "marketValueM": 57.0,
+    "pnlPct": 1.8
   },
   {
     "filingDate": "2026-10-12",
@@ -58,11 +54,10 @@
     "action": "BUY",
     "shares": 450000,
     "filedRate": 76.5,
-    "currentRate": 81.06,
-    "marketValueM": 36.48,
-    "pnlPct": 6.0,
-    "status": "ACCUMULATING",
-    "notes": "Parent company debt-to-equity consolidation."
+    "rationale": "Parent company debt-to-equity consolidation.",
+    "liveClose": 79.53,
+    "marketValueM": 35.8,
+    "pnlPct": 4.0
   },
   {
     "filingDate": "2026-10-05",
@@ -71,10 +66,9 @@
     "action": "SELL",
     "shares": 1500000,
     "filedRate": 209.5,
-    "currentRate": 208.98,
-    "marketValueM": 313.47,
-    "pnlPct": 0.2,
-    "status": "ACCUMULATING",
-    "notes": "Strategic block sale via NDM window."
+    "rationale": "Strategic block sale via NDM window.",
+    "liveClose": 205.33,
+    "marketValueM": 308.0,
+    "pnlPct": 2.0
   }
 ]
