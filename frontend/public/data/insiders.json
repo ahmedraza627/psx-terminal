@@ -6,10 +6,10 @@
     "action": "BUY",
     "shares": 350000,
     "filedRate": 114.2,
-    "rationale": "Direct market purchase disclosed to PSX.",
     "liveClose": 116.3,
     "marketValueM": 40.7,
-    "pnlPct": 1.8
+    "pnlPct": 1.8,
+    "rationale": "Direct market purchase disclosed to PSX."
   },
   {
     "filingDate": "2026-10-28",
@@ -18,10 +18,10 @@
     "action": "BUY",
     "shares": 125000,
     "filedRate": 435.0,
-    "rationale": "Associated group treasury accumulation.",
     "liveClose": 436.38,
     "marketValueM": 54.5,
-    "pnlPct": 0.3
+    "pnlPct": 0.3,
+    "rationale": "Associated group treasury accumulation."
   },
   {
     "filingDate": "2026-10-22",
@@ -30,10 +30,10 @@
     "action": "BUY",
     "shares": 200000,
     "filedRate": 542.5,
-    "rationale": "Long-term institutional ownership defense.",
     "liveClose": 558.18,
     "marketValueM": 111.6,
-    "pnlPct": 2.9
+    "pnlPct": 2.9,
+    "rationale": "Long-term institutional ownership defense."
   },
   {
     "filingDate": "2026-10-18",
@@ -42,10 +42,10 @@
     "action": "BUY",
     "shares": 500000,
     "filedRate": 112.0,
-    "rationale": "Sponsor open market purchase via CDC.",
     "liveClose": 114.01,
     "marketValueM": 57.0,
-    "pnlPct": 1.8
+    "pnlPct": 1.8,
+    "rationale": "Sponsor open market purchase via CDC."
   },
   {
     "filingDate": "2026-10-12",
@@ -54,10 +54,10 @@
     "action": "BUY",
     "shares": 450000,
     "filedRate": 76.5,
-    "rationale": "Parent company debt-to-equity consolidation.",
     "liveClose": 79.53,
     "marketValueM": 35.8,
-    "pnlPct": 4.0
+    "pnlPct": 4.0,
+    "rationale": "Parent company debt-to-equity consolidation."
   },
   {
     "filingDate": "2026-10-05",
@@ -66,9 +66,9 @@
     "action": "SELL",
     "shares": 1500000,
     "filedRate": 209.5,
-    "rationale": "Strategic block sale via NDM window.",
     "liveClose": 205.33,
     "marketValueM": 308.0,
-    "pnlPct": 2.0
+    "pnlPct": 2.0,
+    "rationale": "Strategic block sale via NDM window."
   }
 ]

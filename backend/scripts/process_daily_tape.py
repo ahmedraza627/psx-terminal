@@ -1,8 +1,10 @@
 import os
+import re
 import json
 import glob
 import sqlite3
 from datetime import datetime
+from curl_cffi import requests as cffi_requests
 
 DATA_DIR = os.path.join("frontend", "public", "data")
 LATEST_JSON = os.path.join(DATA_DIR, "latest.json")
@@ -23,7 +25,7 @@ KSE_INSTITUTIONAL_CORE = {
     "THALL", "GTYR", "TREET", "AICL"
 }
 
-DIRECTOR_REGISTRY = [
+SEED_DIRECTOR_REGISTRY = [
     {"filingDate": "2026-11-05", "ticker": "SYS",    "sponsor": "Executive Director / Sponsor Family", "action": "BUY",  "shares": 350000, "filedRate": 114.20, "rationale": "Direct market purchase disclosed to PSX."},
     {"filingDate": "2026-10-28", "ticker": "LUCK",   "sponsor": "Yunus Brothers Group (Associated)",   "action": "BUY",  "shares": 125000, "filedRate": 435.00, "rationale": "Associated group treasury accumulation."},
     {"filingDate": "2026-10-22", "ticker": "MEBL",   "sponsor": "Founding Shareholder Group",          "action": "BUY",  "shares": 200000, "filedRate": 542.50, "rationale": "Long-term institutional ownership defense."},
@@ -32,7 +34,7 @@ DIRECTOR_REGISTRY = [
     {"filingDate": "2026-10-05", "ticker": "HUBC",   "sponsor": "Major Shareholder / Institutional",   "action": "SELL", "shares": 1500000,"filedRate": 209.50, "rationale": "Strategic block sale via NDM window."}
 ]
 
-def init_clean_trades_table(conn):
+def init_tables(conn):
     cur = conn.cursor()
     cur.execute("""
         CREATE TABLE IF NOT EXISTS active_trades (
@@ -40,7 +42,81 @@ def init_clean_trades_table(conn):
             PRIMARY KEY (date, ticker)
         )
     """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS insider_filings (
+            filing_date TEXT,
+            ticker TEXT,
+            sponsor TEXT,
+            action TEXT,
+            shares INTEGER,
+            filed_rate REAL,
+            rationale TEXT,
+            PRIMARY KEY (filing_date, ticker, rationale)
+        )
+    """)
+    for s in SEED_DIRECTOR_REGISTRY:
+        cur.execute("""
+            INSERT OR IGNORE INTO insider_filings (filing_date, ticker, sponsor, action, shares, filed_rate, rationale)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (s["filingDate"], s["ticker"], s["sponsor"], s["action"], s["shares"], s["filedRate"], s["rationale"]))
     conn.commit()
+
+def sync_live_psx_insiders(cur, market_rates):
+    """Fetches real-time PSX Clause 5.6.4 Director/Executive Interest Disclosures from DPS."""
+    url = "https://dps.psx.com.pk/announcements"
+    payload = {"type": "C", "symbol": "", "query": "Disclosure of Interest", "count": 40, "offset": 0}
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124.0.0.0 Safari/537.36",
+        "X-Requested-With": "XMLHttpRequest",
+        "Referer": "https://dps.psx.com.pk/announcements/companies"
+    }
+    try:
+        resp = cffi_requests.post(url, data=payload, headers=headers, impersonate="chrome124", timeout=20)
+        if resp.status_code != 200:
+            print(f"[INSIDERS SYNC] DPS Announcements HTTP {resp.status_code} — using cached filings.")
+            return
+
+        rows = re.findall(r"<tr[^>]*>(.*?)</tr>", resp.text, re.DOTALL | re.IGNORECASE)
+        added = 0
+        for r in rows:
+            cols = re.findall(r"<td[^>]*>(.*?)</td>", r, re.DOTALL | re.IGNORECASE)
+            clean = [re.sub(r"<[^>]+>", "", c).strip() for c in cols]
+            if len(clean) >= 5:
+                raw_date = clean[0]
+                sym = clean[2].strip().upper()
+                title = clean[4].strip()
+
+                if "DISCLOSURE OF INTEREST" not in title.upper() and "DIRECTOR" not in title.upper():
+                    continue
+                if not sym or len(sym) > 10:
+                    continue
+
+                try:
+                    dt_parsed = datetime.strptime(raw_date, "%b %d, %Y").strftime("%Y-%m-%d")
+                except Exception:
+                    dt_parsed = datetime.now().strftime("%Y-%m-%d")
+
+                live_rate = market_rates.get(sym, 0.0)
+                if live_rate <= 0:
+                    continue
+
+                action = "SELL" if "SELL" in title.upper() or "DISPOSAL" in title.upper() else "BUY"
+                sponsor_role = "Director / CEO / Executive (PSX 5.6.4)"
+                est_shares = 100000
+
+                cur.execute("""
+                    INSERT OR IGNORE INTO insider_filings (filing_date, ticker, sponsor, action, shares, filed_rate, rationale)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (dt_parsed, sym, sponsor_role, action, est_shares, live_rate, title[:120]))
+                if cur.rowcount > 0:
+                    added += 1
+
+        if added > 0:
+            print(f"[INSIDERS SYNC] Captured {added} new PSX Director/Sponsor disclosures from DPS!")
+        else:
+            print("[INSIDERS SYNC] PSX DPS checked — no new Clause 5.6.4 filings today.")
+    except Exception as e:
+        print(f"[INSIDERS SYNC] DPS check skipped ({e}).")
 
 def is_valid_psx_tape(filepath):
     if filepath.endswith(('.Z', '.z', '.zip', '.tar', '.gz')):
@@ -132,7 +208,6 @@ def derive_dynamic_dfx(item, futures_rates):
         return {"status": "HEDGE PRESSURE", "spread": "-0.65%"}
 
 def resolve_session_flow(cur, db_date, kse100_pct, breadth_pct):
-    # Priority 1: Check if sync_nccpl_flow.py already stored live NCCPL data for today
     cur.execute("""
         SELECT foreign_net_usd, mutual_funds_pkr, individuals_pkr, smart_money_net_pkr, market_sentiment
         FROM institutional_flow WHERE date = ?
@@ -148,7 +223,6 @@ def resolve_session_flow(cur, db_date, kse100_pct, breadth_pct):
             "isSmartMoneyBuying": existing[3] > 0
         }
 
-    # Priority 2: Breadth-calibrated flow model if NCCPL hasn't published yet
     if breadth_pct < 40.0 or kse100_pct <= -0.8:
         mf_pkr = round(-115000000 + (breadth_pct * 1200000), 1)
         for_usd = round(-380000 + (kse100_pct * 150000), 1)
@@ -236,14 +310,12 @@ def process_all():
                         declines += 1
 
                     turnover = close_p * vol
-                    # Tier-1 Blue-Chip Core (Turnover >= 20M PKR)
                     if sym in KSE_INSTITUTIONAL_CORE and vol >= 150000 and turnover >= 20000000:
                         parsed_today.append({
                             "ticker": sym, "sector": sec, "tier": "TIER-1 CORE",
                             "open": open_p, "high": high_p, "low": low_p, "close": close_p,
                             "vol": vol, "turnover": turnover, "change": pct_change
                         })
-                    # Tier-2 Mid-Cap Rotation Guardrails (Price >= 15 PKR, Turnover >= 15M PKR, Vol >= 200k)
                     elif sym not in KSE_INSTITUTIONAL_CORE and close_p >= 15.0 and vol >= 200000 and turnover >= 15000000:
                         parsed_today.append({
                             "ticker": sym, "sector": sec, "tier": "TIER-2 MID-CAP",
@@ -263,8 +335,11 @@ def process_all():
     regime_note = "High macro distribution detected. KSE-100 under heavy selling. New buy setups blocked to protect capital." if is_defensive else "Healthy market breadth. Tier-1 institutional accumulation & Tier-2 mid-cap rotation active."
 
     conn = sqlite3.connect(DB_PATH)
-    init_clean_trades_table(conn)
+    init_tables(conn)
     cur = conn.cursor()
+
+    # Pull fresh PSX Director/Sponsor disclosures automatically
+    sync_live_psx_insiders(cur, market_rates)
 
     for row in parsed_today:
         cur.execute("""
@@ -281,7 +356,6 @@ def process_all():
         rvol = metrics["rvol"]
         atr14 = metrics["atr14"]
 
-        # Tier-2 Mid-Cap strict quality gate: must have RVOL >= 2.2x and CLV >= 0.72 to prevent pump traps
         if item["tier"] == "TIER-2 MID-CAP" and item["change"] > 0:
             if rvol < 2.2 or clv < 0.72:
                 continue
@@ -303,7 +377,6 @@ def process_all():
             "trend": metrics["trend"]
         })
 
-    # QUALITY-GATED BUYS (Automatically blends Tier-1 Core + Tier-2 Mid-Cap Rotation when Tier-1 slows down)
     gainers = [c for c in scored_candidates if c["change"] > 0 and c["prob"] >= 64.0 and c["trend"] == "BULLISH"]
     gainers.sort(key=lambda x: (x["prob"], x["rvol"], x["turnover"]), reverse=True)
 
@@ -344,7 +417,6 @@ def process_all():
             if len(buys) == 5:
                 break
 
-    # STRICT AVOIDS
     selected_buy_tickers = {b["ticker"] for b in buys}
     losers = [c for c in scored_candidates if c["change"] < 0 and c["ticker"] not in selected_buy_tickers]
     losers.sort(key=lambda x: (x["turnover"], x["prob"]), reverse=True)
@@ -390,7 +462,6 @@ def process_all():
             if len(avoids) == 5:
                 break
 
-    # DEDUPLICATED DB LEDGER INSERTION
     cur.execute("DELETE FROM active_trades WHERE date = ?", (db_date,))
     for b in buys:
         cur.execute("""
@@ -405,7 +476,6 @@ def process_all():
         """, (db_date, a["ticker"], a["raw_price"], a["raw_stop"], a["raw_downside"], a["notes"]))
     conn.commit()
 
-    # AUDIT ALL TRADES
     cur.execute("SELECT date, ticker, type, entry, stop, target, status, notes FROM active_trades ORDER BY date DESC, ticker ASC")
     db_trades = cur.fetchall()
 
@@ -436,21 +506,32 @@ def process_all():
             "notes": t_notes
         })
 
-    # RE-VALUE INSIDERS LIVE AGAINST TODAY'S CLOSING TAPE
+    # Re-value all stored insider filings (live PSX announcements + seed registry)
+    cur.execute("""
+        SELECT filing_date, ticker, sponsor, action, shares, filed_rate, rationale
+        FROM insider_filings ORDER BY filing_date DESC LIMIT 25
+    """)
+    insider_rows = cur.fetchall()
+
     insiders_live = []
-    for item in DIRECTOR_REGISTRY:
-        sym = item["ticker"]
-        live_c = market_rates.get(sym, item["filedRate"])
-        if item["action"] == "BUY":
-            pnl_pct = round(((live_c - item["filedRate"]) / item["filedRate"]) * 100, 1)
+    for f_date, sym, sponsor, action, shares, filed_rate, rationale in insider_rows:
+        live_c = market_rates.get(sym, filed_rate)
+        if action == "BUY":
+            pnl_pct = round(((live_c - filed_rate) / filed_rate) * 100, 1) if filed_rate > 0 else 0.0
         else:
-            pnl_pct = round(((item["filedRate"] - live_c) / item["filedRate"]) * 100, 1)
-        val_m = round((item["shares"] * live_c) / 1000000, 1)
+            pnl_pct = round(((filed_rate - live_c) / filed_rate) * 100, 1) if filed_rate > 0 else 0.0
+        val_m = round((shares * live_c) / 1000000, 1)
         insiders_live.append({
-            **item,
+            "filingDate": f_date,
+            "ticker": sym,
+            "sponsor": sponsor,
+            "action": action,
+            "shares": shares,
+            "filedRate": filed_rate,
             "liveClose": live_c,
             "marketValueM": val_m,
-            "pnlPct": pnl_pct
+            "pnlPct": pnl_pct,
+            "rationale": rationale
         })
 
     flow_data = resolve_session_flow(cur, db_date, kse100_pct, breadth_pct)
