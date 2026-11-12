@@ -76,7 +76,7 @@ def compute_historical_metrics(cur, ticker, current_close, current_vol):
     rows = cur.fetchall()
 
     if not rows or len(rows) < 5:
-        return {"rvol": 1.0, "sma50": current_close, "atr14": current_close * 0.032, "trend": "NEUTRAL"}
+        return {"rvol": 1.2, "sma50": current_close, "atr14": current_close * 0.032, "trend": "BULLISH"}
 
     vols_20 = [r[3] for r in rows[:20] if r[3] is not None and r[3] > 0]
     avg_vol_20 = sum(vols_20) / len(vols_20) if vols_20 else current_vol
@@ -105,7 +105,9 @@ def derive_dynamic_dfx(item, futures_rates):
     chg = item["change"]
     rvol = item["rvol"]
 
-    # If live DFX contract rate exists in tape, compute real basis spread
+    if item["tier"] == "TIER-2 MID-CAP":
+        return {"status": "MID-CAP ROTATION", "spread": "CASH SEGMENT"}
+
     if sym in futures_rates and spot > 0:
         fut = futures_rates[sym]
         spread_pct = round(((fut - spot) / spot) * 100, 2)
@@ -118,7 +120,6 @@ def derive_dynamic_dfx(item, futures_rates):
         else:
             return {"status": "LONG UNWINDING", "spread": f"{spread_pct:+.2f}%"}
 
-    # Price/Volume microstructure fallback (zero contradictions)
     if chg > 0:
         if rvol >= 2.2:
             return {"status": "LONG BUILDUP", "spread": "+0.85%"}
@@ -130,8 +131,24 @@ def derive_dynamic_dfx(item, futures_rates):
             return {"status": "LONG UNWINDING", "spread": "-0.40%"}
         return {"status": "HEDGE PRESSURE", "spread": "-0.65%"}
 
-def compute_session_flow(cur, db_date, kse100_pct, breadth_pct):
-    # Calibrate flow dynamically against real market tape breadth
+def resolve_session_flow(cur, db_date, kse100_pct, breadth_pct):
+    # Priority 1: Check if sync_nccpl_flow.py already stored live NCCPL data for today
+    cur.execute("""
+        SELECT foreign_net_usd, mutual_funds_pkr, individuals_pkr, smart_money_net_pkr, market_sentiment
+        FROM institutional_flow WHERE date = ?
+    """, (db_date,))
+    existing = cur.fetchone()
+    if existing and (existing[0] != 0 or existing[1] != 0):
+        return {
+            "sentiment": existing[4],
+            "mutualFundsM": round(existing[1] / 1000000, 1),
+            "foreignUsdK": round(existing[0] / 1000, 1),
+            "individualsM": round(existing[2] / 1000000, 1),
+            "smartMoneyDeltaM": round(existing[3] / 1000000, 1),
+            "isSmartMoneyBuying": existing[3] > 0
+        }
+
+    # Priority 2: Breadth-calibrated flow model if NCCPL hasn't published yet
     if breadth_pct < 40.0 or kse100_pct <= -0.8:
         mf_pkr = round(-115000000 + (breadth_pct * 1200000), 1)
         for_usd = round(-380000 + (kse100_pct * 150000), 1)
@@ -203,7 +220,6 @@ def process_all():
                         kse100_pct = pct_change
                         continue
 
-                    # Capture Deliverable Futures contracts (e.g., PSO-NOV)
                     if "-" in sym and sec in ["40", "41"]:
                         base_sym = sym.split("-")[0]
                         if base_sym in KSE_INSTITUTIONAL_CORE and close_p > 0:
@@ -219,20 +235,21 @@ def process_all():
                     elif pct_change < 0:
                         declines += 1
 
-                    if sym in KSE_INSTITUTIONAL_CORE and vol >= 150000:
-                        turnover = close_p * vol
-                        if turnover >= 20000000:
-                            parsed_today.append({
-                                "ticker": sym,
-                                "sector": sec,
-                                "open": open_p,
-                                "high": high_p,
-                                "low": low_p,
-                                "close": close_p,
-                                "vol": vol,
-                                "turnover": turnover,
-                                "change": pct_change
-                            })
+                    turnover = close_p * vol
+                    # Tier-1 Blue-Chip Core (Turnover >= 20M PKR)
+                    if sym in KSE_INSTITUTIONAL_CORE and vol >= 150000 and turnover >= 20000000:
+                        parsed_today.append({
+                            "ticker": sym, "sector": sec, "tier": "TIER-1 CORE",
+                            "open": open_p, "high": high_p, "low": low_p, "close": close_p,
+                            "vol": vol, "turnover": turnover, "change": pct_change
+                        })
+                    # Tier-2 Mid-Cap Rotation Guardrails (Price >= 15 PKR, Turnover >= 15M PKR, Vol >= 200k)
+                    elif sym not in KSE_INSTITUTIONAL_CORE and close_p >= 15.0 and vol >= 200000 and turnover >= 15000000:
+                        parsed_today.append({
+                            "ticker": sym, "sector": sec, "tier": "TIER-2 MID-CAP",
+                            "open": open_p, "high": high_p, "low": low_p, "close": close_p,
+                            "vol": vol, "turnover": turnover, "change": pct_change
+                        })
                 except ValueError:
                     continue
 
@@ -243,7 +260,7 @@ def process_all():
 
     is_defensive = (kse100_pct <= -0.8) or (breadth_pct <= 38.0)
     regime_status = "DEFENSIVE (CASH MODE)" if is_defensive else "BULLISH ACCUMULATION"
-    regime_note = "High macro distribution detected. KSE-100 under heavy selling. New buy setups blocked to protect capital." if is_defensive else "Healthy market breadth. Tier-1 institutional accumulation active across key sectors."
+    regime_note = "High macro distribution detected. KSE-100 under heavy selling. New buy setups blocked to protect capital." if is_defensive else "Healthy market breadth. Tier-1 institutional accumulation & Tier-2 mid-cap rotation active."
 
     conn = sqlite3.connect(DB_PATH)
     init_clean_trades_table(conn)
@@ -264,6 +281,11 @@ def process_all():
         rvol = metrics["rvol"]
         atr14 = metrics["atr14"]
 
+        # Tier-2 Mid-Cap strict quality gate: must have RVOL >= 2.2x and CLV >= 0.72 to prevent pump traps
+        if item["tier"] == "TIER-2 MID-CAP" and item["change"] > 0:
+            if rvol < 2.2 or clv < 0.72:
+                continue
+
         if item["change"] > 0:
             trend_bonus = 6.0 if metrics["trend"] == "BULLISH" else -6.0
             prob = 54.0 + (min(item["change"], 7.0) * 0.9) + (min(rvol, 3.5) * 2.4) + (clv * 4.5) + trend_bonus
@@ -281,7 +303,7 @@ def process_all():
             "trend": metrics["trend"]
         })
 
-    # QUALITY-GATED BUYS
+    # QUALITY-GATED BUYS (Automatically blends Tier-1 Core + Tier-2 Mid-Cap Rotation when Tier-1 slows down)
     gainers = [c for c in scored_candidates if c["change"] > 0 and c["prob"] >= 64.0 and c["trend"] == "BULLISH"]
     gainers.sort(key=lambda x: (x["prob"], x["rvol"], x["turnover"]), reverse=True)
 
@@ -300,6 +322,7 @@ def process_all():
                 zone_low = round(price * 0.994, 2)
                 zone_high = round(price * 1.004, 2)
                 dfx = derive_dynamic_dfx(item, futures_rates)
+                tier_label = "Tier-1 accumulation" if item["tier"] == "TIER-1 CORE" else "Mid-Cap rotation breakout"
 
                 buys.append({
                     "rank": len(buys) + 1,
@@ -315,7 +338,7 @@ def process_all():
                     "probability": f"{item['prob']}%",
                     "rvol": f"{item['rvol']}x",
                     "dfxSignal": dfx["status"],
-                    "notes": f"Tier-1 accumulation ({int(item['vol']):,} shares, PKR {round(item['turnover']/10000000, 1)}Cr turnover). DFX {dfx['status']} ({dfx['spread']}). Swing target +{gain_pct}%."
+                    "notes": f"{tier_label} ({int(item['vol']):,} shares, PKR {round(item['turnover']/10000000, 1)}Cr turnover). {dfx['status']} ({dfx['spread']}). Swing target +{gain_pct}%."
                 })
                 sector_buy_count[sec] = sector_buy_count.get(sec, 0) + 1
             if len(buys) == 5:
@@ -345,7 +368,7 @@ def process_all():
             "probability": f"{item['prob']}%",
             "rvol": f"{item['rvol']}x",
             "dfxSignal": dfx["status"],
-            "notes": f"{structure_note} ({int(item['vol']):,} shares, PKR {round(item['turnover']/10000000, 1)}Cr turnover). DFX {dfx['status']} ({dfx['spread']}). Downside risk of -{risk_pct}%."
+            "notes": f"{structure_note} ({int(item['vol']):,} shares, PKR {round(item['turnover']/10000000, 1)}Cr turnover). {dfx['status']} ({dfx['spread']}). Downside risk of -{risk_pct}%."
         }
 
     avoids = []
@@ -430,7 +453,7 @@ def process_all():
             "pnlPct": pnl_pct
         })
 
-    flow_data = compute_session_flow(cur, db_date, kse100_pct, breadth_pct)
+    flow_data = resolve_session_flow(cur, db_date, kse100_pct, breadth_pct)
     conn.commit()
     conn.close()
 
@@ -459,11 +482,11 @@ def process_all():
 
     print(f"\n[UNIFIED QUANT ENGINE] Synchronized for {session_date}:")
     print(f"  Regime: {regime_status} | Breadth: {breadth_pct}% | KSE-100: {kse100_pct:+.2f}%")
-    print(f"  Smart Money Flow: {flow_data['sentiment']} (Surplus: {flow_data['smartMoneyDeltaM']:+.1f}M PKR)")
+    print(f"  Smart Money Flow: {flow_data['sentiment']} (Net: {flow_data['smartMoneyDeltaM']:+.1f}M PKR)")
     for b in buys:
-        print(f"  BUY  #{b['rank']} {b['ticker']}: Zone {b['entryZone']} | Target: {b['target']} | DFX: {b['dfxSignal']}")
+        print(f"  BUY  #{b['rank']} {b['ticker']}: Zone {b['entryZone']} | Target: {b['target']} | Tag: {b['dfxSignal']}")
     for a in avoids:
-        print(f"  AVOID #{a['rank']} {a['ticker']}: Downside {a['downside']} | DFX: {a['dfxSignal']}")
+        print(f"  AVOID #{a['rank']} {a['ticker']}: Downside {a['downside']} | Tag: {a['dfxSignal']}")
 
 if __name__ == "__main__":
     process_all()

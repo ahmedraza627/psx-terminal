@@ -1,17 +1,104 @@
 import os
-import json
+import re
 import sqlite3
 import requests
+import urllib3
 from datetime import datetime
 
-DB_PATH = os.path.join("backend", "psx_history.db")
-DATA_DIR = os.path.join("frontend", "public", "data")
-FLOW_JSON = os.path.join(DATA_DIR, "flow.json")
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-def init_flow_table():
-    os.makedirs("backend", exist_ok=True)
+DB_PATH = os.path.join("backend", "psx_history.db")
+
+NCCPL_FIPI_URL = "https://www.nccpl.com.pk/en/market-information/fipi-lipi/fipi-normal-daily"
+NCCPL_LIPI_URL = "https://www.nccpl.com.pk/en/market-information/fipi-lipi/lipi-normal-daily"
+
+def parse_number(val_str):
+    cleaned = re.sub(r"[^\d.\-]", "", val_str.replace(",", ""))
+    try:
+        return float(cleaned)
+    except ValueError:
+        return 0.0
+
+def extract_table_rows(html):
+    rows = re.findall(r"<tr[^>]*>(.*?)</tr>", html, re.DOTALL | re.IGNORECASE)
+    parsed = []
+    for r in rows:
+        cols = re.findall(r"<t[dh][^>]*>(.*?)</t[dh]>", r, re.DOTALL | re.IGNORECASE)
+        clean_cols = [re.sub(r"<[^>]+>", "", c).strip() for c in cols]
+        if clean_cols:
+            parsed.append(clean_cols)
+    return parsed
+
+def fetch_live_nccpl():
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+    }
+    fipi_resp = requests.get(NCCPL_FIPI_URL, headers=headers, timeout=20, verify=False)
+    lipi_resp = requests.get(NCCPL_LIPI_URL, headers=headers, timeout=20, verify=False)
+
+    if fipi_resp.status_code != 200 or lipi_resp.status_code != 200:
+        raise RuntimeError(f"NCCPL HTTP status: FIPI={fipi_resp.status_code}, LIPI={lipi_resp.status_code}")
+
+    fipi_rows = extract_table_rows(fipi_resp.text)
+    lipi_rows = extract_table_rows(lipi_resp.text)
+
+    foreign_net_usd = 0.0
+    for row in fipi_rows:
+        row_text = " ".join(row).upper()
+        if "TOTAL" in row_text or "FOREIGN CORPORATES" in row_text:
+            nums = [parse_number(c) for c in row if re.search(r"\d", c)]
+            if nums:
+                foreign_net_usd = nums[-1]
+                if "TOTAL" in row_text:
+                    break
+
+    mutual_funds_pkr = 0.0
+    banks_dfi_pkr = 0.0
+    companies_pkr = 0.0
+    individuals_pkr = 0.0
+
+    for row in lipi_rows:
+        if len(row) < 2:
+            continue
+        label = row[0].upper()
+        nums = [parse_number(c) for c in row[1:] if re.search(r"\d", c)]
+        if not nums:
+            continue
+        net_val = nums[-1]
+
+        # NCCPL LIPI values are typically in USD or PKR millions; normalize if < 10000
+        if abs(net_val) < 50000:
+            net_val_pkr = net_val * 278500.0
+        else:
+            net_val_pkr = net_val
+
+        if "MUTUAL FUND" in label:
+            mutual_funds_pkr = net_val_pkr
+        elif "BANK" in label or "DFI" in label:
+            banks_dfi_pkr = net_val_pkr
+        elif "COMPAN" in label:
+            companies_pkr = net_val_pkr
+        elif "INDIVIDUAL" in label:
+            individuals_pkr = net_val_pkr
+
+    if mutual_funds_pkr == 0.0 and individuals_pkr == 0.0 and foreign_net_usd == 0.0:
+        raise ValueError("NCCPL HTML structure returned zero parsed figures (market holiday or pending upload).")
+
+    return {
+        "foreign_net_usd": round(foreign_net_usd, 1),
+        "mutual_funds_pkr": round(mutual_funds_pkr, 1),
+        "banks_dfi_pkr": round(banks_dfi_pkr, 1),
+        "companies_pkr": round(companies_pkr, 1),
+        "individuals_pkr": round(individuals_pkr, 1),
+        "source": "LIVE_NCCPL_PORTAL"
+    }
+
+def sync_nccpl():
+    db_date = datetime.now().strftime("%Y-%m-%d")
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
+
     cur.execute("""
         CREATE TABLE IF NOT EXISTS institutional_flow (
             date TEXT PRIMARY KEY,
@@ -24,103 +111,36 @@ def init_flow_table():
             market_sentiment TEXT
         )
     """)
-    conn.commit()
-    conn.close()
-
-def fetch_and_store_nccpl():
-    init_flow_table()
-    now = datetime.now()
-    today_str = now.strftime("%Y-%m-%d")
-
-    url = "https://www.nccpl.com.pk/api/fipi-lipi-summary"
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Referer": "https://www.nccpl.com.pk/"
-    }
-
-    foreign_net_usd = 0.0
-    mutual_funds = 0.0
-    banks_dfi = 0.0
-    companies = 0.0
-    individuals = 0.0
 
     try:
-        r = requests.get(url, headers=headers, timeout=10)
-        if r.status_code == 200:
-            payload = r.json()
-            for item in payload.get("data", []):
-                client = item.get("client_type", "").upper()
-                net_val = float(item.get("net_amount", 0.0))
-                if "MUTUAL" in client:
-                    mutual_funds = net_val
-                elif "BANK" in client or "DFI" in client:
-                    banks_dfi = net_val
-                elif "COMPANY" in client or "COMPANIES" in client:
-                    companies = net_val
-                elif "INDIVIDUAL" in client:
-                    individuals = net_val
-                elif "FOREIGN" in client:
-                    foreign_net_usd = net_val / 280.0
+        live = fetch_live_nccpl()
+        for_usd = live["foreign_net_usd"]
+        mf_pkr = live["mutual_funds_pkr"]
+        banks_pkr = live["banks_dfi_pkr"]
+        comp_pkr = live["companies_pkr"]
+        indiv_pkr = live["individuals_pkr"]
+
+        smart_net = round(mf_pkr + banks_pkr + comp_pkr + (for_usd * 278.5), 1)
+        if smart_net > 50000000 and indiv_pkr < 0:
+            sentiment = "STRONG INSTITUTIONAL ABSORPTION (FUNDS BUYING RETAIL PANIC)"
+        elif smart_net > 0:
+            sentiment = "NET INSTITUTIONAL ACCUMULATION (LIVE NCCPL)"
         else:
-            # Baseline benchmark session figures (PKR)
-            mutual_funds = 184500000.0   # +PKR 184.5M
-            banks_dfi = 65000000.0       # +PKR 65.0M
-            companies = 42000000.0       # +PKR 42.0M
-            foreign_net_usd = 520000.0   # +$520K (~PKR 145.6M)
-            individuals = -291500000.0   # -PKR 291.5M (Retail selling)
-    except Exception:
-        mutual_funds = 184500000.0
-        banks_dfi = 65000000.0
-        companies = 42000000.0
-        foreign_net_usd = 520000.0
-        individuals = -291500000.0
+            sentiment = "BROAD INSTITUTIONAL DISTRIBUTION (RISK-OFF)"
 
-    # Foreign USD converted to PKR (Rate ~280)
-    foreign_pkr = foreign_net_usd * 280.0
-
-    # TRUE INSTITUTIONAL ABSORPTION DELTA:
-    # Smart Money = (Mutual Funds + Foreign + Banks + Corporates)
-    # Retail Divergence = Smart Money - Individuals Net
-    smart_money_total = mutual_funds + banks_dfi + companies + foreign_pkr
-    smart_money_delta = smart_money_total + individuals  # Since individuals is negative, this evaluates absorption surplus
-
-    if smart_money_total > 200000000 and individuals < 0:
-        sentiment = "STRONG INSTITUTIONAL ABSORPTION (FUNDS BUYING RETAIL PANIC)"
-    elif smart_money_total < -100000000:
-        sentiment = "INSTITUTIONAL DISTRIBUTION (SMART MONEY EXITING)"
-    else:
-        sentiment = "SELECTIVE ACCUMULATION BY DOMESTIC FUNDS"
-
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    cur.execute("""
-        INSERT OR REPLACE INTO institutional_flow (date, foreign_net_usd, mutual_funds_pkr, banks_dfi_pkr, companies_pkr, individuals_pkr, smart_money_net_pkr, market_sentiment)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    """, (today_str, foreign_net_usd, mutual_funds, banks_dfi, companies, individuals, smart_money_delta, sentiment))
-    conn.commit()
-    conn.close()
-
-    flow_payload = {
-        "date": today_str,
-        "sentiment": sentiment,
-        "smartMoneyDeltaM": round(smart_money_delta / 1000000, 1),
-        "mutualFundsM": round(mutual_funds / 1000000, 1),
-        "banksDfiM": round(banks_dfi / 1000000, 1),
-        "foreignUsdK": round(foreign_net_usd / 1000, 1),
-        "foreignPkrM": round(foreign_pkr / 1000000, 1),
-        "individualsM": round(individuals / 1000000, 1),
-        "isSmartMoneyBuying": smart_money_total > 0
-    }
-
-    os.makedirs(DATA_DIR, exist_ok=True)
-    with open(FLOW_JSON, "w") as f:
-        json.dump(flow_payload, f, indent=2)
-
-    print(f"\n[NCCPL CONFLUENCE ENGINE] Synchronized for {today_str}:")
-    print(f"  Sentiment: {sentiment}")
-    print(f"  Mutual Funds: +PKR {flow_payload['mutualFundsM']}M | Foreign: +${flow_payload['foreignUsdK']}K (+PKR {flow_payload['foreignPkrM']}M)")
-    print(f"  Banks & DFIs: +PKR {flow_payload['banksDfiM']}M | Retail Dump: PKR {flow_payload['individualsM']}M")
-    print(f"  Net Smart Money Absorption: +PKR {flow_payload['smartMoneyDeltaM']}M")
+        cur.execute("""
+            INSERT OR REPLACE INTO institutional_flow
+            (date, foreign_net_usd, mutual_funds_pkr, banks_dfi_pkr, companies_pkr, individuals_pkr, smart_money_net_pkr, market_sentiment)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (db_date, for_usd, mf_pkr, banks_pkr, comp_pkr, indiv_pkr, smart_net, sentiment))
+        conn.commit()
+        print(f"\n[NCCPL LIVE SCRAPER] Synchronized for {db_date} from NCCPL Portal:")
+        print(f"  Sentiment: {sentiment}")
+        print(f"  Mutual Funds: {mf_pkr/1e6:+.1f}M PKR | Foreign: ${for_usd/1e3:+.1f}K | Retail: {indiv_pkr/1e6:+.1f}M PKR")
+    except Exception as e:
+        print(f"\n[NCCPL SCRAPER NOTE] Live portal unavailable ({e}). Tape engine will use breadth-calibrated flow.")
+    finally:
+        conn.close()
 
 if __name__ == "__main__":
-    fetch_and_store_nccpl()
+    sync_nccpl()
