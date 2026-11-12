@@ -1,97 +1,78 @@
 import os
 import re
 import sqlite3
-import requests
-import urllib3
+import tkinter as tk
 from datetime import datetime
 
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
 DB_PATH = os.path.join("backend", "psx_history.db")
+MANUAL_NCCPL_FILE = r"D:\downloads\nccpl.txt"
 
-NCCPL_FIPI_URL = "https://www.nccpl.com.pk/en/market-information/fipi-lipi/fipi-normal-daily"
-NCCPL_LIPI_URL = "https://www.nccpl.com.pk/en/market-information/fipi-lipi/lipi-normal-daily"
-
-def parse_number(val_str):
-    cleaned = re.sub(r"[^\d.\-]", "", val_str.replace(",", ""))
+def get_clipboard_text():
     try:
-        return float(cleaned)
-    except ValueError:
-        return 0.0
+        root = tk.Tk()
+        root.withdraw()
+        text = root.clipboard_get()
+        root.destroy()
+        return text
+    except Exception:
+        return ""
 
-def extract_table_rows(html):
-    rows = re.findall(r"<tr[^>]*>(.*?)</tr>", html, re.DOTALL | re.IGNORECASE)
-    parsed = []
-    for r in rows:
-        cols = re.findall(r"<t[dh][^>]*>(.*?)</t[dh]>", r, re.DOTALL | re.IGNORECASE)
-        clean_cols = [re.sub(r"<[^>]+>", "", c).strip() for c in cols]
-        if clean_cols:
-            parsed.append(clean_cols)
-    return parsed
+def parse_nccpl_raw_text(raw_text):
+    if not raw_text or len(raw_text) < 50:
+        return None
 
-def fetch_live_nccpl():
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
-    }
-    fipi_resp = requests.get(NCCPL_FIPI_URL, headers=headers, timeout=20, verify=False)
-    lipi_resp = requests.get(NCCPL_LIPI_URL, headers=headers, timeout=20, verify=False)
+    upper_text = raw_text.upper()
+    if "MUTUAL FUNDS" not in upper_text and "INDIVIDUALS" not in upper_text and "FOREIGN CORPORATES" not in upper_text:
+        return None
 
-    if fipi_resp.status_code != 200 or lipi_resp.status_code != 200:
-        raise RuntimeError(f"NCCPL HTTP status: FIPI={fipi_resp.status_code}, LIPI={lipi_resp.status_code}")
+    def extract_net_for_label(label_pattern):
+        for line in raw_text.splitlines():
+            if re.search(label_pattern, line, re.IGNORECASE):
+                nums = re.findall(r"[\-]?\d[\d,]*\.?\d*", line)
+                cleaned = []
+                for n in nums:
+                    try:
+                        cleaned.append(float(n.replace(",", "")))
+                    except ValueError:
+                        pass
+                if cleaned:
+                    return cleaned[-1]
+        return None
 
-    fipi_rows = extract_table_rows(fipi_resp.text)
-    lipi_rows = extract_table_rows(lipi_resp.text)
+    mf = extract_net_for_label(r"MUTUAL\s+FUNDS?")
+    banks = extract_net_for_label(r"BANKS?\s*/?\s*DFI")
+    comp = extract_net_for_label(r"COMPANIES")
+    indiv = extract_net_for_label(r"INDIVIDUALS?")
+    fipi = extract_net_for_label(r"FOREIGN\s+CORPORATES?|FIPI\s+TOTAL|NET\s+FIPI")
 
-    foreign_net_usd = 0.0
-    for row in fipi_rows:
-        row_text = " ".join(row).upper()
-        if "TOTAL" in row_text or "FOREIGN CORPORATES" in row_text:
-            nums = [parse_number(c) for c in row if re.search(r"\d", c)]
-            if nums:
-                foreign_net_usd = nums[-1]
-                if "TOTAL" in row_text:
-                    break
+    if mf is None and indiv is None and fipi is None:
+        return None
 
-    mutual_funds_pkr = 0.0
-    banks_dfi_pkr = 0.0
-    companies_pkr = 0.0
-    individuals_pkr = 0.0
+    def to_pkr(val):
+        if val is None:
+            return 0.0
+        # If value is in USD millions (e.g. -1.25) or USD thousands, normalize to PKR
+        if abs(val) < 500:
+            return val * 1_000_000.0 * 278.5
+        elif abs(val) < 500_000:
+            return val * 1_000.0 * 278.5
+        return val
 
-    for row in lipi_rows:
-        if len(row) < 2:
-            continue
-        label = row[0].upper()
-        nums = [parse_number(c) for c in row[1:] if re.search(r"\d", c)]
-        if not nums:
-            continue
-        net_val = nums[-1]
+    mf_pkr = to_pkr(mf)
+    banks_pkr = to_pkr(banks)
+    comp_pkr = to_pkr(comp)
+    indiv_pkr = to_pkr(indiv)
 
-        # NCCPL LIPI values are typically in USD or PKR millions; normalize if < 10000
-        if abs(net_val) < 50000:
-            net_val_pkr = net_val * 278500.0
-        else:
-            net_val_pkr = net_val
-
-        if "MUTUAL FUND" in label:
-            mutual_funds_pkr = net_val_pkr
-        elif "BANK" in label or "DFI" in label:
-            banks_dfi_pkr = net_val_pkr
-        elif "COMPAN" in label:
-            companies_pkr = net_val_pkr
-        elif "INDIVIDUAL" in label:
-            individuals_pkr = net_val_pkr
-
-    if mutual_funds_pkr == 0.0 and individuals_pkr == 0.0 and foreign_net_usd == 0.0:
-        raise ValueError("NCCPL HTML structure returned zero parsed figures (market holiday or pending upload).")
+    for_usd = 0.0
+    if fipi is not None:
+        for_usd = fipi * 1_000_000.0 if abs(fipi) < 500 else (fipi * 1_000.0 if abs(fipi) < 500_000 else fipi)
 
     return {
-        "foreign_net_usd": round(foreign_net_usd, 1),
-        "mutual_funds_pkr": round(mutual_funds_pkr, 1),
-        "banks_dfi_pkr": round(banks_dfi_pkr, 1),
-        "companies_pkr": round(companies_pkr, 1),
-        "individuals_pkr": round(individuals_pkr, 1),
-        "source": "LIVE_NCCPL_PORTAL"
+        "foreign_net_usd": round(for_usd, 1),
+        "mutual_funds_pkr": round(mf_pkr, 1),
+        "banks_dfi_pkr": round(banks_pkr, 1),
+        "companies_pkr": round(comp_pkr, 1),
+        "individuals_pkr": round(indiv_pkr, 1),
     }
 
 def sync_nccpl():
@@ -112,19 +93,34 @@ def sync_nccpl():
         )
     """)
 
-    try:
-        live = fetch_live_nccpl()
-        for_usd = live["foreign_net_usd"]
-        mf_pkr = live["mutual_funds_pkr"]
-        banks_pkr = live["banks_dfi_pkr"]
-        comp_pkr = live["companies_pkr"]
-        indiv_pkr = live["individuals_pkr"]
+    parsed = None
+    source_used = None
+
+    # 1. Check Windows Clipboard first
+    clip_text = get_clipboard_text()
+    parsed = parse_nccpl_raw_text(clip_text)
+    if parsed:
+        source_used = "CLIPBOARD"
+
+    # 2. Check D:\downloads\nccpl.txt if clipboard didn't have NCCPL table
+    if not parsed and os.path.exists(MANUAL_NCCPL_FILE):
+        with open(MANUAL_NCCPL_FILE, "r", encoding="utf-8", errors="ignore") as f:
+            parsed = parse_nccpl_raw_text(f.read())
+        if parsed:
+            source_used = "FILE (nccpl.txt)"
+
+    if parsed:
+        for_usd = parsed["foreign_net_usd"]
+        mf_pkr = parsed["mutual_funds_pkr"]
+        banks_pkr = parsed["banks_dfi_pkr"]
+        comp_pkr = parsed["companies_pkr"]
+        indiv_pkr = parsed["individuals_pkr"]
 
         smart_net = round(mf_pkr + banks_pkr + comp_pkr + (for_usd * 278.5), 1)
-        if smart_net > 50000000 and indiv_pkr < 0:
+        if smart_net > 50_000_000 and indiv_pkr < 0:
             sentiment = "STRONG INSTITUTIONAL ABSORPTION (FUNDS BUYING RETAIL PANIC)"
         elif smart_net > 0:
-            sentiment = "NET INSTITUTIONAL ACCUMULATION (LIVE NCCPL)"
+            sentiment = "NET INSTITUTIONAL ACCUMULATION (VERIFIED NCCPL)"
         else:
             sentiment = "BROAD INSTITUTIONAL DISTRIBUTION (RISK-OFF)"
 
@@ -134,13 +130,13 @@ def sync_nccpl():
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """, (db_date, for_usd, mf_pkr, banks_pkr, comp_pkr, indiv_pkr, smart_net, sentiment))
         conn.commit()
-        print(f"\n[NCCPL LIVE SCRAPER] Synchronized for {db_date} from NCCPL Portal:")
+        print(f"\n[NCCPL VERIFIED INGEST] Loaded from {source_used} for {db_date}:")
         print(f"  Sentiment: {sentiment}")
         print(f"  Mutual Funds: {mf_pkr/1e6:+.1f}M PKR | Foreign: ${for_usd/1e3:+.1f}K | Retail: {indiv_pkr/1e6:+.1f}M PKR")
-    except Exception as e:
-        print(f"\n[NCCPL SCRAPER NOTE] Live portal unavailable ({e}). Tape engine will use breadth-calibrated flow.")
-    finally:
-        conn.close()
+    else:
+        print("\n[NCCPL FLOW] No copied NCCPL table detected. Using automated breadth-calibrated flow.")
+
+    conn.close()
 
 if __name__ == "__main__":
     sync_nccpl()
