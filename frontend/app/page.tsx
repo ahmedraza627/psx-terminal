@@ -118,26 +118,80 @@ export default function DashboardPage() {
 
       {/* SMART MONEY FLOW STRIP (NCCPL FIPI / LIPI) */}
       {flow && (
-        <div className="p-3.5 rounded-xl border border-blue-200 bg-blue-50/30 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-3 font-mono text-xs">
+        <div
+          className={`p-3.5 rounded-xl border shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-3 font-mono text-xs ${
+            flow.isSmartMoneyBuying
+              ? "border-blue-200 bg-blue-50/30"
+              : "border-rose-200 bg-rose-50/30"
+          }`}
+        >
           <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-blue-600 animate-pulse"></span>
-            <span className="text-[11px] font-bold text-slate-600 uppercase">NCCPL Smart Money:</span>
-            <span className="font-bold text-blue-900">
+            <span
+              className={`w-2.5 h-2.5 rounded-full animate-pulse ${
+                flow.isSmartMoneyBuying ? "bg-blue-600" : "bg-rose-600"
+              }`}
+            ></span>
+            <span className="text-[11px] font-bold text-slate-600 uppercase">
+              NCCPL Smart Money:
+            </span>
+            <span
+              className={`font-bold ${
+                flow.isSmartMoneyBuying ? "text-blue-900" : "text-rose-900"
+              }`}
+            >
               {flow.sentiment}
             </span>
           </div>
           <div className="flex flex-wrap items-center gap-2.5 text-[11px]">
-            <span className="bg-white px-2.5 py-1 rounded border border-blue-200 shadow-2xs">
-              Mutual Funds: <strong className="text-emerald-700">+{flow.mutualFundsM}M PKR</strong>
+            <span className="bg-white px-2.5 py-1 rounded border border-slate-200 shadow-2xs">
+              Mutual Funds:{" "}
+              <strong
+                className={
+                  flow.mutualFundsM >= 0 ? "text-emerald-700" : "text-rose-700"
+                }
+              >
+                {flow.mutualFundsM >= 0
+                  ? `+${flow.mutualFundsM}`
+                  : flow.mutualFundsM}
+                M PKR
+              </strong>
             </span>
-            <span className="bg-white px-2.5 py-1 rounded border border-blue-200 shadow-2xs">
-              Foreign: <strong className="text-emerald-700">+${flow.foreignUsdK}K</strong>
+            <span className="bg-white px-2.5 py-1 rounded border border-slate-200 shadow-2xs">
+              Foreign:{" "}
+              <strong
+                className={
+                  flow.foreignUsdK >= 0 ? "text-emerald-700" : "text-rose-700"
+                }
+              >
+                {flow.foreignUsdK >= 0
+                  ? `+$${flow.foreignUsdK}`
+                  : `-$${Math.abs(flow.foreignUsdK)}`}
+                K
+              </strong>
             </span>
-            <span className="bg-white px-2.5 py-1 rounded border border-blue-200 shadow-2xs">
-              Retail Dump: <strong className="text-rose-700">{flow.individualsM}M PKR</strong>
+            <span className="bg-white px-2.5 py-1 rounded border border-slate-200 shadow-2xs">
+              Retail:{" "}
+              <strong
+                className={
+                  flow.individualsM >= 0 ? "text-emerald-700" : "text-rose-700"
+                }
+              >
+                {flow.individualsM >= 0
+                  ? `+${flow.individualsM}`
+                  : flow.individualsM}
+                M PKR
+              </strong>
             </span>
-            <span className="bg-blue-600 text-white px-2.5 py-1 rounded font-bold shadow-2xs">
-              Surplus: +{flow.smartMoneyDeltaM}M
+            <span
+              className={`text-white px-2.5 py-1 rounded font-bold shadow-2xs ${
+                flow.smartMoneyDeltaM >= 0 ? "bg-blue-600" : "bg-rose-600"
+              }`}
+            >
+              Net Flow:{" "}
+              {flow.smartMoneyDeltaM >= 0
+                ? `+${flow.smartMoneyDeltaM}`
+                : flow.smartMoneyDeltaM}
+              M
             </span>
           </div>
         </div>
