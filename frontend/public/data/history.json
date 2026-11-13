@@ -18,12 +18,12 @@
     "type": "AVOID",
     "timeframe": "1M",
     "entryRef": 204.07,
-    "invalidation": 208.13,
-    "target": 193.91,
+    "invalidation": 208.47,
+    "target": 192.9,
     "latestClose": 204.07,
     "pnlPct": 0.0,
     "status": "IN PLAY",
-    "notes": "Distribution from Bullish Structure (2,309,059 shares, PKR 47.1Cr turnover). LONG UNWINDING (+0.54%). Downside risk of -5.0%."
+    "notes": "Distribution from Bullish Structure (2,309,059 shares, PKR 47.1Cr turnover). LONG UNWINDING (+0.54%). [DFX SHORT] Short on uptick in zone PKR 203.25-205.09; hard stop PKR 208.47 (+2.2%), target PKR 192.90 (-5.5%)."
   },
   {
     "date": "2026-11-13",
@@ -31,12 +31,12 @@
     "type": "AVOID",
     "timeframe": "1M",
     "entryRef": 208.18,
-    "invalidation": 211.23,
-    "target": 200.55,
+    "invalidation": 211.49,
+    "target": 199.78,
     "latestClose": 208.18,
     "pnlPct": 0.0,
     "status": "IN PLAY",
-    "notes": "Distribution from Bullish Structure (1,584,125 shares, PKR 33.0Cr turnover). LONG UNWINDING (+0.63%). Post-announcement distribution (Credit of Third Interim Cash Dividend for the year ending December 31, 2026 on 2026-11-12) \u2014 funds offloading into retail liquidity. Downside risk of -3.7%."
+    "notes": "Distribution from Bullish Structure (1,584,125 shares, PKR 33.0Cr turnover). LONG UNWINDING (+0.63%). Post-announcement distribution (Credit of Third Interim Cash Dividend for the year ending December 31, 2026 on 2026-11-12) \u2014 funds offloading into retail liquidity. [DFX SHORT] Short on uptick in zone PKR 207.35-209.22; hard stop PKR 211.49 (+1.6%), target PKR 199.78 (-4.0%)."
   },
   {
     "date": "2026-11-13",
@@ -50,6 +50,19 @@
     "pnlPct": 0.0,
     "status": "IN PLAY",
     "notes": "Tier-1 accumulation (3,737,389 shares, PKR 57.1Cr turnover). SPOT ACCUMULATION (+0.07%). Swing target +7.6%."
+  },
+  {
+    "date": "2026-11-13",
+    "ticker": "KEL",
+    "type": "BUY",
+    "timeframe": "1M",
+    "entryRef": 6.32,
+    "invalidation": 6.16,
+    "target": 6.73,
+    "latestClose": 6.32,
+    "pnlPct": 0.0,
+    "status": "IN PLAY",
+    "notes": "Tier-1 accumulation (17,304,632 shares, PKR 10.9Cr turnover). SPOT ACCUMULATION (+0.32%). Strong institutional follow-through after Board Meeting Other Than Financial Results (2026-11-10). Swing target +6.5%."
   },
   {
     "date": "2026-11-13",
@@ -70,12 +83,12 @@
     "type": "AVOID",
     "timeframe": "1M",
     "entryRef": 103.93,
-    "invalidation": 105.99,
-    "target": 98.77,
+    "invalidation": 106.17,
+    "target": 98.25,
     "latestClose": 103.93,
     "pnlPct": 0.0,
     "status": "IN PLAY",
-    "notes": "Distribution from Bullish Structure (7,939,984 shares, PKR 82.5Cr turnover). LONG UNWINDING (+0.38%). Downside risk of -5.0%."
+    "notes": "Distribution from Bullish Structure (7,939,984 shares, PKR 82.5Cr turnover). LONG UNWINDING (+0.38%). [DFX SHORT] Short on uptick in zone PKR 103.51-104.45; hard stop PKR 106.17 (+2.2%), target PKR 98.25 (-5.5%)."
   },
   {
     "date": "2026-11-13",
@@ -96,25 +109,12 @@
     "type": "AVOID",
     "timeframe": "1M",
     "entryRef": 173.32,
-    "invalidation": 177.24,
-    "target": 163.53,
+    "invalidation": 177.56,
+    "target": 162.55,
     "latestClose": 173.32,
     "pnlPct": 0.0,
     "status": "IN PLAY",
-    "notes": "Distribution from Bullish Structure (2,318,388 shares, PKR 40.2Cr turnover). LONG UNWINDING (+0.36%). Downside risk of -5.6%."
-  },
-  {
-    "date": "2026-11-13",
-    "ticker": "PPL",
-    "type": "BUY",
-    "timeframe": "1M",
-    "entryRef": 226.07,
-    "invalidation": 222.29,
-    "target": 235.79,
-    "latestClose": 226.07,
-    "pnlPct": 0.0,
-    "status": "IN PLAY",
-    "notes": "Tier-1 accumulation (5,336,620 shares, PKR 120.6Cr turnover). LONG BUILDUP (+0.57%). Swing target +4.3%."
+    "notes": "Distribution from Bullish Structure (2,318,388 shares, PKR 40.2Cr turnover). LONG UNWINDING (+0.36%). [DFX SHORT] Short on uptick in zone PKR 172.63-174.19; hard stop PKR 177.56 (+2.4%), target PKR 162.55 (-6.2%)."
   },
   {
     "date": "2026-11-13",
@@ -122,12 +122,12 @@
     "type": "AVOID",
     "timeframe": "1M",
     "entryRef": 433.72,
-    "invalidation": 439.7,
-    "target": 418.78,
+    "invalidation": 440.19,
+    "target": 417.29,
     "latestClose": 433.72,
     "pnlPct": 0.0,
     "status": "IN PLAY",
-    "notes": "Distribution from Bullish Structure (928,853 shares, PKR 40.3Cr turnover). LONG UNWINDING (+0.42%). Downside risk of -3.4%."
+    "notes": "Distribution from Bullish Structure (928,853 shares, PKR 40.3Cr turnover). LONG UNWINDING (+0.42%). [DFX SHORT] Short on uptick in zone PKR 431.99-435.89; hard stop PKR 440.19 (+1.5%), target PKR 417.29 (-3.8%)."
   },
   {
     "date": "2026-11-12",

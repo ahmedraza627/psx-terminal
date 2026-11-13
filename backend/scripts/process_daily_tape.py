@@ -25,6 +25,18 @@ KSE_INSTITUTIONAL_CORE = {
     "THALL", "GTYR", "TREET", "AICL"
 }
 
+# PSX Deliverable Futures (DFX) Approved Liquid Contracts where Short-Selling is legally permitted
+DFX_ELIGIBLE_STOCKS = {
+    "UBL", "MCB", "MEBL", "HBL", "BAFL", "NBP", "BOP",
+    "MLCF", "LUCK", "DGKC", "FCCL", "PIOC", "CHCC",
+    "OGDC", "PPL", "MARI", "POL", "PSO", "SNGP", "SSGC",
+    "FFC", "EFERT", "FATIMA",
+    "SYS", "TRG", "AIRLINK", "AVN", "NETSOL", "OCTOPUS",
+    "PRL", "NRL", "ATRL", "CNERGY",
+    "HUBC", "KEL", "EPCL", "LOTCHEM", "SEARL",
+    "NML", "PAEL", "UNITY", "ISL", "MTL", "INDU", "HCAR", "TREET"
+}
+
 def init_tables(conn):
     cur = conn.cursor()
     cur.execute("""
@@ -80,7 +92,6 @@ def sync_psx_events_and_insiders(cur, active_symbols):
                 except Exception:
                     dt_parsed = datetime.now().strftime("%Y-%m-%d")
 
-                # 1. Clause 5.6.4 Insider Disclosures
                 is_insider = (
                     "DISCLOSURE OF INTEREST" in upper_t
                     or "SUBSTANTIAL ACQUISITION" in upper_t
@@ -101,7 +112,6 @@ def sync_psx_events_and_insiders(cur, active_symbols):
                     if cur.rowcount > 0:
                         added_insiders += 1
 
-                # 2. Corporate Catalysts (Pre-Result Board Meetings vs. Post-Result Announcements)
                 if any(k in upper_t for k in ["FINANCIAL RESULT", "DIVIDEND", "BONUS", "PAYOUT", "MATERIAL INFORMATION"]):
                     cur.execute("""
                         INSERT OR IGNORE INTO psx_catalysts (notice_date, ticker, event_type, headline)
@@ -138,7 +148,6 @@ def evaluate_catalyst_cycle(cur, ticker, db_date, rvol, clv, change_pct):
     for n_date, ev_type, headline in events:
         days_ago = (today_dt - datetime.strptime(n_date, "%Y-%m-%d")).days
         if ev_type == "RESULT_RELEASED" and days_ago <= 3:
-            # Post-announcement window: check if funds are dumping into retail euphoria
             if change_pct < 0 or (rvol >= 2.0 and clv < 0.50):
                 return {
                     "badge": "SELL-THE-NEWS DUMP",
@@ -305,6 +314,7 @@ def process_all():
     session_date = now.strftime("%A, %b %d, %Y")
     session_time = now.strftime("%H:%M PKT")
     db_date = now.strftime("%Y-%m-%d")
+    is_rollover_week = now.day >= 20  # Block new DFX shorts during monthly contract rollover week
 
     market_rates = {}
     futures_rates = {}
@@ -371,13 +381,12 @@ def process_all():
 
     is_defensive = (kse100_pct <= -0.8) or (breadth_pct <= 38.0)
     regime_status = "DEFENSIVE (CASH MODE)" if is_defensive else "BULLISH ACCUMULATION"
-    regime_note = "High macro distribution detected. KSE-100 under heavy selling. New buy setups blocked to protect capital." if is_defensive else "Healthy market breadth. Pre-event institutional accumulation & Tier-2 rotation active."
+    regime_note = "High macro distribution detected. Long entries blocked; DFX short setups active on weak futures." if is_defensive else "Healthy market breadth. Pre-event accumulation & selective DFX short hedges active."
 
     conn = sqlite3.connect(DB_PATH)
     init_tables(conn)
     cur = conn.cursor()
 
-    # Sync PSX insiders & corporate catalysts for all active liquid stocks
     active_watch = {item["ticker"] for item in parsed_today} | (KSE_INSTITUTIONAL_CORE & set(market_rates.keys()))
     sync_psx_events_and_insiders(cur, active_watch)
 
@@ -401,8 +410,6 @@ def process_all():
                 continue
 
         catalyst = evaluate_catalyst_cycle(cur, item["ticker"], db_date, rvol, clv, item["change"])
-
-        # Detect Sell-the-News Trap even if stock closed marginally green (high wick dump)
         is_sell_the_news_dump = catalyst and catalyst["badge"] == "SELL-THE-NEWS DUMP"
 
         if item["change"] > 0 and not is_sell_the_news_dump:
@@ -473,29 +480,55 @@ def process_all():
     losers = [c for c in scored_candidates if (c["change"] < 0 or c["isDump"]) and c["ticker"] not in selected_buy_tickers]
     losers.sort(key=lambda x: (1 if x["isDump"] else 0, x["turnover"], x["prob"]), reverse=True)
 
-    def build_avoid_item(item, rank):
+    def build_short_or_avoid_item(item, rank):
+        sym = item["ticker"]
         price = item["close"]
-        downside = round(price - (item["atr"] * 1.5), 2)
-        risk_pct = round(((price - downside) / price) * 100, 1)
-        stop_ref = round(price + (item["atr"] * 0.6), 2)
+        # 1:2.5 Short Risk-to-Reward: Tight stop above (+0.65x ATR), downside target below (-1.65x ATR)
+        downside = round(price - (item["atr"] * 1.65), 2)
+        stop_ref = round(price + (item["atr"] * 0.65), 2)
+        drop_pct = round(((price - downside) / price) * 100, 1)
+        stop_pct = round(((stop_ref - price) / price) * 100, 1)
+
+        short_zone_low = round(price * 0.996, 2)
+        short_zone_high = round(price * 1.005, 2)
+
+        is_dfx_shortable = (sym in DFX_ELIGIBLE_STOCKS) and (not is_rollover_week)
+        if is_dfx_shortable:
+            action_tag = "DFX SHORT"
+        elif sym in DFX_ELIGIBLE_STOCKS and is_rollover_week:
+            action_tag = "AVOID (ROLLOVER WEEK)"
+        else:
+            action_tag = "AVOID (NO FUTURES)"
+
         structure_note = "Distribution from Bullish Structure" if item["trend"] == "BULLISH" else "Bearish Trend Breakdown"
         dfx = derive_dynamic_dfx(item, futures_rates)
         cat_badge = item["catalyst"]["badge"] if item["catalyst"] else None
         cat_note = f" {item['catalyst']['note']}" if item["catalyst"] else ""
+
+        exec_note = (
+            f"[{action_tag}] Short on uptick in zone PKR {short_zone_low:.2f}-{short_zone_high:.2f}; hard stop PKR {stop_ref:.2f} (+{stop_pct}%), target PKR {downside:.2f} (-{drop_pct}%)."
+            if is_dfx_shortable
+            else f"[{action_tag}] Cash-segment weakness only; stay flat (Downside risk -{drop_pct}%)."
+        )
+
         return {
             "rank": rank,
-            "ticker": item["ticker"],
+            "ticker": sym,
+            "isShortable": is_dfx_shortable,
+            "actionTag": action_tag,
             "price": f"PKR {price:.2f}",
-            "downside": f"PKR {downside:.2f} (-{risk_pct}%)",
+            "shortZone": f"PKR {short_zone_low:.2f} - {short_zone_high:.2f}",
+            "stop": f"PKR {stop_ref:.2f} (+{stop_pct}%)",
+            "downside": f"PKR {downside:.2f} (-{drop_pct}%)",
             "raw_price": price,
             "raw_stop": stop_ref,
             "raw_downside": downside,
-            "tag": "SELLING PRESSURE",
+            "tag": action_tag,
             "probability": f"{item['prob']}%",
             "rvol": f"{item['rvol']}x",
             "dfxSignal": dfx["status"],
             "catalystTag": cat_badge,
-            "notes": f"{structure_note} ({int(item['vol']):,} shares, PKR {round(item['turnover']/10000000, 1)}Cr turnover). {dfx['status']} ({dfx['spread']}).{cat_note} Downside risk of -{risk_pct}%."
+            "notes": f"{structure_note} ({int(item['vol']):,} shares, PKR {round(item['turnover']/10000000, 1)}Cr turnover). {dfx['status']} ({dfx['spread']}).{cat_note} {exec_note}"
         }
 
     avoids = []
@@ -503,7 +536,7 @@ def process_all():
     for item in losers:
         sec = item["sector"]
         if sector_avoid_count.get(sec, 0) < 2:
-            avoids.append(build_avoid_item(item, len(avoids) + 1))
+            avoids.append(build_short_or_avoid_item(item, len(avoids) + 1))
             sector_avoid_count[sec] = sector_avoid_count.get(sec, 0) + 1
         if len(avoids) == 5:
             break
@@ -512,7 +545,7 @@ def process_all():
         selected_avoid_tickers = {a["ticker"] for a in avoids}
         for item in losers:
             if item["ticker"] not in selected_avoid_tickers:
-                avoids.append(build_avoid_item(item, len(avoids) + 1))
+                avoids.append(build_short_or_avoid_item(item, len(avoids) + 1))
                 selected_avoid_tickers.add(item["ticker"])
             if len(avoids) == 5:
                 break
@@ -611,10 +644,10 @@ def process_all():
     print(f"  Smart Money Flow: {flow_data['sentiment']} (Net: {flow_data['smartMoneyDeltaM']:+.1f}M PKR)")
     for b in buys:
         cat_str = f" [{b['catalystTag']}]" if b.get("catalystTag") else ""
-        print(f"  BUY  #{b['rank']} {b['ticker']}{cat_str}: Zone {b['entryZone']} | Target: {b['target']}")
+        print(f"  BUY   #{b['rank']} {b['ticker']}{cat_str}: Zone {b['entryZone']} | Target: {b['target']}")
     for a in avoids:
         cat_str = f" [{a['catalystTag']}]" if a.get("catalystTag") else ""
-        print(f"  AVOID #{a['rank']} {a['ticker']}{cat_str}: Downside {a['downside']}")
+        print(f"  {a['actionTag']:<9} #{a['rank']} {a['ticker']}{cat_str}: Zone {a['shortZone']} | Stop: {a['stop']} | Target: {a['downside']}")
 
 if __name__ == "__main__":
     process_all()
