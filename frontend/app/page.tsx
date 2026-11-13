@@ -6,6 +6,9 @@ interface StockSetup {
   rank: number;
   ticker: string;
   insiderConfluence?: boolean;
+  ndmBlock?: boolean;
+  oiConfirmed?: boolean;
+  mfsTrap?: boolean;
   isShortable?: boolean;
   actionTag?: string;
   entry?: string;
@@ -32,6 +35,18 @@ interface MarketRegime {
   isDefensive: boolean;
 }
 
+interface MacroData {
+  policyRate: number;
+  tbill6m: number;
+  deltaBps: number;
+  stance: string;
+}
+
+interface SectorSummary {
+  buying: string[];
+  selling: string[];
+}
+
 interface InstitutionalFlow {
   sentiment: string;
   mutualFundsM: number;
@@ -44,6 +59,8 @@ interface InstitutionalFlow {
 interface LatestData {
   sessionDate: string;
   sessionTime: string;
+  macro?: MacroData;
+  sectorSummary?: SectorSummary;
   regime?: MarketRegime;
   flow?: InstitutionalFlow;
   buys: StockSetup[];
@@ -63,24 +80,31 @@ export default function DashboardPage() {
   if (!data) {
     return (
       <div className="p-8 text-center text-xs text-slate-500 font-mono">
-        Loading PSX institutional session data...
+        Loading V2 PSX institutional session data...
       </div>
     );
   }
 
   const isDefensive = data.regime?.isDefensive ?? false;
   const flow = data.flow;
+  const macro = data.macro;
+  const secSum = data.sectorSummary;
 
   return (
-    <div className="p-4 sm:p-6 pb-20 space-y-6 max-w-7xl mx-auto w-full">
+    <div className="p-4 sm:p-6 pb-20 space-y-5 max-w-7xl mx-auto w-full">
       {/* HEADER */}
       <div className="border-b border-slate-200 pb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <div>
-          <h1 className="text-lg sm:text-xl font-bold tracking-tight text-slate-900">
-            PSX Daily Trade Desk
-          </h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-lg sm:text-xl font-bold tracking-tight text-slate-900">
+              PSX Daily Trade Desk
+            </h1>
+            <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-900 text-emerald-300">
+              V2 INSTITUTIONAL ENGINE
+            </span>
+          </div>
           <p className="text-xs text-slate-500">
-            Dynamic high-conviction setups (0 to 5 per side) backed by RVOL, PSX Clause 5.6.4 insider confluence & catalyst flow.
+            5-Layer Quant Filter: SBP Yields + NCCPL Sector Matrix + NDM Block Deals + DFX Open Interest + Clause 5.6.4 Filings.
           </p>
         </div>
         <div className="text-right">
@@ -99,7 +123,7 @@ export default function DashboardPage() {
               : "bg-emerald-50/70 border-emerald-200 text-emerald-950"
           }`}
         >
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span
               className={`w-2.5 h-2.5 rounded-full ${
                 isDefensive ? "bg-rose-600 animate-pulse" : "bg-emerald-600"
@@ -118,6 +142,44 @@ export default function DashboardPage() {
           <p className="text-[11px] font-sans opacity-90 sm:text-right">
             {data.regime.note}
           </p>
+        </div>
+      )}
+
+      {/* SBP MACRO LIQUIDITY & SECTOR ROTATION STRIP */}
+      {macro && (
+        <div className="p-3 rounded-xl border border-slate-200 bg-slate-50/70 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2 text-[11px] font-mono">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-bold text-slate-700 uppercase">SBP Macro:</span>
+            <span className="bg-white px-2 py-0.5 rounded border border-slate-200">
+              Policy Rate: <strong>{macro.policyRate.toFixed(2)}%</strong>
+            </span>
+            <span className="bg-white px-2 py-0.5 rounded border border-slate-200">
+              6M T-Bill: <strong>{macro.tbill6m.toFixed(2)}%</strong> ({macro.deltaBps > 0 ? `+${macro.deltaBps}` : macro.deltaBps} bps)
+            </span>
+            <span
+              className={`px-2 py-0.5 rounded font-bold border ${
+                macro.deltaBps <= 0
+                  ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                  : "bg-amber-50 text-amber-800 border-amber-200"
+              }`}
+            >
+              {macro.stance}
+            </span>
+          </div>
+          {secSum && (secSum.buying.length > 0 || secSum.selling.length > 0) && (
+            <div className="flex flex-wrap items-center gap-2">
+              {secSum.buying.length > 0 && (
+                <span className="text-emerald-700">
+                  <strong>Fund Inflow:</strong> {secSum.buying.join(", ")}
+                </span>
+              )}
+              {secSum.selling.length > 0 && (
+                <span className="text-rose-700">
+                  <strong>Outflow:</strong> {secSum.selling.join(", ")}
+                </span>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -211,7 +273,7 @@ export default function DashboardPage() {
               High-Conviction Buy Setups ({data.buys.length})
             </h2>
             <span className="text-[10px] font-mono font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-              QUALITY FILTERED (UP TO 5)
+              5-LAYER FILTERED (UP TO 5)
             </span>
           </div>
 
@@ -230,7 +292,7 @@ export default function DashboardPage() {
                 NO HIGH-RVOL LONG SETUPS QUALIFIED TODAY
               </span>
               <p className="text-[11px] text-slate-500">
-                No stocks passed the 1.5x RVOL + Bullish Structure threshold. Capital preserved.
+                No stocks passed the 5-Layer RVOL + Sector Flow threshold. Capital preserved.
               </p>
             </div>
           ) : (
@@ -239,18 +301,23 @@ export default function DashboardPage() {
                 <div
                   key={stock.ticker}
                   className={`p-4 rounded-xl border shadow-sm transition-all space-y-3 ${
-                    stock.insiderConfluence
+                    stock.ndmBlock || stock.insiderConfluence
                       ? "border-indigo-300 bg-indigo-50/20 ring-1 ring-indigo-200/60"
                       : "border-slate-200 bg-white hover:border-slate-300"
                   }`}
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-1.5">
                       <span className="text-xs font-mono font-bold text-slate-400">#{stock.rank}</span>
                       <span className="text-base font-black text-slate-900 font-mono">{stock.ticker}</span>
+                      {stock.ndmBlock && (
+                        <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-700 text-white shadow-2xs">
+                          NDM BLOCK DEAL
+                        </span>
+                      )}
                       {stock.insiderConfluence && (
                         <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-indigo-600 text-white shadow-2xs">
-                          INSIDER + TAPE CONFLUENCE
+                          INSIDER + TAPE
                         </span>
                       )}
                       {stock.catalystTag && (
@@ -268,7 +335,7 @@ export default function DashboardPage() {
                       </span>
                       {stock.dfxSignal && (
                         <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 font-bold">
-                          DFX: {stock.dfxSignal}
+                          {stock.dfxSignal}
                         </span>
                       )}
                     </div>
@@ -321,7 +388,7 @@ export default function DashboardPage() {
                 NO HIGH-CONVICTION DFX SHORT SETUPS TODAY
               </span>
               <p className="text-[11px] text-slate-500">
-                No futures contracts showed heavy distribution or Sell-the-News dumping.
+                No futures contracts showed heavy distribution, MFS Badla traps, or Sell-the-News dumping.
               </p>
             </div>
           ) : (
@@ -332,7 +399,7 @@ export default function DashboardPage() {
                   className="p-4 rounded-xl border border-rose-200/80 bg-rose-50/20 shadow-sm hover:border-rose-300 transition-all space-y-3"
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-1.5">
                       <span className="text-xs font-mono font-bold text-slate-400">#{stock.rank}</span>
                       <span className="text-base font-black text-slate-900 font-mono">{stock.ticker}</span>
                       {stock.actionTag && (
@@ -344,6 +411,11 @@ export default function DashboardPage() {
                           }`}
                         >
                           {stock.actionTag}
+                        </span>
+                      )}
+                      {stock.mfsTrap && (
+                        <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-600 text-white">
+                          MFS BADLA TRAP
                         </span>
                       )}
                       {stock.catalystTag && (
@@ -361,7 +433,7 @@ export default function DashboardPage() {
                       </span>
                       {stock.dfxSignal && (
                         <span className="px-2 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200 font-bold">
-                          DFX: {stock.dfxSignal}
+                          {stock.dfxSignal}
                         </span>
                       )}
                     </div>
