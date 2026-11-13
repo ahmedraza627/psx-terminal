@@ -6,9 +6,9 @@
     "action": "BUY",
     "shares": 350000,
     "filedRate": 114.2,
-    "liveClose": 116.3,
-    "marketValueM": 40.7,
-    "pnlPct": 1.8,
+    "liveClose": 114.57,
+    "marketValueM": 40.1,
+    "pnlPct": 0.3,
     "rationale": "Direct market purchase disclosed to PSX."
   },
   {
@@ -18,9 +18,9 @@
     "action": "BUY",
     "shares": 125000,
     "filedRate": 435.0,
-    "liveClose": 436.38,
-    "marketValueM": 54.5,
-    "pnlPct": 0.3,
+    "liveClose": 443.04,
+    "marketValueM": 55.4,
+    "pnlPct": 1.8,
     "rationale": "Associated group treasury accumulation."
   },
   {
@@ -30,9 +30,9 @@
     "action": "BUY",
     "shares": 200000,
     "filedRate": 542.5,
-    "liveClose": 558.18,
-    "marketValueM": 111.6,
-    "pnlPct": 2.9,
+    "liveClose": 556.25,
+    "marketValueM": 111.2,
+    "pnlPct": 2.5,
     "rationale": "Long-term institutional ownership defense."
   },
   {
@@ -42,9 +42,9 @@
     "action": "BUY",
     "shares": 500000,
     "filedRate": 112.0,
-    "liveClose": 114.01,
-    "marketValueM": 57.0,
-    "pnlPct": 1.8,
+    "liveClose": 113.56,
+    "marketValueM": 56.8,
+    "pnlPct": 1.4,
     "rationale": "Sponsor open market purchase via CDC."
   },
   {
@@ -54,9 +54,9 @@
     "action": "BUY",
     "shares": 450000,
     "filedRate": 76.5,
-    "liveClose": 79.53,
-    "marketValueM": 35.8,
-    "pnlPct": 4.0,
+    "liveClose": 79.22,
+    "marketValueM": 35.6,
+    "pnlPct": 3.6,
     "rationale": "Parent company debt-to-equity consolidation."
   },
   {
@@ -66,9 +66,9 @@
     "action": "SELL",
     "shares": 1500000,
     "filedRate": 209.5,
-    "liveClose": 205.33,
-    "marketValueM": 308.0,
-    "pnlPct": 2.0,
+    "liveClose": 204.2,
+    "marketValueM": 306.3,
+    "pnlPct": 2.5,
     "rationale": "Strategic block sale via NDM window."
   }
 ]
