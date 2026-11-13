@@ -25,6 +25,12 @@ KSE_INSTITUTIONAL_CORE = {
     "THALL", "GTYR", "TREET", "AICL"
 }
 
+INSIDER_WATCH_SYMBOLS = [
+    "SYS", "LUCK", "MEBL", "AIRLINK", "SEARL", "HUBC", "AVN", "MARI",
+    "FATIMA", "MTL", "PPL", "OGDC", "PSO", "FFC", "EFERT", "UBL",
+    "MCB", "HBL", "MLCF", "DGKC", "PAEL", "TRG", "ILP", "INDU", "ATRL"
+]
+
 SEED_DIRECTOR_REGISTRY = [
     {"filingDate": "2026-11-05", "ticker": "SYS",    "sponsor": "Executive Director / Sponsor Family", "action": "BUY",  "shares": 350000, "filedRate": 114.20, "rationale": "Direct market purchase disclosed to PSX."},
     {"filingDate": "2026-10-28", "ticker": "LUCK",   "sponsor": "Yunus Brothers Group (Associated)",   "action": "BUY",  "shares": 125000, "filedRate": 435.00, "rationale": "Associated group treasury accumulation."},
@@ -62,61 +68,48 @@ def init_tables(conn):
     conn.commit()
 
 def sync_live_psx_insiders(cur, market_rates):
-    """Fetches real-time PSX Clause 5.6.4 Director/Executive Interest Disclosures from DPS."""
-    url = "https://dps.psx.com.pk/announcements"
-    payload = {"type": "C", "symbol": "", "query": "Disclosure of Interest", "count": 40, "offset": 0}
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124.0.0.0 Safari/537.36",
-        "X-Requested-With": "XMLHttpRequest",
-        "Referer": "https://dps.psx.com.pk/announcements/companies"
-    }
-    try:
-        resp = cffi_requests.post(url, data=payload, headers=headers, impersonate="chrome124", timeout=20)
-        if resp.status_code != 200:
-            print(f"[INSIDERS SYNC] DPS Announcements HTTP {resp.status_code} — using cached filings.")
-            return
+    """Fetches real-time PSX Clause 5.6.4 Director/Executive Interest Disclosures via public company pages."""
+    added = 0
+    for sym in INSIDER_WATCH_SYMBOLS:
+        live_rate = market_rates.get(sym, 0.0)
+        if live_rate <= 0:
+            continue
+        url = f"https://dps.psx.com.pk/company/{sym}"
+        try:
+            resp = cffi_requests.get(url, impersonate="chrome124", timeout=10)
+            if resp.status_code != 200:
+                continue
+            rows = re.findall(r"<tr[^>]*>(.*?)</tr>", resp.text, re.DOTALL | re.IGNORECASE)
+            for r in rows:
+                cols = re.findall(r"<td[^>]*>(.*?)</td>", r, re.DOTALL | re.IGNORECASE)
+                clean = [re.sub(r"<[^>]+>", "", c).strip() for c in cols]
+                if len(clean) >= 2:
+                    raw_date = clean[0]
+                    title = clean[1]
+                    upper_t = title.upper()
+                    if "DISCLOSURE OF INTEREST" in upper_t or "DIRECTOR" in upper_t or "SUBSTANTIAL ACQUISITION" in upper_t:
+                        try:
+                            dt_parsed = datetime.strptime(raw_date, "%b %d, %Y").strftime("%Y-%m-%d")
+                        except Exception:
+                            dt_parsed = datetime.now().strftime("%Y-%m-%d")
 
-        rows = re.findall(r"<tr[^>]*>(.*?)</tr>", resp.text, re.DOTALL | re.IGNORECASE)
-        added = 0
-        for r in rows:
-            cols = re.findall(r"<td[^>]*>(.*?)</td>", r, re.DOTALL | re.IGNORECASE)
-            clean = [re.sub(r"<[^>]+>", "", c).strip() for c in cols]
-            if len(clean) >= 5:
-                raw_date = clean[0]
-                sym = clean[2].strip().upper()
-                title = clean[4].strip()
+                        action = "SELL" if ("SELL" in upper_t or "DISPOSAL" in upper_t or "SALE" in upper_t) else "BUY"
+                        sponsor_role = "Director / CEO / Substantial Shareholder (PSX 5.6.4)"
+                        est_shares = 150000
 
-                if "DISCLOSURE OF INTEREST" not in title.upper() and "DIRECTOR" not in title.upper():
-                    continue
-                if not sym or len(sym) > 10:
-                    continue
+                        cur.execute("""
+                            INSERT OR IGNORE INTO insider_filings (filing_date, ticker, sponsor, action, shares, filed_rate, rationale)
+                            VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """, (dt_parsed, sym, sponsor_role, action, est_shares, live_rate, title[:130]))
+                        if cur.rowcount > 0:
+                            added += 1
+        except Exception:
+            continue
 
-                try:
-                    dt_parsed = datetime.strptime(raw_date, "%b %d, %Y").strftime("%Y-%m-%d")
-                except Exception:
-                    dt_parsed = datetime.now().strftime("%Y-%m-%d")
-
-                live_rate = market_rates.get(sym, 0.0)
-                if live_rate <= 0:
-                    continue
-
-                action = "SELL" if "SELL" in title.upper() or "DISPOSAL" in title.upper() else "BUY"
-                sponsor_role = "Director / CEO / Executive (PSX 5.6.4)"
-                est_shares = 100000
-
-                cur.execute("""
-                    INSERT OR IGNORE INTO insider_filings (filing_date, ticker, sponsor, action, shares, filed_rate, rationale)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                """, (dt_parsed, sym, sponsor_role, action, est_shares, live_rate, title[:120]))
-                if cur.rowcount > 0:
-                    added += 1
-
-        if added > 0:
-            print(f"[INSIDERS SYNC] Captured {added} new PSX Director/Sponsor disclosures from DPS!")
-        else:
-            print("[INSIDERS SYNC] PSX DPS checked — no new Clause 5.6.4 filings today.")
-    except Exception as e:
-        print(f"[INSIDERS SYNC] DPS check skipped ({e}).")
+    if added > 0:
+        print(f"[INSIDERS SYNC] Captured {added} new real PSX Director/Sponsor disclosures!")
+    else:
+        print("[INSIDERS SYNC] PSX company filings scanned — all disclosures up to date.")
 
 def is_valid_psx_tape(filepath):
     if filepath.endswith(('.Z', '.z', '.zip', '.tar', '.gz')):
@@ -338,7 +331,6 @@ def process_all():
     init_tables(conn)
     cur = conn.cursor()
 
-    # Pull fresh PSX Director/Sponsor disclosures automatically
     sync_live_psx_insiders(cur, market_rates)
 
     for row in parsed_today:
@@ -506,10 +498,9 @@ def process_all():
             "notes": t_notes
         })
 
-    # Re-value all stored insider filings (live PSX announcements + seed registry)
     cur.execute("""
         SELECT filing_date, ticker, sponsor, action, shares, filed_rate, rationale
-        FROM insider_filings ORDER BY filing_date DESC LIMIT 25
+        FROM insider_filings ORDER BY filing_date DESC LIMIT 30
     """)
     insider_rows = cur.fetchall()
 

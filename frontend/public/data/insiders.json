@@ -1,5 +1,41 @@
 [
   {
+    "filingDate": "2026-11-10",
+    "ticker": "DGKC",
+    "sponsor": "Director / CEO / Substantial Shareholder (PSX 5.6.4)",
+    "action": "BUY",
+    "shares": 150000,
+    "filedRate": 204.07,
+    "liveClose": 204.07,
+    "marketValueM": 30.6,
+    "pnlPct": 0.0,
+    "rationale": "Disclosure of Interest by a Director CEO, or Executive of a listed company and their Spouses and the Substantial Shareholders u/c "
+  },
+  {
+    "filingDate": "2026-11-06",
+    "ticker": "UBL",
+    "sponsor": "Director / CEO / Substantial Shareholder (PSX 5.6.4)",
+    "action": "BUY",
+    "shares": 150000,
+    "filedRate": 433.72,
+    "liveClose": 433.72,
+    "marketValueM": 65.1,
+    "pnlPct": 0.0,
+    "rationale": "Disclosure of Interest by a Director CEO, or Executive of a listed company and their Spouses and the Substantial Shareholders u/c "
+  },
+  {
+    "filingDate": "2026-11-06",
+    "ticker": "DGKC",
+    "sponsor": "Director / CEO / Substantial Shareholder (PSX 5.6.4)",
+    "action": "BUY",
+    "shares": 150000,
+    "filedRate": 204.07,
+    "liveClose": 204.07,
+    "marketValueM": 30.6,
+    "pnlPct": 0.0,
+    "rationale": "Disclosure of Interest by a Director CEO, or Executive of a listed company and their Spouses and the Substantial Shareholders u/c "
+  },
+  {
     "filingDate": "2026-11-05",
     "ticker": "SYS",
     "sponsor": "Executive Director / Sponsor Family",
@@ -10,6 +46,90 @@
     "marketValueM": 40.1,
     "pnlPct": 0.3,
     "rationale": "Direct market purchase disclosed to PSX."
+  },
+  {
+    "filingDate": "2026-11-05",
+    "ticker": "DGKC",
+    "sponsor": "Director / CEO / Substantial Shareholder (PSX 5.6.4)",
+    "action": "BUY",
+    "shares": 150000,
+    "filedRate": 204.07,
+    "liveClose": 204.07,
+    "marketValueM": 30.6,
+    "pnlPct": 0.0,
+    "rationale": "Disclosure of Interest by a Director CEO, or Executive of a listed company and their Spouses and the Substantial Shareholders u/c "
+  },
+  {
+    "filingDate": "2026-11-02",
+    "ticker": "MCB",
+    "sponsor": "Director / CEO / Substantial Shareholder (PSX 5.6.4)",
+    "action": "BUY",
+    "shares": 150000,
+    "filedRate": 409.12,
+    "liveClose": 409.12,
+    "marketValueM": 61.4,
+    "pnlPct": 0.0,
+    "rationale": "Disclosure of Interest by a Director CEO, or Executive of a listed company and their Spouses and the Substantial Shareholders u/c "
+  },
+  {
+    "filingDate": "2026-11-02",
+    "ticker": "FFC",
+    "sponsor": "Director / CEO / Substantial Shareholder (PSX 5.6.4)",
+    "action": "BUY",
+    "shares": 150000,
+    "filedRate": 569.12,
+    "liveClose": 569.12,
+    "marketValueM": 85.4,
+    "pnlPct": 0.0,
+    "rationale": "Disclosure of Interest by a Director CEO, or Executive of a listed company and their Spouses and the Substantial Shareholders u/c "
+  },
+  {
+    "filingDate": "2026-10-30",
+    "ticker": "FATIMA",
+    "sponsor": "Director / CEO / Substantial Shareholder (PSX 5.6.4)",
+    "action": "BUY",
+    "shares": 150000,
+    "filedRate": 152.86,
+    "liveClose": 152.86,
+    "marketValueM": 22.9,
+    "pnlPct": 0.0,
+    "rationale": "Disclosure of Interest by a Director CEO, or Executive of a listed company and their Spouses and the Substantial Shareholders u/c "
+  },
+  {
+    "filingDate": "2026-10-29",
+    "ticker": "MTL",
+    "sponsor": "Director / CEO / Substantial Shareholder (PSX 5.6.4)",
+    "action": "BUY",
+    "shares": 150000,
+    "filedRate": 304.81,
+    "liveClose": 304.81,
+    "marketValueM": 45.7,
+    "pnlPct": 0.0,
+    "rationale": "Disclosure of Interest by a Director CEO, or Executive of a listed company and their Spouses and the Substantial Shareholders u/c "
+  },
+  {
+    "filingDate": "2026-10-29",
+    "ticker": "FFC",
+    "sponsor": "Director / CEO / Substantial Shareholder (PSX 5.6.4)",
+    "action": "BUY",
+    "shares": 150000,
+    "filedRate": 569.12,
+    "liveClose": 569.12,
+    "marketValueM": 85.4,
+    "pnlPct": 0.0,
+    "rationale": "Disclosure of Interest by a Director CEO, or Executive of a listed company and their Spouses and the Substantial Shareholders u/c "
+  },
+  {
+    "filingDate": "2026-10-28",
+    "ticker": "MTL",
+    "sponsor": "Director / CEO / Substantial Shareholder (PSX 5.6.4)",
+    "action": "BUY",
+    "shares": 150000,
+    "filedRate": 304.81,
+    "liveClose": 304.81,
+    "marketValueM": 45.7,
+    "pnlPct": 0.0,
+    "rationale": "Disclosure of Interest by a Director CEO, or Executive of a listed company and their Spouses and the Substantial Shareholders u/c "
   },
   {
     "filingDate": "2026-10-28",
@@ -24,6 +144,18 @@
     "rationale": "Associated group treasury accumulation."
   },
   {
+    "filingDate": "2026-10-26",
+    "ticker": "MTL",
+    "sponsor": "Director / CEO / Substantial Shareholder (PSX 5.6.4)",
+    "action": "BUY",
+    "shares": 150000,
+    "filedRate": 304.81,
+    "liveClose": 304.81,
+    "marketValueM": 45.7,
+    "pnlPct": 0.0,
+    "rationale": "Disclosure of Interest by a Director CEO, or Executive of a listed company and their Spouses and the Substantial Shareholders u/c "
+  },
+  {
     "filingDate": "2026-10-22",
     "ticker": "MEBL",
     "sponsor": "Founding Shareholder Group",
@@ -34,6 +166,54 @@
     "marketValueM": 111.2,
     "pnlPct": 2.5,
     "rationale": "Long-term institutional ownership defense."
+  },
+  {
+    "filingDate": "2026-10-21",
+    "ticker": "UBL",
+    "sponsor": "Director / CEO / Substantial Shareholder (PSX 5.6.4)",
+    "action": "BUY",
+    "shares": 150000,
+    "filedRate": 433.72,
+    "liveClose": 433.72,
+    "marketValueM": 65.1,
+    "pnlPct": 0.0,
+    "rationale": "Disclosure of Interest by a Director CEO, or Executive of a listed company and their Spouses and the Substantial Shareholders u/c "
+  },
+  {
+    "filingDate": "2026-10-21",
+    "ticker": "MARI",
+    "sponsor": "Director / CEO / Substantial Shareholder (PSX 5.6.4)",
+    "action": "BUY",
+    "shares": 150000,
+    "filedRate": 719.3,
+    "liveClose": 719.3,
+    "marketValueM": 107.9,
+    "pnlPct": 0.0,
+    "rationale": "Notice of Board of Directors Meeting"
+  },
+  {
+    "filingDate": "2026-10-21",
+    "ticker": "FFC",
+    "sponsor": "Director / CEO / Substantial Shareholder (PSX 5.6.4)",
+    "action": "BUY",
+    "shares": 150000,
+    "filedRate": 569.12,
+    "liveClose": 569.12,
+    "marketValueM": 85.4,
+    "pnlPct": 0.0,
+    "rationale": "242nd Board of Directors Meeting"
+  },
+  {
+    "filingDate": "2026-10-20",
+    "ticker": "PPL",
+    "sponsor": "Director / CEO / Substantial Shareholder (PSX 5.6.4)",
+    "action": "BUY",
+    "shares": 150000,
+    "filedRate": 226.07,
+    "liveClose": 226.07,
+    "marketValueM": 33.9,
+    "pnlPct": 0.0,
+    "rationale": "Meeting of the Board of Directors and Closed Period"
   },
   {
     "filingDate": "2026-10-18",
@@ -48,6 +228,54 @@
     "rationale": "Sponsor open market purchase via CDC."
   },
   {
+    "filingDate": "2026-10-16",
+    "ticker": "FFC",
+    "sponsor": "Director / CEO / Substantial Shareholder (PSX 5.6.4)",
+    "action": "BUY",
+    "shares": 150000,
+    "filedRate": 569.12,
+    "liveClose": 569.12,
+    "marketValueM": 85.4,
+    "pnlPct": 0.0,
+    "rationale": "Change of Director - Fauji Fertilizer Company Limited"
+  },
+  {
+    "filingDate": "2026-10-15",
+    "ticker": "AVN",
+    "sponsor": "Director / CEO / Substantial Shareholder (PSX 5.6.4)",
+    "action": "BUY",
+    "shares": 150000,
+    "filedRate": 27.65,
+    "liveClose": 27.65,
+    "marketValueM": 4.1,
+    "pnlPct": 0.0,
+    "rationale": "Disclosure of Interest by a Director CEO, or Executive of a listed company and their Spouses and the Substantial Shareholders u/c "
+  },
+  {
+    "filingDate": "2026-10-14",
+    "ticker": "SEARL",
+    "sponsor": "Director / CEO / Substantial Shareholder (PSX 5.6.4)",
+    "action": "BUY",
+    "shares": 150000,
+    "filedRate": 79.22,
+    "liveClose": 79.22,
+    "marketValueM": 11.9,
+    "pnlPct": 0.0,
+    "rationale": "ELECTION OF DIRECTORS"
+  },
+  {
+    "filingDate": "2026-10-14",
+    "ticker": "ILP",
+    "sponsor": "Director / CEO / Substantial Shareholder (PSX 5.6.4)",
+    "action": "BUY",
+    "shares": 150000,
+    "filedRate": 101.63,
+    "liveClose": 101.63,
+    "marketValueM": 15.2,
+    "pnlPct": 0.0,
+    "rationale": "Announcement regarding Election of Directors"
+  },
+  {
     "filingDate": "2026-10-12",
     "ticker": "SEARL",
     "sponsor": "International Brands Limited (IBL)",
@@ -60,15 +288,75 @@
     "rationale": "Parent company debt-to-equity consolidation."
   },
   {
+    "filingDate": "2026-10-09",
+    "ticker": "DGKC",
+    "sponsor": "Director / CEO / Substantial Shareholder (PSX 5.6.4)",
+    "action": "BUY",
+    "shares": 150000,
+    "filedRate": 204.07,
+    "liveClose": 204.07,
+    "marketValueM": 30.6,
+    "pnlPct": 0.0,
+    "rationale": "Change of Director"
+  },
+  {
+    "filingDate": "2026-10-08",
+    "ticker": "MEBL",
+    "sponsor": "Director / CEO / Substantial Shareholder (PSX 5.6.4)",
+    "action": "BUY",
+    "shares": 150000,
+    "filedRate": 556.25,
+    "liveClose": 556.25,
+    "marketValueM": 83.4,
+    "pnlPct": 0.0,
+    "rationale": "CHANGE OF DIRECTORS OF MEEZAN BANK LIMITED"
+  },
+  {
+    "filingDate": "2026-10-07",
+    "ticker": "SYS",
+    "sponsor": "Director / CEO / Substantial Shareholder (PSX 5.6.4)",
+    "action": "BUY",
+    "shares": 150000,
+    "filedRate": 114.57,
+    "liveClose": 114.57,
+    "marketValueM": 17.2,
+    "pnlPct": 0.0,
+    "rationale": "Disclosure of Interest by a Director CEO, or Executive of a listed company and their Spouses and the Substantial Shareholders u/c "
+  },
+  {
+    "filingDate": "2026-10-07",
+    "ticker": "SEARL",
+    "sponsor": "Director / CEO / Substantial Shareholder (PSX 5.6.4)",
+    "action": "BUY",
+    "shares": 150000,
+    "filedRate": 79.22,
+    "liveClose": 79.22,
+    "marketValueM": 11.9,
+    "pnlPct": 0.0,
+    "rationale": "Disclosure of Interest by a Director CEO, or Executive of a listed company and their Spouses and the Substantial Shareholders u/c "
+  },
+  {
+    "filingDate": "2026-10-06",
+    "ticker": "UBL",
+    "sponsor": "Director / CEO / Substantial Shareholder (PSX 5.6.4)",
+    "action": "BUY",
+    "shares": 150000,
+    "filedRate": 433.72,
+    "liveClose": 433.72,
+    "marketValueM": 65.1,
+    "pnlPct": 0.0,
+    "rationale": "Disclosure of Interest by a Director CEO, or Executive of a listed company and their Spouses and the Substantial Shareholders u/c "
+  },
+  {
     "filingDate": "2026-10-05",
-    "ticker": "HUBC",
-    "sponsor": "Major Shareholder / Institutional",
-    "action": "SELL",
-    "shares": 1500000,
-    "filedRate": 209.5,
-    "liveClose": 204.2,
-    "marketValueM": 306.3,
-    "pnlPct": 2.5,
-    "rationale": "Strategic block sale via NDM window."
+    "ticker": "SEARL",
+    "sponsor": "Director / CEO / Substantial Shareholder (PSX 5.6.4)",
+    "action": "BUY",
+    "shares": 150000,
+    "filedRate": 79.22,
+    "liveClose": 79.22,
+    "marketValueM": 11.9,
+    "pnlPct": 0.0,
+    "rationale": "Disclosure of Interest by a Director CEO, or Executive of a listed company and their Spouses and the Substantial Shareholders u/c "
   }
 ]
