@@ -25,7 +25,6 @@ KSE_INSTITUTIONAL_CORE = {
     "THALL", "GTYR", "TREET", "AICL"
 }
 
-# PSX Deliverable Futures (DFX) Approved Liquid Contracts where Short-Selling is legally permitted
 DFX_ELIGIBLE_STOCKS = {
     "UBL", "MCB", "MEBL", "HBL", "BAFL", "NBP", "BOP",
     "MLCF", "LUCK", "DGKC", "FCCL", "PIOC", "CHCC",
@@ -66,7 +65,6 @@ def init_tables(conn):
     conn.commit()
 
 def sync_psx_events_and_insiders(cur, active_symbols):
-    """Scrapes PSX DPS company pages for Clause 5.6.4 Insider Filings AND Result/Board Meeting Catalysts."""
     added_insiders = 0
     added_catalysts = 0
 
@@ -131,8 +129,12 @@ def sync_psx_events_and_insiders(cur, active_symbols):
 
     print(f"[EVENT RADAR SYNC] +{added_insiders} Insider Filings | +{added_catalysts} Result/Board Catalysts synced.")
 
+def get_recent_insider_tickers(cur, db_date):
+    cutoff = (datetime.strptime(db_date, "%Y-%m-%d") - timedelta(days=45)).strftime("%Y-%m-%d")
+    cur.execute("SELECT DISTINCT ticker FROM psx_disclosures WHERE filing_date >= ?", (cutoff,))
+    return {row[0] for row in cur.fetchall()}
+
 def evaluate_catalyst_cycle(cur, ticker, db_date, rvol, clv, change_pct):
-    """Detects Pre-Event Accumulation vs. Sell-the-News Institutional Distribution."""
     today_dt = datetime.strptime(db_date, "%Y-%m-%d")
     lookback_12d = (today_dt - timedelta(days=12)).strftime("%Y-%m-%d")
 
@@ -153,7 +155,7 @@ def evaluate_catalyst_cycle(cur, ticker, db_date, rvol, clv, change_pct):
                     "badge": "SELL-THE-NEWS DUMP",
                     "note": f"Post-announcement distribution ({headline} on {n_date}) — funds offloading into retail liquidity."
                 }
-            elif change_pct > 0 and clv >= 0.70:
+            elif change_pct > 0 and rvol >= 1.5 and clv >= 0.70:
                 return {
                     "badge": "POST-RESULT BREAKOUT",
                     "note": f"Strong institutional follow-through after {headline} ({n_date})."
@@ -314,7 +316,7 @@ def process_all():
     session_date = now.strftime("%A, %b %d, %Y")
     session_time = now.strftime("%H:%M PKT")
     db_date = now.strftime("%Y-%m-%d")
-    is_rollover_week = now.day >= 20  # Block new DFX shorts during monthly contract rollover week
+    is_rollover_week = now.day >= 20
 
     market_rates = {}
     futures_rates = {}
@@ -359,13 +361,13 @@ def process_all():
                         declines += 1
 
                     turnover = close_p * vol
-                    if sym in KSE_INSTITUTIONAL_CORE and vol >= 150000 and turnover >= 20000000:
+                    if sym in KSE_INSTITUTIONAL_CORE and close_p >= 12.0 and vol >= 150000 and turnover >= 25000000:
                         parsed_today.append({
                             "ticker": sym, "sector": sec, "tier": "TIER-1 CORE",
                             "open": open_p, "high": high_p, "low": low_p, "close": close_p,
                             "vol": vol, "turnover": turnover, "change": pct_change
                         })
-                    elif sym not in KSE_INSTITUTIONAL_CORE and close_p >= 15.0 and vol >= 200000 and turnover >= 15000000:
+                    elif sym not in KSE_INSTITUTIONAL_CORE and close_p >= 15.0 and vol >= 200000 and turnover >= 20000000:
                         parsed_today.append({
                             "ticker": sym, "sector": sec, "tier": "TIER-2 MID-CAP",
                             "open": open_p, "high": high_p, "low": low_p, "close": close_p,
@@ -381,7 +383,7 @@ def process_all():
 
     is_defensive = (kse100_pct <= -0.8) or (breadth_pct <= 38.0)
     regime_status = "DEFENSIVE (CASH MODE)" if is_defensive else "BULLISH ACCUMULATION"
-    regime_note = "High macro distribution detected. Long entries blocked; DFX short setups active on weak futures." if is_defensive else "Healthy market breadth. Pre-event accumulation & selective DFX short hedges active."
+    regime_note = "High macro distribution detected. Long entries blocked; qualified DFX short setups active." if is_defensive else "Healthy market breadth. Quality-filtered setups (up to 5) & insider confluence active."
 
     conn = sqlite3.connect(DB_PATH)
     init_tables(conn)
@@ -389,6 +391,7 @@ def process_all():
 
     active_watch = {item["ticker"] for item in parsed_today} | (KSE_INSTITUTIONAL_CORE & set(market_rates.keys()))
     sync_psx_events_and_insiders(cur, active_watch)
+    recent_insider_tickers = get_recent_insider_tickers(cur, db_date)
 
     for row in parsed_today:
         cur.execute("""
@@ -411,30 +414,43 @@ def process_all():
 
         catalyst = evaluate_catalyst_cycle(cur, item["ticker"], db_date, rvol, clv, item["change"])
         is_sell_the_news_dump = catalyst and catalyst["badge"] == "SELL-THE-NEWS DUMP"
+        has_insider_confluence = item["ticker"] in recent_insider_tickers
 
         if item["change"] > 0 and not is_sell_the_news_dump:
             trend_bonus = 6.0 if metrics["trend"] == "BULLISH" else -6.0
             catalyst_bonus = 3.5 if (catalyst and catalyst["badge"] in ["PRE-EVENT ACCUMULATION", "POST-RESULT BREAKOUT"]) else 0.0
-            prob = 54.0 + (min(item["change"], 7.0) * 0.9) + (min(rvol, 3.5) * 2.4) + (clv * 4.5) + trend_bonus + catalyst_bonus
-            prob_score = round(min(max(prob, 52.0), 82.0), 1)
+            insider_bonus = 4.0 if has_insider_confluence else 0.0
+            prob = 54.0 + (min(item["change"], 7.0) * 0.9) + (min(rvol, 3.5) * 2.4) + (clv * 4.5) + trend_bonus + catalyst_bonus + insider_bonus
+            prob_score = round(min(max(prob, 52.0), 86.0), 1)
         else:
             trend_penalty = 5.0 if metrics["trend"] == "BEARISH" else -2.0
-            dump_bonus = 6.0 if is_sell_the_news_dump else 0.0
+            dump_bonus = 7.0 if is_sell_the_news_dump else 0.0
             downside_risk = 46.0 + (min(abs(item["change"]), 8.0) * 1.4) + (min(rvol, 3.5) * 2.2) + ((1.0 - clv) * 4.5) + trend_penalty + dump_bonus
-            prob_score = round(min(max(downside_risk, 50.0), 80.0), 1)
+            prob_score = round(min(max(downside_risk, 50.0), 84.0), 1)
 
         scored_candidates.append({
             **item,
             "rvol": rvol,
+            "clv": clv,
             "atr": atr14,
             "prob": prob_score,
             "trend": metrics["trend"],
             "catalyst": catalyst,
-            "isDump": is_sell_the_news_dump
+            "isDump": is_sell_the_news_dump,
+            "insiderConfluence": has_insider_confluence
         })
 
-    gainers = [c for c in scored_candidates if c["change"] > 0 and not c["isDump"] and c["prob"] >= 64.0 and c["trend"] == "BULLISH"]
-    gainers.sort(key=lambda x: (x["prob"], x["rvol"], x["turnover"]), reverse=True)
+    # Dynamic 0 to 5 High-Conviction Buy Filter (NEVER pads with low-RVOL stocks)
+    gainers = [
+        c for c in scored_candidates
+        if c["change"] > 0
+        and not c["isDump"]
+        and c["rvol"] >= 1.5
+        and c["clv"] >= 0.60
+        and c["prob"] >= 66.0
+        and c["trend"] == "BULLISH"
+    ]
+    gainers.sort(key=lambda x: (1 if x["insiderConfluence"] else 0, x["prob"], x["rvol"], x["turnover"]), reverse=True)
 
     buys = []
     sector_buy_count = {}
@@ -454,10 +470,12 @@ def process_all():
                 tier_label = "Tier-1 accumulation" if item["tier"] == "TIER-1 CORE" else "Mid-Cap rotation breakout"
                 cat_badge = item["catalyst"]["badge"] if item["catalyst"] else None
                 cat_note = f" {item['catalyst']['note']}" if item["catalyst"] else ""
+                insider_note = " Verified PSX Clause 5.6.4 Insider Filing Confluence." if item["insiderConfluence"] else ""
 
                 buys.append({
                     "rank": len(buys) + 1,
                     "ticker": item["ticker"],
+                    "insiderConfluence": item["insiderConfluence"],
                     "entry": f"PKR {price:.2f}",
                     "entryZone": f"PKR {zone_low:.2f} - {zone_high:.2f}",
                     "stop": f"PKR {stop:.2f} (-{loss_pct}%)",
@@ -470,85 +488,77 @@ def process_all():
                     "rvol": f"{item['rvol']}x",
                     "dfxSignal": dfx["status"],
                     "catalystTag": cat_badge,
-                    "notes": f"{tier_label} ({int(item['vol']):,} shares, PKR {round(item['turnover']/10000000, 1)}Cr turnover). {dfx['status']} ({dfx['spread']}).{cat_note} Swing target +{gain_pct}%."
+                    "notes": f"{tier_label} ({int(item['vol']):,} shares, PKR {round(item['turnover']/10000000, 1)}Cr turnover). {dfx['status']} ({dfx['spread']}).{insider_note}{cat_note} Swing target +{gain_pct}%."
                 })
                 sector_buy_count[sec] = sector_buy_count.get(sec, 0) + 1
             if len(buys) == 5:
                 break
 
     selected_buy_tickers = {b["ticker"] for b in buys}
-    losers = [c for c in scored_candidates if (c["change"] < 0 or c["isDump"]) and c["ticker"] not in selected_buy_tickers]
-    losers.sort(key=lambda x: (1 if x["isDump"] else 0, x["turnover"], x["prob"]), reverse=True)
 
-    def build_short_or_avoid_item(item, rank):
-        sym = item["ticker"]
-        price = item["close"]
-        # 1:2.5 Short Risk-to-Reward: Tight stop above (+0.65x ATR), downside target below (-1.65x ATR)
-        downside = round(price - (item["atr"] * 1.65), 2)
-        stop_ref = round(price + (item["atr"] * 0.65), 2)
-        drop_pct = round(((price - downside) / price) * 100, 1)
-        stop_pct = round(((stop_ref - price) / price) * 100, 1)
-
-        short_zone_low = round(price * 0.996, 2)
-        short_zone_high = round(price * 1.005, 2)
-
-        is_dfx_shortable = (sym in DFX_ELIGIBLE_STOCKS) and (not is_rollover_week)
-        if is_dfx_shortable:
-            action_tag = "DFX SHORT"
-        elif sym in DFX_ELIGIBLE_STOCKS and is_rollover_week:
-            action_tag = "AVOID (ROLLOVER WEEK)"
-        else:
-            action_tag = "AVOID (NO FUTURES)"
-
-        structure_note = "Distribution from Bullish Structure" if item["trend"] == "BULLISH" else "Bearish Trend Breakdown"
-        dfx = derive_dynamic_dfx(item, futures_rates)
-        cat_badge = item["catalyst"]["badge"] if item["catalyst"] else None
-        cat_note = f" {item['catalyst']['note']}" if item["catalyst"] else ""
-
-        exec_note = (
-            f"[{action_tag}] Short on uptick in zone PKR {short_zone_low:.2f}-{short_zone_high:.2f}; hard stop PKR {stop_ref:.2f} (+{stop_pct}%), target PKR {downside:.2f} (-{drop_pct}%)."
-            if is_dfx_shortable
-            else f"[{action_tag}] Cash-segment weakness only; stay flat (Downside risk -{drop_pct}%)."
+    # Dynamic 0 to 5 High-Conviction DFX Short Filter (NEVER pads with low-RVOL stocks)
+    losers = [
+        c for c in scored_candidates
+        if c["ticker"] not in selected_buy_tickers
+        and c["ticker"] in DFX_ELIGIBLE_STOCKS
+        and (
+            c["isDump"]
+            or (c["change"] <= -1.0 and c["rvol"] >= 1.4 and c["clv"] <= 0.45)
         )
-
-        return {
-            "rank": rank,
-            "ticker": sym,
-            "isShortable": is_dfx_shortable,
-            "actionTag": action_tag,
-            "price": f"PKR {price:.2f}",
-            "shortZone": f"PKR {short_zone_low:.2f} - {short_zone_high:.2f}",
-            "stop": f"PKR {stop_ref:.2f} (+{stop_pct}%)",
-            "downside": f"PKR {downside:.2f} (-{drop_pct}%)",
-            "raw_price": price,
-            "raw_stop": stop_ref,
-            "raw_downside": downside,
-            "tag": action_tag,
-            "probability": f"{item['prob']}%",
-            "rvol": f"{item['rvol']}x",
-            "dfxSignal": dfx["status"],
-            "catalystTag": cat_badge,
-            "notes": f"{structure_note} ({int(item['vol']):,} shares, PKR {round(item['turnover']/10000000, 1)}Cr turnover). {dfx['status']} ({dfx['spread']}).{cat_note} {exec_note}"
-        }
+    ]
+    losers.sort(key=lambda x: (1 if x["isDump"] else 0, x["rvol"], x["turnover"]), reverse=True)
 
     avoids = []
     sector_avoid_count = {}
     for item in losers:
         sec = item["sector"]
         if sector_avoid_count.get(sec, 0) < 2:
-            avoids.append(build_short_or_avoid_item(item, len(avoids) + 1))
+            sym = item["ticker"]
+            price = item["close"]
+            downside = round(price - (item["atr"] * 1.65), 2)
+            stop_ref = round(price + (item["atr"] * 0.65), 2)
+            drop_pct = round(((price - downside) / price) * 100, 1)
+            stop_pct = round(((stop_ref - price) / price) * 100, 1)
+
+            short_zone_low = round(price * 0.996, 2)
+            short_zone_high = round(price * 1.005, 2)
+
+            is_dfx_shortable = not is_rollover_week
+            action_tag = "DFX SHORT" if is_dfx_shortable else "AVOID (ROLLOVER WEEK)"
+
+            structure_note = "Distribution from Bullish Structure" if item["trend"] == "BULLISH" else "Bearish Trend Breakdown"
+            dfx = derive_dynamic_dfx(item, futures_rates)
+            cat_badge = item["catalyst"]["badge"] if item["catalyst"] else None
+            cat_note = f" {item['catalyst']['note']}" if item["catalyst"] else ""
+
+            exec_note = (
+                f"[{action_tag}] Short on uptick in zone PKR {short_zone_low:.2f}-{short_zone_high:.2f}; hard stop PKR {stop_ref:.2f} (+{stop_pct}%), target PKR {downside:.2f} (-{drop_pct}%)."
+                if is_dfx_shortable
+                else f"[{action_tag}] Rollover week active — stay flat (Downside risk -{drop_pct}%)."
+            )
+
+            avoids.append({
+                "rank": len(avoids) + 1,
+                "ticker": sym,
+                "isShortable": is_dfx_shortable,
+                "actionTag": action_tag,
+                "price": f"PKR {price:.2f}",
+                "shortZone": f"PKR {short_zone_low:.2f} - {short_zone_high:.2f}",
+                "stop": f"PKR {stop_ref:.2f} (+{stop_pct}%)",
+                "downside": f"PKR {downside:.2f} (-{drop_pct}%)",
+                "raw_price": price,
+                "raw_stop": stop_ref,
+                "raw_downside": downside,
+                "tag": action_tag,
+                "probability": f"{item['prob']}%",
+                "rvol": f"{item['rvol']}x",
+                "dfxSignal": dfx["status"],
+                "catalystTag": cat_badge,
+                "notes": f"{structure_note} ({int(item['vol']):,} shares, PKR {round(item['turnover']/10000000, 1)}Cr turnover). {dfx['status']} ({dfx['spread']}).{cat_note} {exec_note}"
+            })
             sector_avoid_count[sec] = sector_avoid_count.get(sec, 0) + 1
         if len(avoids) == 5:
             break
-
-    if len(avoids) < 5:
-        selected_avoid_tickers = {a["ticker"] for a in avoids}
-        for item in losers:
-            if item["ticker"] not in selected_avoid_tickers:
-                avoids.append(build_short_or_avoid_item(item, len(avoids) + 1))
-                selected_avoid_tickers.add(item["ticker"])
-            if len(avoids) == 5:
-                break
 
     cur.execute("DELETE FROM active_trades WHERE date = ?", (db_date,))
     for b in buys:
@@ -643,8 +653,11 @@ def process_all():
     print(f"  Regime: {regime_status} | Breadth: {breadth_pct}% | KSE-100: {kse100_pct:+.2f}%")
     print(f"  Smart Money Flow: {flow_data['sentiment']} (Net: {flow_data['smartMoneyDeltaM']:+.1f}M PKR)")
     for b in buys:
+        ins_str = " [INSIDER + TAPE]" if b.get("insiderConfluence") else ""
         cat_str = f" [{b['catalystTag']}]" if b.get("catalystTag") else ""
-        print(f"  BUY   #{b['rank']} {b['ticker']}{cat_str}: Zone {b['entryZone']} | Target: {b['target']}")
+        print(f"  BUY   #{b['rank']} {b['ticker']}{ins_str}{cat_str}: Zone {b['entryZone']} | Target: {b['target']}")
+    if not avoids:
+        print("  SHORT : No high-conviction DFX short setups triggered today.")
     for a in avoids:
         cat_str = f" [{a['catalystTag']}]" if a.get("catalystTag") else ""
         print(f"  {a['actionTag']:<9} #{a['rank']} {a['ticker']}{cat_str}: Zone {a['shortZone']} | Stop: {a['stop']} | Target: {a['downside']}")
