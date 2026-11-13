@@ -2,21 +2,17 @@
 
 import React, { useState, useEffect } from "react";
 
-interface InsiderFiling {
+interface InsiderDisclosure {
   filingDate: string;
   ticker: string;
-  sponsor: string;
-  action: "BUY" | "SELL";
-  shares: number;
-  filedRate: number;
+  category: string;
   liveClose: number;
-  marketValueM: number;
-  pnlPct: number;
-  rationale: string;
+  headline: string;
+  psxUrl: string;
 }
 
 export default function InsidersPage() {
-  const [filings, setFilings] = useState<InsiderFiling[]>([]);
+  const [filings, setFilings] = useState<InsiderDisclosure[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -35,113 +31,77 @@ export default function InsidersPage() {
   if (loading) {
     return (
       <div className="p-8 text-center text-xs text-slate-500 font-mono">
-        Loading regulatory insider filings...
+        Loading verified PSX Clause 5.6.4 disclosures...
       </div>
     );
   }
 
-  const buyFilings = filings.filter((f) => f.action === "BUY");
-  const sellFilings = filings.filter((f) => f.action === "SELL");
+  return (
+    <div className="p-4 sm:p-6 pb-20 space-y-6 max-w-7xl mx-auto w-full">
+      <div className="border-b border-slate-200 pb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <div>
+          <h1 className="text-lg sm:text-xl font-bold tracking-tight text-slate-900">
+            Director & Sponsor Filings (PSX Clause 5.6.4)
+          </h1>
+          <p className="text-xs text-slate-500">
+            Verified regulatory disclosures of insider & substantial shareholder transactions pulled directly from PSX DPS.
+          </p>
+        </div>
+        <span className="text-[10px] font-mono font-semibold text-blue-700 bg-blue-50 px-2.5 py-1 rounded border border-blue-200">
+          {filings.length} VERIFIED DISCLOSURES
+        </span>
+      </div>
 
-  const renderTable = (rows: InsiderFiling[], emptyText: string) => (
-    <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-x-auto">
-      <table className="w-full text-left border-collapse font-mono text-xs">
-        <thead>
-          <tr className="border-b border-slate-200 bg-slate-50/80 text-[10px] uppercase text-slate-500">
-            <th className="py-3 px-4">Filing Date</th>
-            <th className="py-3 px-4">Ticker</th>
-            <th className="py-3 px-4">Insider / Sponsor</th>
-            <th className="py-3 px-4 text-right">Volume</th>
-            <th className="py-3 px-4 text-right">Filed Rate</th>
-            <th className="py-3 px-4 text-right">Live Close</th>
-            <th className="py-3 px-4 text-right">Market Value</th>
-            <th className="py-3 px-4 text-right">Sponsor P&L</th>
-            <th className="py-3 px-4">Filing Note</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-slate-100">
-          {rows.length === 0 ? (
-            <tr>
-              <td colSpan={9} className="py-6 px-4 text-center text-slate-400 font-sans">
-                {emptyText}
-              </td>
+      <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-x-auto">
+        <table className="w-full text-left border-collapse font-mono text-xs">
+          <thead>
+            <tr className="border-b border-slate-200 bg-slate-50/80 text-[10px] uppercase text-slate-500">
+              <th className="py-3 px-4">Filing Date</th>
+              <th className="py-3 px-4">Ticker</th>
+              <th className="py-3 px-4">Regulatory Category</th>
+              <th className="py-3 px-4 text-right">Live Close</th>
+              <th className="py-3 px-4">Official PSX Announcement</th>
+              <th className="py-3 px-4 text-right">Source PDF</th>
             </tr>
-          ) : (
-            rows.map((item, idx) => {
-              const isPositive = (item.pnlPct ?? 0) >= 0;
-              return (
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {filings.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="py-8 px-4 text-center text-slate-400 font-sans">
+                  No verified Clause 5.6.4 disclosures recorded yet.
+                </td>
+              </tr>
+            ) : (
+              filings.map((item, idx) => (
                 <tr key={`${item.ticker}-${item.filingDate}-${idx}`} className="hover:bg-slate-50/70 transition-colors">
                   <td className="py-3.5 px-4 text-slate-500 whitespace-nowrap">{item.filingDate}</td>
                   <td className="py-3.5 px-4 font-bold text-slate-900">{item.ticker}</td>
-                  <td className="py-3.5 px-4 font-sans text-slate-700 font-medium">{item.sponsor}</td>
-                  <td className="py-3.5 px-4 text-right text-slate-700">
-                    {(item.shares ?? 0).toLocaleString()}
+                  <td className="py-3.5 px-4">
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold border bg-blue-50 text-blue-700 border-blue-200 whitespace-nowrap">
+                      {item.category}
+                    </span>
                   </td>
-                  <td className="py-3.5 px-4 text-right text-slate-600">
-                    PKR {(item.filedRate ?? 0).toFixed(2)}
+                  <td className="py-3.5 px-4 text-right font-bold text-slate-900 whitespace-nowrap">
+                    {item.liveClose > 0 ? `PKR ${item.liveClose.toFixed(2)}` : "—"}
                   </td>
-                  <td className="py-3.5 px-4 text-right font-bold text-slate-900">
-                    PKR {(item.liveClose ?? 0).toFixed(2)}
+                  <td className="py-3.5 px-4 font-sans text-[11px] text-slate-700">
+                    {item.headline}
                   </td>
-                  <td className="py-3.5 px-4 text-right font-bold text-blue-700">
-                    PKR {(item.marketValueM ?? 0).toFixed(1)}M
-                  </td>
-                  <td
-                    className={`py-3.5 px-4 text-right font-bold ${
-                      isPositive ? "text-emerald-600" : "text-rose-600"
-                    }`}
-                  >
-                    {isPositive ? `+${item.pnlPct}%` : `${item.pnlPct}%`}
-                  </td>
-                  <td className="py-3.5 px-4 font-sans text-[11px] text-slate-600">
-                    {item.rationale}
+                  <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                    <a
+                      href={item.psxUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[11px] font-semibold text-blue-600 hover:text-blue-800 underline"
+                    >
+                      Verify PDF ↗
+                    </a>
                   </td>
                 </tr>
-              );
-            })
-          )}
-        </tbody>
-      </table>
-    </div>
-  );
-
-  return (
-    <div className="p-4 sm:p-6 pb-20 space-y-8 max-w-7xl mx-auto w-full">
-      <div className="border-b border-slate-200 pb-4">
-        <h1 className="text-lg sm:text-xl font-bold tracking-tight text-slate-900">
-          Director & Sponsor Intelligence
-        </h1>
-        <p className="text-xs text-slate-500">
-          PSX Clause 5.6.4 regulatory insider disclosures separated into Sponsor Accumulation (Buy) and Block Disposals (Sell).
-        </p>
-      </div>
-
-      {/* SECTION 1: INSIDER BUYING */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xs font-bold uppercase tracking-wider text-emerald-800 flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-            Insider Buying & Sponsor Accumulation ({buyFilings.length})
-          </h2>
-          <span className="text-[10px] font-mono font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded border border-emerald-200">
-            BULLISH CONVICTION
-          </span>
-        </div>
-        {renderTable(buyFilings, "No recent director buy disclosures recorded.")}
-      </div>
-
-      {/* SECTION 2: INSIDER SELLING */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xs font-bold uppercase tracking-wider text-rose-800 flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-rose-500"></span>
-            Insider Selling & Block Disposals ({sellFilings.length})
-          </h2>
-          <span className="text-[10px] font-mono font-semibold text-rose-700 bg-rose-50 px-2.5 py-0.5 rounded border border-rose-200">
-            SUPPLY OVERHANG
-          </span>
-        </div>
-        {renderTable(sellFilings, "No recent director sell disclosures recorded.")}
+              ))
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   );

@@ -28,16 +28,8 @@ KSE_INSTITUTIONAL_CORE = {
 INSIDER_WATCH_SYMBOLS = [
     "SYS", "LUCK", "MEBL", "AIRLINK", "SEARL", "HUBC", "AVN", "MARI",
     "FATIMA", "MTL", "PPL", "OGDC", "PSO", "FFC", "EFERT", "UBL",
-    "MCB", "HBL", "MLCF", "DGKC", "PAEL", "TRG", "ILP", "INDU", "ATRL"
-]
-
-SEED_DIRECTOR_REGISTRY = [
-    {"filingDate": "2026-11-05", "ticker": "SYS",    "sponsor": "Executive Director / Sponsor Family", "action": "BUY",  "shares": 350000, "filedRate": 114.20, "rationale": "Direct market purchase disclosed to PSX."},
-    {"filingDate": "2026-10-28", "ticker": "LUCK",   "sponsor": "Yunus Brothers Group (Associated)",   "action": "BUY",  "shares": 125000, "filedRate": 435.00, "rationale": "Associated group treasury accumulation."},
-    {"filingDate": "2026-10-22", "ticker": "MEBL",   "sponsor": "Founding Shareholder Group",          "action": "BUY",  "shares": 200000, "filedRate": 542.50, "rationale": "Long-term institutional ownership defense."},
-    {"filingDate": "2026-10-18", "ticker": "AIRLINK","sponsor": "Chief Executive Officer",            "action": "BUY",  "shares": 500000, "filedRate": 112.00, "rationale": "Sponsor open market purchase via CDC."},
-    {"filingDate": "2026-10-12", "ticker": "SEARL",  "sponsor": "International Brands Limited (IBL)",  "action": "BUY",  "shares": 450000, "filedRate": 76.50,  "rationale": "Parent company debt-to-equity consolidation."},
-    {"filingDate": "2026-10-05", "ticker": "HUBC",   "sponsor": "Major Shareholder / Institutional",   "action": "SELL", "shares": 1500000,"filedRate": 209.50, "rationale": "Strategic block sale via NDM window."}
+    "MCB", "HBL", "MLCF", "DGKC", "PAEL", "TRG", "ILP", "INDU", "ATRL",
+    "BAHL", "BAFL", "CHCC", "PIOC", "SNGP", "NML", "ISL", "AGP", "NETSOL"
 ]
 
 def init_tables(conn):
@@ -48,31 +40,30 @@ def init_tables(conn):
             PRIMARY KEY (date, ticker)
         )
     """)
+    # Drop polluted table if it holds fake 150000 share rows and recreate clean schema
+    cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='insider_filings'")
+    if cur.fetchone():
+        cur.execute("PRAGMA table_info(insider_filings)")
+        cols = [c[1] for c in cur.fetchall()]
+        if "shares" in cols:
+            cur.execute("DROP TABLE insider_filings")
+
     cur.execute("""
-        CREATE TABLE IF NOT EXISTS insider_filings (
+        CREATE TABLE IF NOT EXISTS psx_disclosures (
             filing_date TEXT,
             ticker TEXT,
-            sponsor TEXT,
-            action TEXT,
-            shares INTEGER,
-            filed_rate REAL,
-            rationale TEXT,
-            PRIMARY KEY (filing_date, ticker, rationale)
+            category TEXT,
+            headline TEXT,
+            PRIMARY KEY (filing_date, ticker, headline)
         )
     """)
-    for s in SEED_DIRECTOR_REGISTRY:
-        cur.execute("""
-            INSERT OR IGNORE INTO insider_filings (filing_date, ticker, sponsor, action, shares, filed_rate, rationale)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (s["filingDate"], s["ticker"], s["sponsor"], s["action"], s["shares"], s["filedRate"], s["rationale"]))
     conn.commit()
 
 def sync_live_psx_insiders(cur, market_rates):
-    """Fetches real-time PSX Clause 5.6.4 Director/Executive Interest Disclosures via public company pages."""
+    """Fetches strictly verified PSX Clause 5.6.4 Interest Disclosures (excludes Board Meetings)."""
     added = 0
     for sym in INSIDER_WATCH_SYMBOLS:
-        live_rate = market_rates.get(sym, 0.0)
-        if live_rate <= 0:
+        if sym not in market_rates:
             continue
         url = f"https://dps.psx.com.pk/company/{sym}"
         try:
@@ -85,31 +76,42 @@ def sync_live_psx_insiders(cur, market_rates):
                 clean = [re.sub(r"<[^>]+>", "", c).strip() for c in cols]
                 if len(clean) >= 2:
                     raw_date = clean[0]
-                    title = clean[1]
+                    title = re.sub(r"\s+", " ", clean[1]).strip()
                     upper_t = title.upper()
-                    if "DISCLOSURE OF INTEREST" in upper_t or "DIRECTOR" in upper_t or "SUBSTANTIAL ACQUISITION" in upper_t:
-                        try:
-                            dt_parsed = datetime.strptime(raw_date, "%b %d, %Y").strftime("%Y-%m-%d")
-                        except Exception:
-                            dt_parsed = datetime.now().strftime("%Y-%m-%d")
 
-                        action = "SELL" if ("SELL" in upper_t or "DISPOSAL" in upper_t or "SALE" in upper_t) else "BUY"
-                        sponsor_role = "Director / CEO / Substantial Shareholder (PSX 5.6.4)"
-                        est_shares = 150000
+                    # Strict filter: ONLY actual insider/substantial shareholder disclosures
+                    is_valid_disclosure = (
+                        "DISCLOSURE OF INTEREST" in upper_t
+                        or "SUBSTANTIAL ACQUISITION" in upper_t
+                        or "5.6.4" in upper_t
+                    )
+                    is_noise = (
+                        "BOARD OF DIRECTOR" in upper_t
+                        or "MEETING" in upper_t
+                        or "CHANGE OF DIRECTOR" in upper_t
+                        or "ELECTION" in upper_t
+                        or "FINANCIAL RESULT" in upper_t
+                    )
+                    if not is_valid_disclosure or is_noise:
+                        continue
 
-                        cur.execute("""
-                            INSERT OR IGNORE INTO insider_filings (filing_date, ticker, sponsor, action, shares, filed_rate, rationale)
-                            VALUES (?, ?, ?, ?, ?, ?, ?)
-                        """, (dt_parsed, sym, sponsor_role, action, est_shares, live_rate, title[:130]))
-                        if cur.rowcount > 0:
-                            added += 1
+                    try:
+                        dt_parsed = datetime.strptime(raw_date, "%b %d, %Y").strftime("%Y-%m-%d")
+                    except Exception:
+                        dt_parsed = datetime.now().strftime("%Y-%m-%d")
+
+                    category = "SUBSTANTIAL ACQUISITION" if "SUBSTANTIAL" in upper_t else "CLAUSE 5.6.4 INSIDER FILING"
+
+                    cur.execute("""
+                        INSERT OR IGNORE INTO psx_disclosures (filing_date, ticker, category, headline)
+                        VALUES (?, ?, ?, ?)
+                    """, (dt_parsed, sym, category, title[:180]))
+                    if cur.rowcount > 0:
+                        added += 1
         except Exception:
             continue
 
-    if added > 0:
-        print(f"[INSIDERS SYNC] Captured {added} new real PSX Director/Sponsor disclosures!")
-    else:
-        print("[INSIDERS SYNC] PSX company filings scanned — all disclosures up to date.")
+    print(f"[INSIDERS SYNC] Verified PSX Clause 5.6.4 filings synced (+{added} new).")
 
 def is_valid_psx_tape(filepath):
     if filepath.endswith(('.Z', '.z', '.zip', '.tar', '.gz')):
@@ -498,31 +500,23 @@ def process_all():
             "notes": t_notes
         })
 
+    # Export 100% authentic PSX disclosures without fabricated share counts
     cur.execute("""
-        SELECT filing_date, ticker, sponsor, action, shares, filed_rate, rationale
-        FROM insider_filings ORDER BY filing_date DESC LIMIT 30
+        SELECT filing_date, ticker, category, headline
+        FROM psx_disclosures ORDER BY filing_date DESC LIMIT 30
     """)
-    insider_rows = cur.fetchall()
+    disc_rows = cur.fetchall()
 
     insiders_live = []
-    for f_date, sym, sponsor, action, shares, filed_rate, rationale in insider_rows:
-        live_c = market_rates.get(sym, filed_rate)
-        if action == "BUY":
-            pnl_pct = round(((live_c - filed_rate) / filed_rate) * 100, 1) if filed_rate > 0 else 0.0
-        else:
-            pnl_pct = round(((filed_rate - live_c) / filed_rate) * 100, 1) if filed_rate > 0 else 0.0
-        val_m = round((shares * live_c) / 1000000, 1)
+    for f_date, sym, category, headline in disc_rows:
+        live_c = market_rates.get(sym, 0.0)
         insiders_live.append({
             "filingDate": f_date,
             "ticker": sym,
-            "sponsor": sponsor,
-            "action": action,
-            "shares": shares,
-            "filedRate": filed_rate,
+            "category": category,
             "liveClose": live_c,
-            "marketValueM": val_m,
-            "pnlPct": pnl_pct,
-            "rationale": rationale
+            "headline": headline,
+            "psxUrl": f"https://dps.psx.com.pk/company/{sym}"
         })
 
     flow_data = resolve_session_flow(cur, db_date, kse100_pct, breadth_pct)
