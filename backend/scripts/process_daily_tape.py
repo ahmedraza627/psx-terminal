@@ -174,46 +174,48 @@ def get_recent_ndm_tickers(cur, db_date):
     """, (cutoff,))
     return {r[0]: {"vol": r[1], "valM": r[2]} for r in cur.fetchall()}
 
+def read_exported_table_lines(fpath):
+    if fpath.lower().endswith('.csv'):
+        return open(fpath, encoding='utf-8', errors='ignore').readlines()
+    if fpath.lower().endswith('.xlsx'):
+        import zipfile, xml.etree.ElementTree as ET
+        lines, strings, ns = [], [], '{http://schemas.openxmlformats.org/spreadsheetml/2006/main}'
+        with zipfile.ZipFile(fpath) as z:
+            if 'xl/sharedStrings.xml' in z.namelist():
+                root = ET.fromstring(z.read('xl/sharedStrings.xml'))
+                strings = [''.join(t.text or '' for t in si.iter(ns+'t')) for si in root.iter(ns+'si')]
+            sheet = sorted([n for n in z.namelist() if n.startswith('xl/worksheets/sheet')])[0]
+            for row in ET.fromstring(z.read(sheet)).iter(ns+'row'):
+                vals = [strings[int(c.find(ns+'v').text)] if c.attrib.get('t')=='s' else c.find(ns+'v').text for c in row if c.find(ns+'v') is not None and c.find(ns+'v').text is not None]
+                if vals: lines.append(' '.join(vals))
+        return lines
+    return []
+
 def sync_clipboard_sector_flow(cur, db_date):
-    """Parses copied NCCPL Sector-Wise FIPI/LIPI table from Windows clipboard."""
-    try:
-        clip = subprocess.check_output(["powershell", "-NoProfile", "-Command", "Get-Clipboard"], timeout=4).decode("utf-8", errors="ignore")
-    except Exception:
-        clip = ""
-
-    parsed_sectors = {}
-    if clip and ("CEMENT" in clip.upper() or "FERTILIZER" in clip.upper() or "COMMERCIAL BANKS" in clip.upper()):
-        for line in clip.splitlines():
-            u_line = line.upper()
-            for bucket, keywords in NCCPL_SECTOR_KEYWORDS.items():
-                if any(kw in u_line for kw in keywords):
-                    nums = re.findall(r"[-+]?\d[\d,]*\.?\d*", line.replace("(", "-").replace(")", ""))
-                    floats = []
-                    for n in nums:
-                        try:
-                            floats.append(float(n.replace(",", "")))
-                        except ValueError:
-                            continue
+    today_ts = datetime.now().timestamp() - (48 * 3600)
+    files = sorted([fp for ext in ('*.csv', '*.xlsx') for fp in glob.glob(os.path.join(TARGET_DIR, ext)) if os.path.isfile(fp) and os.path.getmtime(fp) >= today_ts], key=os.path.getmtime, reverse=True)
+    parsed_sectors, matched = {}, 0
+    for fp in files[:6]:
+        lines = read_exported_table_lines(fp)
+        joined = ' '.join(lines).upper()
+        if not any(k in joined for k in ('CEMENT', 'FERTILIZER', 'COMMERCIAL BANKS', 'OIL AND GAS')): continue
+        matched += 1
+        is_fipi_usd = ('FOREIGN CORPORATES' in joined or 'OVERSEAS PAKISTANI' in joined) and 'USD' in joined
+        for line in lines:
+            u = line.upper()
+            if 'INDIVIDUAL' in u and 'FOREIGN' not in u: continue
+            for bucket, kws in NCCPL_SECTOR_KEYWORDS.items():
+                if any(kw in u for kw in kws):
+                    floats = [float(n.replace(',', '')) for n in re.findall(r'[-+]?\d[\d,]*\.?\d*', line.replace('(', '-').replace(')', ''))]
                     if floats:
-                        # Last numeric column on NCCPL sector matrix is Net Institutional/Sector Balance
-                        net_val = floats[-1]
-                        if abs(net_val) > 50000:
-                            net_val = round(net_val / 1000000, 2)
-                        parsed_sectors[bucket] = round(parsed_sectors.get(bucket, 0.0) + net_val, 2)
-
+                        val = floats[-1]
+                        val = round((val * 278.0) / 1000000, 2) if is_fipi_usd else (round(val / 1000000, 2) if abs(val) > 50000 else val)
+                        parsed_sectors[bucket] = round(parsed_sectors.get(bucket, 0.0) + val, 2)
     if parsed_sectors:
-        for bucket, net_m in parsed_sectors.items():
-            cur.execute("""
-                INSERT OR REPLACE INTO sector_flow (date, sector_bucket, smart_net_m)
-                VALUES (?, ?, ?)
-            """, (db_date, bucket, net_m))
-        print(f"[SECTOR MATRIX] Parsed {len(parsed_sectors)} NCCPL sectors from clipboard!")
-
-    # Load latest available sector flow map
-    cur.execute("""
-        SELECT sector_bucket, smart_net_m FROM sector_flow
-        WHERE date = (SELECT MAX(date) FROM sector_flow)
-    """)
+        for b, m in parsed_sectors.items():
+            cur.execute('INSERT OR REPLACE INTO sector_flow (date, sector_bucket, smart_net_m) VALUES (?, ?, ?)', (db_date, b, m))
+        print(f'[SECTOR MATRIX] Auto-parsed {len(parsed_sectors)} sectors from {matched} exported NCCPL file(s)!')
+    cur.execute('SELECT sector_bucket, smart_net_m FROM sector_flow WHERE date = (SELECT MAX(date) FROM sector_flow)')
     return {r[0]: r[1] for r in cur.fetchall()}
 
 def sync_psx_events_and_insiders(cur, active_symbols):

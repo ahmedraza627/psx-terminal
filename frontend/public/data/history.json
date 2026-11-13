@@ -10,7 +10,7 @@
     "latestClose": 27.65,
     "pnlPct": 0.0,
     "status": "IN PLAY",
-    "notes": "Tier-1 accumulation (6,271,164 shares, PKR 17.3Cr turnover). LONG BUILDUP (+0.85%). Verified PSX Clause 5.6.4 Insider Filing. Swing target +7.2%."
+    "notes": "Tier-1 accumulation (6,271,164 shares, PKR 17.3Cr turnover). LONG BUILDUP (+0.85%). Verified PSX Clause 5.6.4 Insider Filing. Sector Flow (TECH): +7724.6M PKR. Swing target +7.2%."
   },
   {
     "date": "2026-11-14",
@@ -24,32 +24,6 @@
     "pnlPct": 0.0,
     "status": "IN PLAY",
     "notes": "Distribution from Bullish Structure (1,584,125 shares, PKR 33.0Cr turnover). LONG UNWINDING (+0.63%). Post-announcement distribution (Credit of Third Interim Cash Dividend for the year ending December 31, 2026 on 2026-11-12) \u2014 funds offloading into retail liquidity. [DFX SHORT] Short on uptick in zone PKR 207.35-209.22; hard stop PKR 211.40 (+1.5%), target PKR 200.01 (-3.9%)."
-  },
-  {
-    "date": "2026-11-14",
-    "ticker": "FATIMA",
-    "type": "BUY",
-    "timeframe": "1M",
-    "entryRef": 152.86,
-    "invalidation": 147.83,
-    "target": 165.8,
-    "latestClose": 152.86,
-    "pnlPct": 0.0,
-    "status": "IN PLAY",
-    "notes": "Tier-1 accumulation (3,737,389 shares, PKR 57.1Cr turnover). SHORT COVERING (OI-) (+0.07%). Verified PSX Clause 5.6.4 Insider Filing. Swing target +8.5%."
-  },
-  {
-    "date": "2026-11-14",
-    "ticker": "MARI",
-    "type": "BUY",
-    "timeframe": "1M",
-    "entryRef": 719.3,
-    "invalidation": 703.58,
-    "target": 759.73,
-    "latestClose": 719.3,
-    "pnlPct": 0.0,
-    "status": "IN PLAY",
-    "notes": "Tier-1 accumulation (11,654,571 shares, PKR 838.3Cr turnover). SPOT ACCUMULATION (+0.39%). Swing target +5.6%."
   },
   {
     "date": "2026-11-13",

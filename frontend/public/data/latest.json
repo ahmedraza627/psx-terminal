@@ -1,15 +1,23 @@
 {
   "sessionDate": "Saturday, Nov 14, 2026",
-  "sessionTime": "01:25 PKT",
+  "sessionTime": "01:54 PKT",
   "macro": {
     "policyRate": 11.0,
-    "tbill6m": 10.85,
-    "deltaBps": -35,
+    "tbill6m": 10.75,
+    "deltaBps": -15,
     "stance": "EASING (YIELD DROP)"
   },
   "sectorSummary": {
-    "buying": [],
-    "selling": []
+    "buying": [
+      "BANKS (+103768.9M)",
+      "CEMENT (+86190.9M)",
+      "OMC (+55793.1M)"
+    ],
+    "selling": [
+      "FERTILIZER (-9423.6M)",
+      "POWER (-49785.7M)",
+      "E&P (-55388.9M)"
+    ]
   },
   "regime": {
     "status": "BULLISH ACCUMULATION",
@@ -41,51 +49,11 @@
       "raw_stop": 26.88,
       "raw_target": 29.63,
       "rr": "1:2.5",
-      "probability": "83.5%",
+      "probability": "86.0%",
       "rvol": "6.4x",
       "dfxSignal": "LONG BUILDUP",
       "catalystTag": null,
-      "notes": "Tier-1 accumulation (6,271,164 shares, PKR 17.3Cr turnover). LONG BUILDUP (+0.85%). Verified PSX Clause 5.6.4 Insider Filing. Swing target +7.2%."
-    },
-    {
-      "rank": 2,
-      "ticker": "FATIMA",
-      "insiderConfluence": true,
-      "ndmBlock": false,
-      "oiConfirmed": false,
-      "entry": "PKR 152.86",
-      "entryZone": "PKR 151.94 - 153.47",
-      "stop": "PKR 147.83 (-3.3%)",
-      "target": "PKR 165.80 (+8.5%)",
-      "raw_entry": 152.86,
-      "raw_stop": 147.83,
-      "raw_target": 165.8,
-      "rr": "1:2.5",
-      "probability": "77.4%",
-      "rvol": "4.1x",
-      "dfxSignal": "SHORT COVERING (OI-)",
-      "catalystTag": null,
-      "notes": "Tier-1 accumulation (3,737,389 shares, PKR 57.1Cr turnover). SHORT COVERING (OI-) (+0.07%). Verified PSX Clause 5.6.4 Insider Filing. Swing target +8.5%."
-    },
-    {
-      "rank": 3,
-      "ticker": "MARI",
-      "insiderConfluence": false,
-      "ndmBlock": false,
-      "oiConfirmed": false,
-      "entry": "PKR 719.30",
-      "entryZone": "PKR 714.98 - 722.18",
-      "stop": "PKR 703.58 (-2.2%)",
-      "target": "PKR 759.73 (+5.6%)",
-      "raw_entry": 719.3,
-      "raw_stop": 703.58,
-      "raw_target": 759.73,
-      "rr": "1:2.5",
-      "probability": "76.9%",
-      "rvol": "6.3x",
-      "dfxSignal": "SPOT ACCUMULATION",
-      "catalystTag": null,
-      "notes": "Tier-1 accumulation (11,654,571 shares, PKR 838.3Cr turnover). SPOT ACCUMULATION (+0.39%). Swing target +5.6%."
+      "notes": "Tier-1 accumulation (6,271,164 shares, PKR 17.3Cr turnover). LONG BUILDUP (+0.85%). Verified PSX Clause 5.6.4 Insider Filing. Sector Flow (TECH): +7724.6M PKR. Swing target +7.2%."
     }
   ],
   "avoids": [
@@ -103,7 +71,7 @@
       "raw_stop": 211.4,
       "raw_downside": 200.01,
       "tag": "DFX SHORT",
-      "probability": "58.4%",
+      "probability": "61.4%",
       "rvol": "0.9x",
       "dfxSignal": "LONG UNWINDING",
       "catalystTag": "SELL-THE-NEWS DUMP",
