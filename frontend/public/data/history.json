@@ -27,6 +27,19 @@
   },
   {
     "date": "2026-11-13",
+    "ticker": "EFERT",
+    "type": "AVOID",
+    "timeframe": "1M",
+    "entryRef": 208.18,
+    "invalidation": 211.23,
+    "target": 200.55,
+    "latestClose": 208.18,
+    "pnlPct": 0.0,
+    "status": "IN PLAY",
+    "notes": "Distribution from Bullish Structure (1,584,125 shares, PKR 33.0Cr turnover). LONG UNWINDING (+0.63%). Post-announcement distribution (Credit of Third Interim Cash Dividend for the year ending December 31, 2026 on 2026-11-12) \u2014 funds offloading into retail liquidity. Downside risk of -3.7%."
+  },
+  {
+    "date": "2026-11-13",
     "ticker": "FATIMA",
     "type": "BUY",
     "timeframe": "1M",
@@ -37,19 +50,6 @@
     "pnlPct": 0.0,
     "status": "IN PLAY",
     "notes": "Tier-1 accumulation (3,737,389 shares, PKR 57.1Cr turnover). SPOT ACCUMULATION (+0.07%). Swing target +7.6%."
-  },
-  {
-    "date": "2026-11-13",
-    "ticker": "FFC",
-    "type": "AVOID",
-    "timeframe": "1M",
-    "entryRef": 569.12,
-    "invalidation": 580.05,
-    "target": 541.8,
-    "latestClose": 569.12,
-    "pnlPct": 0.0,
-    "status": "IN PLAY",
-    "notes": "Distribution from Bullish Structure (649,993 shares, PKR 37.0Cr turnover). LONG UNWINDING (+0.60%). Downside risk of -4.8%."
   },
   {
     "date": "2026-11-13",

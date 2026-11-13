@@ -3,7 +3,7 @@ import re
 import json
 import glob
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timedelta
 from curl_cffi import requests as cffi_requests
 
 DATA_DIR = os.path.join("frontend", "public", "data")
@@ -25,13 +25,6 @@ KSE_INSTITUTIONAL_CORE = {
     "THALL", "GTYR", "TREET", "AICL"
 }
 
-INSIDER_WATCH_SYMBOLS = [
-    "SYS", "LUCK", "MEBL", "AIRLINK", "SEARL", "HUBC", "AVN", "MARI",
-    "FATIMA", "MTL", "PPL", "OGDC", "PSO", "FFC", "EFERT", "UBL",
-    "MCB", "HBL", "MLCF", "DGKC", "PAEL", "TRG", "ILP", "INDU", "ATRL",
-    "BAHL", "BAFL", "CHCC", "PIOC", "SNGP", "NML", "ISL", "AGP", "NETSOL"
-]
-
 def init_tables(conn):
     cur = conn.cursor()
     cur.execute("""
@@ -40,14 +33,6 @@ def init_tables(conn):
             PRIMARY KEY (date, ticker)
         )
     """)
-    # Drop polluted table if it holds fake 150000 share rows and recreate clean schema
-    cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='insider_filings'")
-    if cur.fetchone():
-        cur.execute("PRAGMA table_info(insider_filings)")
-        cols = [c[1] for c in cur.fetchall()]
-        if "shares" in cols:
-            cur.execute("DROP TABLE insider_filings")
-
     cur.execute("""
         CREATE TABLE IF NOT EXISTS psx_disclosures (
             filing_date TEXT,
@@ -57,61 +42,120 @@ def init_tables(conn):
             PRIMARY KEY (filing_date, ticker, headline)
         )
     """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS psx_catalysts (
+            notice_date TEXT,
+            ticker TEXT,
+            event_type TEXT,
+            headline TEXT,
+            PRIMARY KEY (notice_date, ticker, headline)
+        )
+    """)
     conn.commit()
 
-def sync_live_psx_insiders(cur, market_rates):
-    """Fetches strictly verified PSX Clause 5.6.4 Interest Disclosures (excludes Board Meetings)."""
-    added = 0
-    for sym in INSIDER_WATCH_SYMBOLS:
-        if sym not in market_rates:
-            continue
+def sync_psx_events_and_insiders(cur, active_symbols):
+    """Scrapes PSX DPS company pages for Clause 5.6.4 Insider Filings AND Result/Board Meeting Catalysts."""
+    added_insiders = 0
+    added_catalysts = 0
+
+    for sym in sorted(active_symbols):
         url = f"https://dps.psx.com.pk/company/{sym}"
         try:
-            resp = cffi_requests.get(url, impersonate="chrome124", timeout=10)
+            resp = cffi_requests.get(url, impersonate="chrome124", timeout=8)
             if resp.status_code != 200:
                 continue
             rows = re.findall(r"<tr[^>]*>(.*?)</tr>", resp.text, re.DOTALL | re.IGNORECASE)
-            for r in rows:
+            for r in rows[:15]:
                 cols = re.findall(r"<td[^>]*>(.*?)</td>", r, re.DOTALL | re.IGNORECASE)
                 clean = [re.sub(r"<[^>]+>", "", c).strip() for c in cols]
-                if len(clean) >= 2:
-                    raw_date = clean[0]
-                    title = re.sub(r"\s+", " ", clean[1]).strip()
-                    upper_t = title.upper()
+                if len(clean) < 2:
+                    continue
 
-                    # Strict filter: ONLY actual insider/substantial shareholder disclosures
-                    is_valid_disclosure = (
-                        "DISCLOSURE OF INTEREST" in upper_t
-                        or "SUBSTANTIAL ACQUISITION" in upper_t
-                        or "5.6.4" in upper_t
-                    )
-                    is_noise = (
-                        "BOARD OF DIRECTOR" in upper_t
-                        or "MEETING" in upper_t
-                        or "CHANGE OF DIRECTOR" in upper_t
-                        or "ELECTION" in upper_t
-                        or "FINANCIAL RESULT" in upper_t
-                    )
-                    if not is_valid_disclosure or is_noise:
-                        continue
+                raw_date = clean[0]
+                title = re.sub(r"\s+", " ", clean[1]).strip()
+                upper_t = title.upper()
 
-                    try:
-                        dt_parsed = datetime.strptime(raw_date, "%b %d, %Y").strftime("%Y-%m-%d")
-                    except Exception:
-                        dt_parsed = datetime.now().strftime("%Y-%m-%d")
+                try:
+                    dt_parsed = datetime.strptime(raw_date, "%b %d, %Y").strftime("%Y-%m-%d")
+                except Exception:
+                    dt_parsed = datetime.now().strftime("%Y-%m-%d")
 
-                    category = "SUBSTANTIAL ACQUISITION" if "SUBSTANTIAL" in upper_t else "CLAUSE 5.6.4 INSIDER FILING"
-
+                # 1. Clause 5.6.4 Insider Disclosures
+                is_insider = (
+                    "DISCLOSURE OF INTEREST" in upper_t
+                    or "SUBSTANTIAL ACQUISITION" in upper_t
+                    or "5.6.4" in upper_t
+                )
+                is_noise = (
+                    "BOARD OF DIRECTOR" in upper_t
+                    or "MEETING" in upper_t
+                    or "CHANGE OF DIRECTOR" in upper_t
+                    or "ELECTION" in upper_t
+                )
+                if is_insider and not is_noise:
+                    cat = "SUBSTANTIAL ACQUISITION" if "SUBSTANTIAL" in upper_t else "CLAUSE 5.6.4 INSIDER FILING"
                     cur.execute("""
                         INSERT OR IGNORE INTO psx_disclosures (filing_date, ticker, category, headline)
                         VALUES (?, ?, ?, ?)
-                    """, (dt_parsed, sym, category, title[:180]))
+                    """, (dt_parsed, sym, cat, title[:180]))
                     if cur.rowcount > 0:
-                        added += 1
+                        added_insiders += 1
+
+                # 2. Corporate Catalysts (Pre-Result Board Meetings vs. Post-Result Announcements)
+                if any(k in upper_t for k in ["FINANCIAL RESULT", "DIVIDEND", "BONUS", "PAYOUT", "MATERIAL INFORMATION"]):
+                    cur.execute("""
+                        INSERT OR IGNORE INTO psx_catalysts (notice_date, ticker, event_type, headline)
+                        VALUES (?, ?, 'RESULT_RELEASED', ?)
+                    """, (dt_parsed, sym, title[:180]))
+                    if cur.rowcount > 0:
+                        added_catalysts += 1
+                elif any(k in upper_t for k in ["BOARD OF DIRECTOR", "CLOSED PERIOD"]):
+                    cur.execute("""
+                        INSERT OR IGNORE INTO psx_catalysts (notice_date, ticker, event_type, headline)
+                        VALUES (?, ?, 'UPCOMING_BOARD_MEETING', ?)
+                    """, (dt_parsed, sym, title[:180]))
+                    if cur.rowcount > 0:
+                        added_catalysts += 1
         except Exception:
             continue
 
-    print(f"[INSIDERS SYNC] Verified PSX Clause 5.6.4 filings synced (+{added} new).")
+    print(f"[EVENT RADAR SYNC] +{added_insiders} Insider Filings | +{added_catalysts} Result/Board Catalysts synced.")
+
+def evaluate_catalyst_cycle(cur, ticker, db_date, rvol, clv, change_pct):
+    """Detects Pre-Event Accumulation vs. Sell-the-News Institutional Distribution."""
+    today_dt = datetime.strptime(db_date, "%Y-%m-%d")
+    lookback_12d = (today_dt - timedelta(days=12)).strftime("%Y-%m-%d")
+
+    cur.execute("""
+        SELECT notice_date, event_type, headline FROM psx_catalysts
+        WHERE ticker = ? AND notice_date >= ?
+        ORDER BY notice_date DESC LIMIT 3
+    """, (ticker, lookback_12d))
+    events = cur.fetchall()
+    if not events:
+        return None
+
+    for n_date, ev_type, headline in events:
+        days_ago = (today_dt - datetime.strptime(n_date, "%Y-%m-%d")).days
+        if ev_type == "RESULT_RELEASED" and days_ago <= 3:
+            # Post-announcement window: check if funds are dumping into retail euphoria
+            if change_pct < 0 or (rvol >= 2.0 and clv < 0.50):
+                return {
+                    "badge": "SELL-THE-NEWS DUMP",
+                    "note": f"Post-announcement distribution ({headline} on {n_date}) — funds offloading into retail liquidity."
+                }
+            elif change_pct > 0 and clv >= 0.70:
+                return {
+                    "badge": "POST-RESULT BREAKOUT",
+                    "note": f"Strong institutional follow-through after {headline} ({n_date})."
+                }
+        elif ev_type == "UPCOMING_BOARD_MEETING" and days_ago <= 12:
+            if change_pct > 0 and rvol >= 1.6 and clv >= 0.60:
+                return {
+                    "badge": "PRE-EVENT ACCUMULATION",
+                    "note": f"Smart money positioning ahead of {headline} ({n_date})."
+                }
+    return None
 
 def is_valid_psx_tape(filepath):
     if filepath.endswith(('.Z', '.z', '.zip', '.tar', '.gz')):
@@ -327,13 +371,15 @@ def process_all():
 
     is_defensive = (kse100_pct <= -0.8) or (breadth_pct <= 38.0)
     regime_status = "DEFENSIVE (CASH MODE)" if is_defensive else "BULLISH ACCUMULATION"
-    regime_note = "High macro distribution detected. KSE-100 under heavy selling. New buy setups blocked to protect capital." if is_defensive else "Healthy market breadth. Tier-1 institutional accumulation & Tier-2 mid-cap rotation active."
+    regime_note = "High macro distribution detected. KSE-100 under heavy selling. New buy setups blocked to protect capital." if is_defensive else "Healthy market breadth. Pre-event institutional accumulation & Tier-2 rotation active."
 
     conn = sqlite3.connect(DB_PATH)
     init_tables(conn)
     cur = conn.cursor()
 
-    sync_live_psx_insiders(cur, market_rates)
+    # Sync PSX insiders & corporate catalysts for all active liquid stocks
+    active_watch = {item["ticker"] for item in parsed_today} | (KSE_INSTITUTIONAL_CORE & set(market_rates.keys()))
+    sync_psx_events_and_insiders(cur, active_watch)
 
     for row in parsed_today:
         cur.execute("""
@@ -354,24 +400,33 @@ def process_all():
             if rvol < 2.2 or clv < 0.72:
                 continue
 
-        if item["change"] > 0:
+        catalyst = evaluate_catalyst_cycle(cur, item["ticker"], db_date, rvol, clv, item["change"])
+
+        # Detect Sell-the-News Trap even if stock closed marginally green (high wick dump)
+        is_sell_the_news_dump = catalyst and catalyst["badge"] == "SELL-THE-NEWS DUMP"
+
+        if item["change"] > 0 and not is_sell_the_news_dump:
             trend_bonus = 6.0 if metrics["trend"] == "BULLISH" else -6.0
-            prob = 54.0 + (min(item["change"], 7.0) * 0.9) + (min(rvol, 3.5) * 2.4) + (clv * 4.5) + trend_bonus
-            prob_score = round(min(max(prob, 52.0), 78.5), 1)
+            catalyst_bonus = 3.5 if (catalyst and catalyst["badge"] in ["PRE-EVENT ACCUMULATION", "POST-RESULT BREAKOUT"]) else 0.0
+            prob = 54.0 + (min(item["change"], 7.0) * 0.9) + (min(rvol, 3.5) * 2.4) + (clv * 4.5) + trend_bonus + catalyst_bonus
+            prob_score = round(min(max(prob, 52.0), 82.0), 1)
         else:
             trend_penalty = 5.0 if metrics["trend"] == "BEARISH" else -2.0
-            downside_risk = 46.0 + (min(abs(item["change"]), 8.0) * 1.4) + (min(rvol, 3.5) * 2.2) + ((1.0 - clv) * 4.5) + trend_penalty
-            prob_score = round(min(max(downside_risk, 50.0), 76.0), 1)
+            dump_bonus = 6.0 if is_sell_the_news_dump else 0.0
+            downside_risk = 46.0 + (min(abs(item["change"]), 8.0) * 1.4) + (min(rvol, 3.5) * 2.2) + ((1.0 - clv) * 4.5) + trend_penalty + dump_bonus
+            prob_score = round(min(max(downside_risk, 50.0), 80.0), 1)
 
         scored_candidates.append({
             **item,
             "rvol": rvol,
             "atr": atr14,
             "prob": prob_score,
-            "trend": metrics["trend"]
+            "trend": metrics["trend"],
+            "catalyst": catalyst,
+            "isDump": is_sell_the_news_dump
         })
 
-    gainers = [c for c in scored_candidates if c["change"] > 0 and c["prob"] >= 64.0 and c["trend"] == "BULLISH"]
+    gainers = [c for c in scored_candidates if c["change"] > 0 and not c["isDump"] and c["prob"] >= 64.0 and c["trend"] == "BULLISH"]
     gainers.sort(key=lambda x: (x["prob"], x["rvol"], x["turnover"]), reverse=True)
 
     buys = []
@@ -390,6 +445,8 @@ def process_all():
                 zone_high = round(price * 1.004, 2)
                 dfx = derive_dynamic_dfx(item, futures_rates)
                 tier_label = "Tier-1 accumulation" if item["tier"] == "TIER-1 CORE" else "Mid-Cap rotation breakout"
+                cat_badge = item["catalyst"]["badge"] if item["catalyst"] else None
+                cat_note = f" {item['catalyst']['note']}" if item["catalyst"] else ""
 
                 buys.append({
                     "rank": len(buys) + 1,
@@ -405,15 +462,16 @@ def process_all():
                     "probability": f"{item['prob']}%",
                     "rvol": f"{item['rvol']}x",
                     "dfxSignal": dfx["status"],
-                    "notes": f"{tier_label} ({int(item['vol']):,} shares, PKR {round(item['turnover']/10000000, 1)}Cr turnover). {dfx['status']} ({dfx['spread']}). Swing target +{gain_pct}%."
+                    "catalystTag": cat_badge,
+                    "notes": f"{tier_label} ({int(item['vol']):,} shares, PKR {round(item['turnover']/10000000, 1)}Cr turnover). {dfx['status']} ({dfx['spread']}).{cat_note} Swing target +{gain_pct}%."
                 })
                 sector_buy_count[sec] = sector_buy_count.get(sec, 0) + 1
             if len(buys) == 5:
                 break
 
     selected_buy_tickers = {b["ticker"] for b in buys}
-    losers = [c for c in scored_candidates if c["change"] < 0 and c["ticker"] not in selected_buy_tickers]
-    losers.sort(key=lambda x: (x["turnover"], x["prob"]), reverse=True)
+    losers = [c for c in scored_candidates if (c["change"] < 0 or c["isDump"]) and c["ticker"] not in selected_buy_tickers]
+    losers.sort(key=lambda x: (1 if x["isDump"] else 0, x["turnover"], x["prob"]), reverse=True)
 
     def build_avoid_item(item, rank):
         price = item["close"]
@@ -422,6 +480,8 @@ def process_all():
         stop_ref = round(price + (item["atr"] * 0.6), 2)
         structure_note = "Distribution from Bullish Structure" if item["trend"] == "BULLISH" else "Bearish Trend Breakdown"
         dfx = derive_dynamic_dfx(item, futures_rates)
+        cat_badge = item["catalyst"]["badge"] if item["catalyst"] else None
+        cat_note = f" {item['catalyst']['note']}" if item["catalyst"] else ""
         return {
             "rank": rank,
             "ticker": item["ticker"],
@@ -434,7 +494,8 @@ def process_all():
             "probability": f"{item['prob']}%",
             "rvol": f"{item['rvol']}x",
             "dfxSignal": dfx["status"],
-            "notes": f"{structure_note} ({int(item['vol']):,} shares, PKR {round(item['turnover']/10000000, 1)}Cr turnover). {dfx['status']} ({dfx['spread']}). Downside risk of -{risk_pct}%."
+            "catalystTag": cat_badge,
+            "notes": f"{structure_note} ({int(item['vol']):,} shares, PKR {round(item['turnover']/10000000, 1)}Cr turnover). {dfx['status']} ({dfx['spread']}).{cat_note} Downside risk of -{risk_pct}%."
         }
 
     avoids = []
@@ -500,7 +561,6 @@ def process_all():
             "notes": t_notes
         })
 
-    # Export 100% authentic PSX disclosures without fabricated share counts
     cur.execute("""
         SELECT filing_date, ticker, category, headline
         FROM psx_disclosures ORDER BY filing_date DESC LIMIT 30
@@ -550,9 +610,11 @@ def process_all():
     print(f"  Regime: {regime_status} | Breadth: {breadth_pct}% | KSE-100: {kse100_pct:+.2f}%")
     print(f"  Smart Money Flow: {flow_data['sentiment']} (Net: {flow_data['smartMoneyDeltaM']:+.1f}M PKR)")
     for b in buys:
-        print(f"  BUY  #{b['rank']} {b['ticker']}: Zone {b['entryZone']} | Target: {b['target']} | Tag: {b['dfxSignal']}")
+        cat_str = f" [{b['catalystTag']}]" if b.get("catalystTag") else ""
+        print(f"  BUY  #{b['rank']} {b['ticker']}{cat_str}: Zone {b['entryZone']} | Target: {b['target']}")
     for a in avoids:
-        print(f"  AVOID #{a['rank']} {a['ticker']}: Downside {a['downside']} | Tag: {a['dfxSignal']}")
+        cat_str = f" [{a['catalystTag']}]" if a.get("catalystTag") else ""
+        print(f"  AVOID #{a['rank']} {a['ticker']}{cat_str}: Downside {a['downside']}")
 
 if __name__ == "__main__":
     process_all()

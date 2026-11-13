@@ -15,6 +15,7 @@ interface StockSetup {
   probability?: string;
   rvol?: string;
   dfxSignal?: string;
+  catalystTag?: string | null;
   tag?: string;
   notes: string;
 }
@@ -75,7 +76,7 @@ export default function DashboardPage() {
             PSX Daily Trade Desk
           </h1>
           <p className="text-xs text-slate-500">
-            Tier-1 institutional swing setups backed by 1-year historical bars & NCCPL smart money flow.
+            Tier-1 institutional swing setups backed by 1-year historical bars, PSX event catalysts & smart money flow.
           </p>
         </div>
         <div className="text-right">
@@ -116,7 +117,7 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* SMART MONEY FLOW STRIP (NCCPL FIPI / LIPI) */}
+      {/* SMART MONEY FLOW STRIP */}
       {flow && (
         <div
           className={`p-3.5 rounded-xl border shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-3 font-mono text-xs ${
@@ -228,10 +229,15 @@ export default function DashboardPage() {
                   key={stock.ticker}
                   className="p-4 rounded-xl border border-slate-200 bg-white shadow-sm hover:border-slate-300 transition-all space-y-3"
                 >
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
                       <span className="text-xs font-mono font-bold text-slate-400">#{stock.rank}</span>
                       <span className="text-base font-black text-slate-900 font-mono">{stock.ticker}</span>
+                      {stock.catalystTag && (
+                        <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-50 text-amber-800 border border-amber-300">
+                          {stock.catalystTag}
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-1.5 font-mono text-[11px]">
                       <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold">
@@ -295,10 +301,15 @@ export default function DashboardPage() {
                 key={stock.ticker}
                 className="p-4 rounded-xl border border-rose-100 bg-rose-50/20 shadow-sm hover:border-rose-200 transition-all space-y-3"
               >
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-mono font-bold text-slate-400">#{stock.rank}</span>
                     <span className="text-base font-black text-slate-900 font-mono">{stock.ticker}</span>
+                    {stock.catalystTag && (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-rose-600 text-white">
+                        {stock.catalystTag}
+                      </span>
+                    )}
                   </div>
                   <div className="flex items-center gap-1.5 font-mono text-[11px]">
                     <span className="px-2 py-0.5 rounded bg-rose-100 text-rose-800 border border-rose-200 font-semibold">

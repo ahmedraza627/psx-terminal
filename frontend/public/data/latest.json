@@ -1,11 +1,11 @@
 {
   "sessionDate": "Friday, Nov 13, 2026",
-  "sessionTime": "21:19 PKT",
+  "sessionTime": "21:24 PKT",
   "regime": {
     "status": "BULLISH ACCUMULATION",
     "kseChange": "+0.88%",
     "breadth": "60.5% Advancing (282 Up / 184 Down)",
-    "note": "Healthy market breadth. Tier-1 institutional accumulation & Tier-2 mid-cap rotation active.",
+    "note": "Healthy market breadth. Pre-event institutional accumulation & Tier-2 rotation active.",
     "isDefensive": false
   },
   "flow": {
@@ -28,9 +28,10 @@
       "raw_stop": 26.96,
       "raw_target": 29.41,
       "rr": "1:2.5",
-      "probability": "78.5%",
+      "probability": "79.2%",
       "rvol": "6.5x",
       "dfxSignal": "LONG BUILDUP",
+      "catalystTag": null,
       "notes": "Tier-1 accumulation (6,271,164 shares, PKR 17.3Cr turnover). LONG BUILDUP (+0.85%). Swing target +6.4%."
     },
     {
@@ -47,6 +48,7 @@
       "probability": "76.5%",
       "rvol": "6.5x",
       "dfxSignal": "SPOT ACCUMULATION",
+      "catalystTag": null,
       "notes": "Tier-1 accumulation (11,654,571 shares, PKR 838.3Cr turnover). SPOT ACCUMULATION (+0.39%). Swing target +4.6%."
     },
     {
@@ -63,6 +65,7 @@
       "probability": "75.5%",
       "rvol": "5.0x",
       "dfxSignal": "SPOT ACCUMULATION",
+      "catalystTag": null,
       "notes": "Tier-1 accumulation (3,737,389 shares, PKR 57.1Cr turnover). SPOT ACCUMULATION (+0.07%). Swing target +7.6%."
     },
     {
@@ -79,6 +82,7 @@
       "probability": "71.7%",
       "rvol": "3.9x",
       "dfxSignal": "LONG BUILDUP",
+      "catalystTag": null,
       "notes": "Tier-1 accumulation (806,380 shares, PKR 24.6Cr turnover). LONG BUILDUP (+0.58%). Swing target +3.4%."
     },
     {
@@ -95,12 +99,28 @@
       "probability": "68.7%",
       "rvol": "2.0x",
       "dfxSignal": "LONG BUILDUP",
+      "catalystTag": null,
       "notes": "Tier-1 accumulation (5,336,620 shares, PKR 120.6Cr turnover). LONG BUILDUP (+0.57%). Swing target +4.3%."
     }
   ],
   "avoids": [
     {
       "rank": 1,
+      "ticker": "EFERT",
+      "price": "PKR 208.18",
+      "downside": "PKR 200.55 (-3.7%)",
+      "raw_price": 208.18,
+      "raw_stop": 211.23,
+      "raw_downside": 200.55,
+      "tag": "SELLING PRESSURE",
+      "probability": "57.4%",
+      "rvol": "0.9x",
+      "dfxSignal": "LONG UNWINDING",
+      "catalystTag": "SELL-THE-NEWS DUMP",
+      "notes": "Distribution from Bullish Structure (1,584,125 shares, PKR 33.0Cr turnover). LONG UNWINDING (+0.63%). Post-announcement distribution (Credit of Third Interim Cash Dividend for the year ending December 31, 2026 on 2026-11-12) \u2014 funds offloading into retail liquidity. Downside risk of -3.7%."
+    },
+    {
+      "rank": 2,
       "ticker": "MLCF",
       "price": "PKR 103.93",
       "downside": "PKR 98.77 (-5.0%)",
@@ -111,10 +131,11 @@
       "probability": "50.0%",
       "rvol": "0.8x",
       "dfxSignal": "LONG UNWINDING",
+      "catalystTag": null,
       "notes": "Distribution from Bullish Structure (7,939,984 shares, PKR 82.5Cr turnover). LONG UNWINDING (+0.38%). Downside risk of -5.0%."
     },
     {
-      "rank": 2,
+      "rank": 3,
       "ticker": "DGKC",
       "price": "PKR 204.07",
       "downside": "PKR 193.91 (-5.0%)",
@@ -125,10 +146,11 @@
       "probability": "50.0%",
       "rvol": "0.8x",
       "dfxSignal": "LONG UNWINDING",
+      "catalystTag": null,
       "notes": "Distribution from Bullish Structure (2,309,059 shares, PKR 47.1Cr turnover). LONG UNWINDING (+0.54%). Downside risk of -5.0%."
     },
     {
-      "rank": 3,
+      "rank": 4,
       "ticker": "UBL",
       "price": "PKR 433.72",
       "downside": "PKR 418.78 (-3.4%)",
@@ -139,10 +161,11 @@
       "probability": "50.0%",
       "rvol": "0.6x",
       "dfxSignal": "LONG UNWINDING",
+      "catalystTag": null,
       "notes": "Distribution from Bullish Structure (928,853 shares, PKR 40.3Cr turnover). LONG UNWINDING (+0.42%). Downside risk of -3.4%."
     },
     {
-      "rank": 4,
+      "rank": 5,
       "ticker": "NBP",
       "price": "PKR 173.32",
       "downside": "PKR 163.53 (-5.6%)",
@@ -153,21 +176,8 @@
       "probability": "50.8%",
       "rvol": "0.7x",
       "dfxSignal": "LONG UNWINDING",
+      "catalystTag": null,
       "notes": "Distribution from Bullish Structure (2,318,388 shares, PKR 40.2Cr turnover). LONG UNWINDING (+0.36%). Downside risk of -5.6%."
-    },
-    {
-      "rank": 5,
-      "ticker": "FFC",
-      "price": "PKR 569.12",
-      "downside": "PKR 541.80 (-4.8%)",
-      "raw_price": 569.12,
-      "raw_stop": 580.05,
-      "raw_downside": 541.8,
-      "tag": "SELLING PRESSURE",
-      "probability": "50.0%",
-      "rvol": "1.2x",
-      "dfxSignal": "LONG UNWINDING",
-      "notes": "Distribution from Bullish Structure (649,993 shares, PKR 37.0Cr turnover). LONG UNWINDING (+0.60%). Downside risk of -4.8%."
     }
   ]
 }
