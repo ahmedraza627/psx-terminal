@@ -1,6 +1,6 @@
 {
   "sessionDate": "Monday, Nov 16, 2026",
-  "sessionTime": "19:45 PKT",
+  "sessionTime": "20:02 PKT",
   "macro": {
     "policyRate": 11.0,
     "tbill6m": 10.75,
@@ -9,14 +9,14 @@
   },
   "sectorSummary": {
     "buying": [
-      "BANKS (+49777.2M)",
-      "E&P (+43173.7M)",
-      "FERTILIZER (+12486.5M)"
+      "E&P (+865.3M)",
+      "CEMENT (+451.4M)",
+      "POWER (+96.2M)"
     ],
     "selling": [
-      "CEMENT (-18197.9M)",
-      "TECH (-61466.7M)",
-      "OMC (-110311.6M)"
+      "OMC (-72.5M)",
+      "TECH (-105.2M)",
+      "FERTILIZER (-181.9M)"
     ]
   },
   "regime": {
@@ -34,28 +34,7 @@
     "smartMoneyDeltaM": 18.9,
     "isSmartMoneyBuying": true
   },
-  "buys": [
-    {
-      "rank": 1,
-      "ticker": "EFERT",
-      "insiderConfluence": false,
-      "ndmBlock": false,
-      "oiConfirmed": false,
-      "entry": "PKR 210.33",
-      "entryZone": "PKR 209.07 - 211.17",
-      "stop": "PKR 206.81 (-1.7%)",
-      "target": "PKR 219.38 (+4.3%)",
-      "raw_entry": 210.33,
-      "raw_stop": 206.81,
-      "raw_target": 219.38,
-      "rr": "1:2.5",
-      "probability": "70.7%",
-      "rvol": "1.5x",
-      "dfxSignal": "SPOT ACCUMULATION",
-      "catalystTag": null,
-      "notes": "Tier-1 accumulation (2,802,380 shares, PKR 58.9Cr turnover). SPOT ACCUMULATION (+0.32%). Sector Flow (FERTILIZER): +12486.5M PKR. Swing target +4.3%."
-    }
-  ],
+  "buys": [],
   "avoids": [
     {
       "rank": 1,
@@ -65,17 +44,17 @@
       "actionTag": "DFX SHORT",
       "price": "PKR 26.61",
       "shortZone": "PKR 26.50 - 26.74",
-      "stop": "PKR 27.36 (+2.8%)",
-      "downside": "PKR 24.71 (-7.1%)",
+      "stop": "PKR 27.28 (+2.5%)",
+      "downside": "PKR 24.91 (-6.4%)",
       "raw_price": 26.61,
-      "raw_stop": 27.36,
-      "raw_downside": 24.71,
+      "raw_stop": 27.28,
+      "raw_downside": 24.91,
       "tag": "DFX SHORT",
-      "probability": "67.0%",
-      "rvol": "1.6x",
-      "dfxSignal": "LONG UNWINDING",
+      "probability": "68.5%",
+      "rvol": "2.3x",
+      "dfxSignal": "SHORT BUILDUP",
       "catalystTag": null,
-      "notes": "Bearish Trend Breakdown (1,713,611 shares, PKR 4.6Cr turnover). LONG UNWINDING (-0.40%). [DFX SHORT] Short on uptick in zone PKR 26.50-26.74; hard stop PKR 27.36 (+2.8%), target PKR 24.71 (-7.1%)."
+      "notes": "Bearish Trend Breakdown (1,713,611 shares, PKR 4.6Cr turnover). SHORT BUILDUP (-0.90%). [DFX SHORT] Short on uptick in zone PKR 26.50-26.74; hard stop PKR 27.28 (+2.5%), target PKR 24.91 (-6.4%)."
     }
   ]
 }

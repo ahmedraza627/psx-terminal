@@ -114,6 +114,9 @@ def init_tables(conn):
             INSERT INTO macro_yields (updated_date, policy_rate, tbill_6m, prev_tbill_6m)
             VALUES (?, 11.00, 10.85, 11.20)
         """, (datetime.now().strftime("%Y-%m-%d"),))
+    [cur.execute(f"DELETE FROM {r[0]} WHERE date = '2026-11-14'") for r in cur.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall() if 'date' in [c[1] for c in cur.execute(f"PRAGMA table_info({r[0]})").fetchall()]]
+    cur.execute("DELETE FROM daily_eod WHERE date = '2026-11-14'")
+    cur.execute("DELETE FROM sector_flow WHERE date = '2026-11-14'")
     conn.commit()
 
 def get_macro_regime(cur):
@@ -174,48 +177,73 @@ def get_recent_ndm_tickers(cur, db_date):
     """, (cutoff,))
     return {r[0]: {"vol": r[1], "valM": r[2]} for r in cur.fetchall()}
 
-def read_exported_table_lines(fpath):
-    if fpath.lower().endswith('.csv'):
-        return open(fpath, encoding='utf-8', errors='ignore').readlines()
-    if fpath.lower().endswith('.xlsx'):
-        import zipfile, xml.etree.ElementTree as ET
-        lines, strings, ns = [], [], '{http://schemas.openxmlformats.org/spreadsheetml/2006/main}'
-        with zipfile.ZipFile(fpath) as z:
-            if 'xl/sharedStrings.xml' in z.namelist():
-                root = ET.fromstring(z.read('xl/sharedStrings.xml'))
-                strings = [''.join(t.text or '' for t in si.iter(ns+'t')) for si in root.iter(ns+'si')]
-            sheet = sorted([n for n in z.namelist() if n.startswith('xl/worksheets/sheet')])[0]
-            for row in ET.fromstring(z.read(sheet)).iter(ns+'row'):
-                vals = [strings[int(c.find(ns+'v').text)] if c.attrib.get('t')=='s' else c.find(ns+'v').text for c in row if c.find(ns+'v') is not None and c.find(ns+'v').text is not None]
-                if vals: lines.append(' '.join(vals))
-        return lines
-    return []
+def parse_nccpl_csv_file(fpath):
+    import csv
+    sector_map = {}
+    try:
+        with open(fpath, "r", encoding="utf-8-sig", errors="ignore") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                client = (row.get("CLIENT TYPE") or "").strip().upper()
+                sec_name = (row.get("SECTOR NAME") or "").strip().upper()
+                mkt = (row.get("MARKET TYPE") or "").strip().upper()
+                if not sec_name or sec_name in ("---", "TOTAL") or mkt == "TOTAL":
+                    continue
+                if "INDIVIDUAL" in client and "FOREIGN" not in client:
+                    continue
+                raw_val = (row.get("NET VALUE - PKR") or "0").strip().replace(",", "")
+                if raw_val.startswith("(") and raw_val.endswith(")"):
+                    raw_val = "-" + raw_val[1:-1]
+                try:
+                    net_pkr = float(raw_val)
+                except ValueError:
+                    continue
+                net_m = round(net_pkr / 1_000_000.0, 2)
+                for bucket, kws in NCCPL_SECTOR_KEYWORDS.items():
+                    if any(kw in sec_name for kw in kws):
+                        sector_map[bucket] = round(sector_map.get(bucket, 0.0) + net_m, 2)
+                        break
+    except Exception:
+        pass
+    return sector_map
 
 def sync_clipboard_sector_flow(cur, db_date):
+    """Auto-reads exported NCCPL fipi-sector-wise.csv & lipi-sector-wise.csv from D:\downloads."""
     today_ts = datetime.now().timestamp() - (48 * 3600)
-    files = sorted([fp for ext in ('*.csv', '*.xlsx') for fp in glob.glob(os.path.join(TARGET_DIR, ext)) if os.path.isfile(fp) and os.path.getmtime(fp) >= today_ts], key=os.path.getmtime, reverse=True)
+    files = sorted(
+        [fp for fp in glob.glob(os.path.join(TARGET_DIR, "*.csv")) if os.path.isfile(fp) and os.path.getmtime(fp) >= today_ts],
+        key=os.path.getmtime,
+        reverse=True,
+    )
     parsed_sectors, matched = {}, 0
+    seen_types = set()
     for fp in files[:6]:
-        lines = read_exported_table_lines(fp)
-        joined = ' '.join(lines).upper()
-        if not any(k in joined for k in ('CEMENT', 'FERTILIZER', 'COMMERCIAL BANKS', 'OIL AND GAS')): continue
-        matched += 1
-        is_fipi_usd = ('FOREIGN CORPORATES' in joined or 'OVERSEAS PAKISTANI' in joined) and 'USD' in joined
-        for line in lines:
-            u = line.upper()
-            if 'INDIVIDUAL' in u and 'FOREIGN' not in u: continue
-            for bucket, kws in NCCPL_SECTOR_KEYWORDS.items():
-                if any(kw in u for kw in kws):
-                    floats = [float(n.replace(',', '')) for n in re.findall(r'[-+]?\d[\d,]*\.?\d*', line.replace('(', '-').replace(')', ''))]
-                    if floats:
-                        val = floats[-1]
-                        val = round((val * 278.0) / 1000000, 2) if is_fipi_usd else (round(val / 1000000, 2) if abs(val) > 50000 else val)
-                        parsed_sectors[bucket] = round(parsed_sectors.get(bucket, 0.0) + val, 2)
+        fname = os.path.basename(fp).lower()
+        ftype = "fipi" if "fipi" in fname else ("lipi" if "lipi" in fname else fname)
+        if ftype in seen_types:
+            continue
+        sec_data = parse_nccpl_csv_file(fp)
+        if sec_data:
+            seen_types.add(ftype)
+            matched += 1
+            for b, val in sec_data.items():
+                parsed_sectors[b] = round(parsed_sectors.get(b, 0.0) + val, 2)
+
     if parsed_sectors:
         for b, m in parsed_sectors.items():
-            cur.execute('INSERT OR REPLACE INTO sector_flow (date, sector_bucket, smart_net_m) VALUES (?, ?, ?)', (db_date, b, m))
-        print(f'[SECTOR MATRIX] Auto-parsed {len(parsed_sectors)} sectors from {matched} exported NCCPL file(s)!')
-    cur.execute('SELECT sector_bucket, smart_net_m FROM sector_flow WHERE date = (SELECT MAX(date) FROM sector_flow)')
+            cur.execute(
+                "INSERT OR REPLACE INTO sector_flow (date, sector_bucket, smart_net_m) VALUES (?, ?, ?)",
+                (db_date, b, m),
+            )
+        print(f"[SECTOR MATRIX] Clean-parsed {len(parsed_sectors)} sectors (Net PKR M) from {matched} NCCPL CSV(s)!")
+
+    # Return 3-day rolling institutional sector flow to prevent 1-day flip-flops
+    cur.execute("""
+        SELECT sector_bucket, ROUND(SUM(smart_net_m), 2)
+        FROM sector_flow
+        WHERE date >= (SELECT date(MAX(date), '-4 days') FROM sector_flow)
+        GROUP BY sector_bucket
+    """)
     return {r[0]: r[1] for r in cur.fetchall()}
 
 def sync_psx_events_and_insiders(cur, active_symbols):
@@ -475,6 +503,9 @@ def process_all():
         return
 
     now = datetime.now()
+    if now.weekday() >= 5:
+        print("[WEEKEND LOCK] PSX closed on weekends. Skipping duplicate ledger generation.")
+        return
     session_date = now.strftime("%A, %b %d, %Y")
     session_time = now.strftime("%H:%M PKT")
     db_date = now.strftime("%Y-%m-%d")
@@ -595,10 +626,10 @@ def process_all():
         macro_yield_boost = 2.0 if (macro["deltaBps"] < 0 and sec_bucket in DIVIDEND_YIELD_BENEFICIARIES) else 0.0
 
         if item["change"] > 0 and not is_sell_the_news_dump:
-            # Block buys in sectors suffering heavy institutional outflows
-            if is_sector_outflow:
+            # Anti-whiplash: require 50-SMA BULLISH trend, no >4.5% vertical spike chasing, and no sector outflow
+            if is_sector_outflow or metrics["trend"] != "BULLISH" or item["change"] > 4.5 or clv < 0.55:
                 continue
-            trend_bonus = 6.0 if metrics["trend"] == "BULLISH" else -6.0
+            trend_bonus = 6.0
             catalyst_bonus = 3.5 if (catalyst and catalyst["badge"] in ["PRE-EVENT ACCUMULATION", "POST-RESULT BREAKOUT"]) else 0.0
             insider_bonus = 3.5 if has_insider_confluence else 0.0
             ndm_bonus = 4.5 if ndm_info else 0.0
@@ -608,6 +639,8 @@ def process_all():
             prob = 53.0 + (min(item["change"], 7.0) * 0.9) + (min(rvol, 3.5) * 2.3) + (clv * 4.2) + trend_bonus + catalyst_bonus + insider_bonus + ndm_bonus + oi_bonus + sec_bonus + macro_yield_boost
             prob_score = round(min(max(prob, 52.0), 89.0), 1)
         else:
+            if not ((item["change"] <= -1.8 and clv <= 0.35 and (is_sector_outflow or dfx["mfsTrap"])) or is_sell_the_news_dump):
+                continue
             trend_penalty = 5.0 if metrics["trend"] == "BEARISH" else -2.0
             dump_bonus = 7.0 if is_sell_the_news_dump else 0.0
             mfs_bonus = 4.5 if dfx["mfsTrap"] else 0.0
