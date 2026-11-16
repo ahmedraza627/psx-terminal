@@ -1,6 +1,6 @@
 {
-  "sessionDate": "Saturday, Nov 14, 2026",
-  "sessionTime": "02:00 PKT",
+  "sessionDate": "Monday, Nov 16, 2026",
+  "sessionTime": "19:45 PKT",
   "macro": {
     "policyRate": 11.0,
     "tbill6m": 10.75,
@@ -9,73 +9,73 @@
   },
   "sectorSummary": {
     "buying": [
-      "BANKS (+103768.9M)",
-      "CEMENT (+86190.9M)",
-      "OMC (+55793.1M)"
+      "BANKS (+49777.2M)",
+      "E&P (+43173.7M)",
+      "FERTILIZER (+12486.5M)"
     ],
     "selling": [
-      "FERTILIZER (-9423.6M)",
-      "POWER (-49785.7M)",
-      "E&P (-55388.9M)"
+      "CEMENT (-18197.9M)",
+      "TECH (-61466.7M)",
+      "OMC (-110311.6M)"
     ]
   },
   "regime": {
     "status": "BULLISH ACCUMULATION",
-    "kseChange": "+0.88%",
-    "breadth": "60.5% Advancing (282 Up / 184 Down)",
+    "kseChange": "+0.42%",
+    "breadth": "55.0% Advancing (258 Up / 211 Down)",
     "note": "V2 5-Layer Institutional Engine active: NDM Blocks + DFX OI + Sector Matrix + SBP Yields.",
     "isDefensive": false
   },
   "flow": {
     "sentiment": "STRONG INSTITUTIONAL ABSORPTION (FUNDS BUYING RETAIL PANIC)",
-    "mutualFundsM": 255.5,
-    "foreignUsdK": 543.6,
-    "individualsM": -366.0,
-    "smartMoneyDeltaM": 41.7,
+    "mutualFundsM": 195.0,
+    "foreignUsdK": 442.4,
+    "individualsM": -300.0,
+    "smartMoneyDeltaM": 18.9,
     "isSmartMoneyBuying": true
   },
   "buys": [
     {
       "rank": 1,
-      "ticker": "AVN",
-      "insiderConfluence": true,
+      "ticker": "EFERT",
+      "insiderConfluence": false,
       "ndmBlock": false,
-      "oiConfirmed": true,
-      "entry": "PKR 27.65",
-      "entryZone": "PKR 27.48 - 27.76",
-      "stop": "PKR 26.88 (-2.8%)",
-      "target": "PKR 29.63 (+7.2%)",
-      "raw_entry": 27.65,
-      "raw_stop": 26.88,
-      "raw_target": 29.63,
+      "oiConfirmed": false,
+      "entry": "PKR 210.33",
+      "entryZone": "PKR 209.07 - 211.17",
+      "stop": "PKR 206.81 (-1.7%)",
+      "target": "PKR 219.38 (+4.3%)",
+      "raw_entry": 210.33,
+      "raw_stop": 206.81,
+      "raw_target": 219.38,
       "rr": "1:2.5",
-      "probability": "86.0%",
-      "rvol": "6.4x",
-      "dfxSignal": "LONG BUILDUP",
+      "probability": "70.7%",
+      "rvol": "1.5x",
+      "dfxSignal": "SPOT ACCUMULATION",
       "catalystTag": null,
-      "notes": "Tier-1 accumulation (6,271,164 shares, PKR 17.3Cr turnover). LONG BUILDUP (+0.85%). Verified PSX Clause 5.6.4 Insider Filing. Sector Flow (TECH): +7724.6M PKR. Swing target +7.2%."
+      "notes": "Tier-1 accumulation (2,802,380 shares, PKR 58.9Cr turnover). SPOT ACCUMULATION (+0.32%). Sector Flow (FERTILIZER): +12486.5M PKR. Swing target +4.3%."
     }
   ],
   "avoids": [
     {
       "rank": 1,
-      "ticker": "EFERT",
+      "ticker": "AVN",
       "isShortable": true,
       "mfsTrap": false,
       "actionTag": "DFX SHORT",
-      "price": "PKR 208.18",
-      "shortZone": "PKR 207.35 - 209.22",
-      "stop": "PKR 211.40 (+1.5%)",
-      "downside": "PKR 200.01 (-3.9%)",
-      "raw_price": 208.18,
-      "raw_stop": 211.4,
-      "raw_downside": 200.01,
+      "price": "PKR 26.61",
+      "shortZone": "PKR 26.50 - 26.74",
+      "stop": "PKR 27.36 (+2.8%)",
+      "downside": "PKR 24.71 (-7.1%)",
+      "raw_price": 26.61,
+      "raw_stop": 27.36,
+      "raw_downside": 24.71,
       "tag": "DFX SHORT",
-      "probability": "61.4%",
-      "rvol": "0.9x",
+      "probability": "67.0%",
+      "rvol": "1.6x",
       "dfxSignal": "LONG UNWINDING",
-      "catalystTag": "SELL-THE-NEWS DUMP",
-      "notes": "Distribution from Bullish Structure (1,584,125 shares, PKR 33.0Cr turnover). LONG UNWINDING (+0.63%). Post-announcement distribution (Credit of Third Interim Cash Dividend for the year ending December 31, 2026 on 2026-11-12) \u2014 funds offloading into retail liquidity. [DFX SHORT] Short on uptick in zone PKR 207.35-209.22; hard stop PKR 211.40 (+1.5%), target PKR 200.01 (-3.9%)."
+      "catalystTag": null,
+      "notes": "Bearish Trend Breakdown (1,713,611 shares, PKR 4.6Cr turnover). LONG UNWINDING (-0.40%). [DFX SHORT] Short on uptick in zone PKR 26.50-26.74; hard stop PKR 27.36 (+2.8%), target PKR 24.71 (-7.1%)."
     }
   ]
 }
