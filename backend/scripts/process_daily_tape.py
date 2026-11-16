@@ -523,10 +523,10 @@ def resolve_session_flow(cur, db_date, kse100_pct, breadth_pct):
         """, (db_date, fipi_usd_k, inst_m, retail_m, smart_net, sentiment))
 
         return {
-            "fipiUsd": f"{fipi_usd_k:+.1f}K",
-            "mutualFunds": f"{inst_m:+.1f}M PKR",
-            "individuals": f"{retail_m:+.1f}M PKR",
-            "netSmartFlow": f"{smart_net:+.1f}M",
+            "fipiUsd": fipi_usd_k,
+            "mutualFunds": inst_m,
+            "individuals": retail_m,
+            "netSmartFlow": smart_net,
             "sentiment": sentiment,
         }
 
@@ -902,7 +902,7 @@ def process_all():
 
         if t_type == "BUY":
             # Check if pullback limit order never filled on next session (gapped/ran away without dipping to entry*1.003)
-            if t_date < db_date and prev_status == "IN PLAY" and ohlc and ohlc["low"] > (t_entry * 1.003) and live_close > t_entry * 1.015:
+            if t_date >= "2026-11-16" and t_date < db_date and prev_status == "IN PLAY" and ohlc and ohlc["low"] > (t_entry * 1.003) and live_close > t_entry * 1.015:
                 status = "UNFILLED (NO CHASE)"
                 pnl = 0.0
             else:

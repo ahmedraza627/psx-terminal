@@ -1,6 +1,6 @@
 {
   "sessionDate": "Monday, Nov 16, 2026",
-  "sessionTime": "20:26 PKT",
+  "sessionTime": "20:40 PKT",
   "macro": {
     "policyRate": 11.0,
     "tbill6m": 10.75,
@@ -27,10 +27,10 @@
     "isDefensive": false
   },
   "flow": {
-    "fipiUsd": "-341.1K",
-    "mutualFunds": "+968.2M PKR",
-    "individuals": "-874.0M PKR",
-    "netSmartFlow": "+874.0M",
+    "fipiUsd": -341.1,
+    "mutualFunds": 968.2,
+    "individuals": -874.0,
+    "netSmartFlow": 874.0,
     "sentiment": "STRONG INSTITUTIONAL ABSORPTION (FUNDS BUYING RETAIL PANIC)"
   },
   "buys": [],
