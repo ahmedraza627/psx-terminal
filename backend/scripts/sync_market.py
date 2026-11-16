@@ -48,22 +48,9 @@ OUTPUT_PATH = Path(
 )
 
 # Fallback prices (used only when DPS connection drops)
-FALLBACK_BUYS = {
-    "MLCF": 100.04,
-    "SYS": 114.60,
-    "MEBL": 550.25,
-    "UBL": 425.34,
-    "PPL": 217.00,
-}
-
-FALLBACK_AVOID_A = {
-    "PSO": (360.50, 382.00, 328.00),   # (close, invalidation_up, downside)
-    "HUBC": (201.60, 214.00, 184.00),
-    "HASCOL": (17.10, 19.40, 14.50),
-    "KEL": (6.11, 7.00, 5.20),
-    "TELE": (7.80, 8.90, 6.20),
-}
-
+# No hardcoded fallback prices. The pipeline ONLY uses live DPS data.
+# If DPS is unavailable, the pipeline returns no buys/avoids (empty arrays)
+# and process_daily_tape.py runs independently for the quantitative modules.
 # Session boundaries (PKT = UTC+5)
 PKT = timedelta(hours=5)
 SESSION_OPEN_PKT = 9 * 60  # 09:15 PKT
@@ -527,40 +514,6 @@ def _format_level(value: float) -> str:
 # Fallback Mechanism
 # ---------------------------------------------------------------------------
 
-def build_fallback_payload(session_date: str, session_time: str) -> dict:
-    """Build a fallback payload when DPS connection drops."""
-    LOGGER.warning("DPS connection unavailable - using hardcoded fallback prices")
-
-    buys = []
-    for rank, (ticker, price) in enumerate(FALLBACK_BUYS.items(), start=1):
-        levels = compute_buy_levels(price, ticker)
-        buys.append({
-            "rank": rank,
-            "ticker": ticker,
-            "entry": _format_price(price),
-            "stop": _format_price(levels["stop"]),
-            "target": _format_price(levels["target"]),
-            "rr": levels["rr"],
-            "notes": "Fallback: DPS connection failed; using cached session prices.",
-        })
-
-    avoids = []
-    for rank, (ticker, (close_p, inv_up, downside_p)) in enumerate(
-        FALLBACK_AVOID_A.items(), start=1
-    ):
-        avoid_levels = compute_avoid_levels(close_p, ticker)
-        avoids.append({
-            "rank": rank,
-            "ticker": ticker,
-            "avoidRef": _format_level(avoid_levels["avoidRef"]),
-            "downside": _format_level(avoid_levels["downside"]),
-            "price": _format_level(avoid_levels["price"]),
-            "invalidation": _format_level(avoid_levels["invalidation"]),
-            "tag": "FALLBACK RESTRICTED",
-            "notes": "Connection to DPS unavailable; using cached data for now.",
-        })
-
-    return build_payload(session_date, session_time, buys, avoids)
 
 
 # ---------------------------------------------------------------------------
@@ -584,12 +537,9 @@ def sync_market(verbose: bool = False, session_date: Optional[str] = None) -> in
     market_data = scrape_market_summary()
 
     if market_data is None:
-        LOGGER.error("Failed to scrape market summary")
-        fallback_payload = build_fallback_payload(
-            target.strftime("%A, %b %d, %Y"), "unknown time PKT"
-        )
-        _write_output(fallback_payload)
-        LOGGER.warning("Fallback payload written to %s", OUTPUT_PATH)
+        LOGGER.error("Failed to scrape market summary - no fallback will be written")
+        # No fallback: the quantitative pipeline (process_daily_tape.py)
+        # runs independently with whatever data is available.
         return 1  # Non-zero: alerting (critical failure)
 
     # 3. Rank and calibrate
@@ -608,16 +558,12 @@ def sync_market(verbose: bool = False, session_date: Optional[str] = None) -> in
     for idx, item in enumerate(avoids, start=1):
         avoid_items.append(format_avoid_item(item["ticker"], item["close_price"], idx))
 
-    if not buy_items or not avoid_items:
-        LOGGER.warning("Insufficient ranked tickers - generating fallback")
-        session_date_label, session_time_label = _session_label()
-        return build_fallback_payload(session_date_label, session_time_label)
-
-    # 4. Assemble final payload
+    # 4. Assemble final payload (empty buys/avoids if DPS is down)
     session_date_label, session_time_label = _session_label()
     payload = build_payload(session_date_label, session_time_label, buy_items, avoid_items)
 
-    # 5. Write output
+    # 5. Write output (even if empty)
+    # Do NOT fallback to hardcoded prices
     _write_output(payload)
 
     LOGGER.info("Market state compiled: %d buys, %d avoids", len(buys), len(avoids))
