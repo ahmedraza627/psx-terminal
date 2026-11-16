@@ -448,20 +448,105 @@ def derive_dynamic_dfx_and_oi(item, futures_data):
         return {"status": "LONG UNWINDING", "spread": "-0.40%", "oiConfirmed": False, "mfsTrap": False}
 
 def resolve_session_flow(cur, db_date, kse100_pct, breadth_pct):
-    cur.execute("""
-        SELECT foreign_net_usd, mutual_funds_pkr, individuals_pkr, smart_money_net_pkr, market_sentiment
-        FROM institutional_flow WHERE date = ?
-    """, (db_date,))
-    existing = cur.fetchone()
-    if existing and (existing[0] != 0 or existing[1] != 0):
+    """Extracts exact Foreign, Local Institutional (Funds/Banks/Companies), and Retail Individual flow from NCCPL CSVs."""
+    import csv
+    today_ts = datetime.now().timestamp() - (48 * 3600)
+    files = sorted(
+        [fp for fp in glob.glob(os.path.join(TARGET_DIR, "*.csv")) if os.path.isfile(fp) and os.path.getmtime(fp) >= today_ts],
+        key=os.path.getmtime,
+        reverse=True,
+    )
+    fipi_usd = 0.0
+    fipi_pkr_m = 0.0
+    inst_pkr_m = 0.0
+    retail_pkr_m = 0.0
+    found_csv = False
+
+    for fp in files[:6]:
+        fname = os.path.basename(fp).lower()
+        try:
+            with open(fp, "r", encoding="utf-8-sig", errors="ignore") as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    client = (row.get("CLIENT TYPE") or "").strip().upper()
+                    sec_name = (row.get("SECTOR NAME") or "").strip().upper()
+                    mkt = (row.get("MARKET TYPE") or "").strip().upper()
+                    if not client or sec_name in ("---", "TOTAL") or mkt == "TOTAL":
+                        continue
+                    raw_pkr = (row.get("NET VALUE - PKR") or "0").strip().replace(",", "")
+                    if raw_pkr.startswith("(") and raw_pkr.endswith(")"):
+                        raw_pkr = "-" + raw_pkr[1:-1]
+                    try:
+                        val_m = float(raw_pkr) / 1_000_000.0
+                    except ValueError:
+                        continue
+
+                    if "fipi" in fname or "FOREIGN" in client or "OVERSEAS" in client:
+                        found_csv = True
+                        fipi_pkr_m += val_m
+                        raw_usd = (row.get("USD") or "0").strip().replace(",", "")
+                        if raw_usd.startswith("(") and raw_usd.endswith(")"):
+                            raw_usd = "-" + raw_usd[1:-1]
+                        try:
+                            fipi_usd += float(raw_usd)
+                        except ValueError:
+                            pass
+                    elif "lipi" in fname:
+                        found_csv = True
+                        if "INDIVIDUAL" in client:
+                            retail_pkr_m += val_m
+                        else:
+                            inst_pkr_m += val_m
+        except Exception:
+            continue
+
+    if found_csv:
+        fipi_usd_k = round(fipi_usd / 1000.0, 1)
+        inst_m = round(inst_pkr_m, 1)
+        retail_m = round(retail_pkr_m, 1)
+        smart_net = round(fipi_pkr_m + inst_pkr_m, 1)
+
+        if smart_net >= 50 and retail_m < 0:
+            sentiment = "STRONG INSTITUTIONAL ABSORPTION (FUNDS BUYING RETAIL PANIC)"
+        elif smart_net >= 20:
+            sentiment = "INSTITUTIONAL ACCUMULATION (SMART MONEY INFLOW)"
+        elif smart_net <= -50:
+            sentiment = "HEAVY INSTITUTIONAL DISTRIBUTION (FUNDS SELLING INTO RALLY)"
+        else:
+            sentiment = "BALANCED INSTITUTIONAL ROTATION (SELECTIVE FLOW)"
+
+        cur.execute("CREATE TABLE IF NOT EXISTS nccpl_flow (date TEXT PRIMARY KEY, fipi_usd_k REAL, mutual_funds_m REAL, individuals_m REAL, net_smart_m REAL, sentiment TEXT)")
+        cur.execute("CREATE TABLE IF NOT EXISTS nccpl_flow (date TEXT PRIMARY KEY, fipi_usd_k REAL, mutual_funds_m REAL, individuals_m REAL, net_smart_m REAL, sentiment TEXT)")
+        cur.execute("""
+            INSERT OR REPLACE INTO nccpl_flow (date, fipi_usd_k, mutual_funds_m, individuals_m, net_smart_m, sentiment)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (db_date, fipi_usd_k, inst_m, retail_m, smart_net, sentiment))
+
         return {
-            "sentiment": existing[4],
-            "mutualFundsM": round(existing[1] / 1000000, 1),
-            "foreignUsdK": round(existing[0] / 1000, 1),
-            "individualsM": round(existing[2] / 1000000, 1),
-            "smartMoneyDeltaM": round(existing[3] / 1000000, 1),
-            "isSmartMoneyBuying": existing[3] > 0
+            "fipiUsd": f"{fipi_usd_k:+.1f}K",
+            "mutualFunds": f"{inst_m:+.1f}M PKR",
+            "individuals": f"{retail_m:+.1f}M PKR",
+            "netSmartFlow": f"{smart_net:+.1f}M",
+            "sentiment": sentiment,
         }
+
+    cur.execute("SELECT fipi_usd_k, mutual_funds_m, individuals_m, net_smart_m, sentiment FROM nccpl_flow ORDER BY date DESC LIMIT 1")
+    r = cur.fetchone()
+    if r:
+        return {
+            "fipiUsd": f"{r[0]:+.1f}K",
+            "mutualFunds": f"{r[1]:+.1f}M PKR",
+            "individuals": f"{r[2]:+.1f}M PKR",
+            "netSmartFlow": f"{r[3]:+.1f}M",
+            "sentiment": r[4],
+        }
+    return {
+        "fipiUsd": "+0.0K",
+        "mutualFunds": "+0.0M PKR",
+        "individuals": "+0.0M PKR",
+        "netSmartFlow": "+0.0M",
+        "sentiment": "CALIBRATING SESSION FLOW",
+    }
 
     if breadth_pct < 40.0 or kse100_pct <= -0.8:
         mf_pkr = round(-115000000 + (breadth_pct * 1200000), 1)
@@ -627,7 +712,7 @@ def process_all():
 
         if item["change"] > 0 and not is_sell_the_news_dump:
             # Anti-whiplash: require 50-SMA BULLISH trend, no >4.5% vertical spike chasing, and no sector outflow
-            if is_sector_outflow or metrics["trend"] != "BULLISH" or item["change"] > 4.5 or clv < 0.55:
+            if is_sector_outflow or metrics["trend"] != "BULLISH" or item["change"] > 3.8 or clv < 0.65:
                 continue
             trend_bonus = 6.0
             catalyst_bonus = 3.5 if (catalyst and catalyst["badge"] in ["PRE-EVENT ACCUMULATION", "POST-RESULT BREAKOUT"]) else 0.0
@@ -669,7 +754,7 @@ def process_all():
         if c["change"] > 0
         and not c["isDump"]
         and c["rvol"] >= 1.5
-        and c["clv"] >= 0.60
+        and c["clv"] >= 0.65
         and c["prob"] >= 66.0
         and c["trend"] == "BULLISH"
     ]
@@ -681,14 +766,15 @@ def process_all():
         for item in gainers:
             sec = item["sector"]
             if sector_buy_count.get(sec, 0) < 2:
-                price = item["close"]
-                target = round(price + (item["atr"] * 1.8), 2)
-                stop = round(price - (item["atr"] * 0.7), 2)
+                close_px = item["close"]
+                atr_val = item["atr"]
+                zone_low = round(close_px - (atr_val * 0.45), 2)
+                zone_high = round(close_px - (atr_val * 0.15), 2)
+                price = round((zone_low + zone_high) / 2.0, 2)
+                target = round(price + (atr_val * 2.1), 2)
+                stop = round(price - (atr_val * 0.8), 2)
                 gain_pct = round(((target - price) / price) * 100, 1)
                 loss_pct = round(((price - stop) / price) * 100, 1)
-
-                zone_low = round(price * 0.994, 2)
-                zone_high = round(price * 1.004, 2)
                 dfx = item["dfx"]
                 tier_label = "Tier-1 accumulation" if item["tier"] == "TIER-1 CORE" else "Mid-Cap rotation breakout"
                 cat_badge = item["catalyst"]["badge"] if item["catalyst"] else None
@@ -806,18 +892,43 @@ def process_all():
     cur.execute("SELECT date, ticker, type, entry, stop, target, status, notes FROM active_trades ORDER BY date DESC, ticker ASC")
     db_trades = cur.fetchall()
 
+    # Load today's intraday high/low map for fill & breakeven verification
+    today_ohlc = {row["ticker"]: row for row in parsed_today}
     history_logs = []
     for t_date, sym, t_type, t_entry, t_stop, t_target, prev_status, t_notes in db_trades:
         live_close = market_rates.get(sym, t_entry)
+        ohlc = today_ohlc.get(sym)
+        effective_stop = t_stop
+
         if t_type == "BUY":
-            pnl = round(((live_close - t_entry) / t_entry) * 100, 1)
-            status = "TARGET HIT" if live_close >= t_target else ("STOPPED OUT" if live_close <= t_stop else "IN PLAY")
+            # Check if pullback limit order never filled on next session (gapped/ran away without dipping to entry*1.003)
+            if t_date < db_date and prev_status == "IN PLAY" and ohlc and ohlc["low"] > (t_entry * 1.003) and live_close > t_entry * 1.015:
+                status = "UNFILLED (NO CHASE)"
+                pnl = 0.0
+            else:
+                pnl = round(((live_close - t_entry) / t_entry) * 100, 1)
+                # Auto-Breakeven Lock once +2.2% profit is reached
+                if pnl >= 2.2 or (ohlc and ((ohlc["high"] - t_entry) / t_entry) * 100 >= 2.5):
+                    effective_stop = max(t_stop, t_entry)
+                if live_close >= t_target:
+                    status = "TARGET HIT"
+                elif live_close <= effective_stop:
+                    status = "BREAKEVEN EXIT" if effective_stop >= t_entry else "STOPPED OUT"
+                else:
+                    status = "IN PLAY (BE LOCKED)" if effective_stop >= t_entry else "IN PLAY"
         else:
             pnl = round(((t_entry - live_close) / t_entry) * 100, 1)
-            status = "CAPITAL PRESERVED" if live_close <= t_target else ("STOPPED OUT" if live_close >= t_stop else "IN PLAY")
+            if pnl >= 2.2:
+                effective_stop = min(t_stop, t_entry)
+            if live_close <= t_target:
+                status = "CAPITAL PRESERVED"
+            elif live_close >= effective_stop:
+                status = "BREAKEVEN EXIT" if effective_stop <= t_entry else "STOPPED OUT"
+            else:
+                status = "IN PLAY"
 
-        if status != prev_status:
-            cur.execute("UPDATE active_trades SET status = ? WHERE date = ? AND ticker = ?", (status, t_date, sym))
+        if status != prev_status or effective_stop != t_stop:
+            cur.execute("UPDATE active_trades SET status = ?, stop = ? WHERE date = ? AND ticker = ?", (status, effective_stop, t_date, sym))
 
         history_logs.append({
             "date": t_date,

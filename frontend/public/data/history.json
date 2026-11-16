@@ -61,7 +61,7 @@
     "target": 164.51,
     "latestClose": 152.15,
     "pnlPct": -0.5,
-    "status": "IN PLAY",
+    "status": "BREAKEVEN EXIT",
     "notes": "Tier-1 accumulation (3,737,389 shares, PKR 57.1Cr turnover). SPOT ACCUMULATION (+0.07%). Swing target +7.6%."
   },
   {
@@ -86,8 +86,8 @@
     "invalidation": 706.34,
     "target": 752.62,
     "latestClose": 737.28,
-    "pnlPct": 2.5,
-    "status": "IN PLAY",
+    "pnlPct": 0.0,
+    "status": "UNFILLED (NO CHASE)",
     "notes": "Tier-1 accumulation (11,654,571 shares, PKR 838.3Cr turnover). SPOT ACCUMULATION (+0.39%). Swing target +4.6%."
   },
   {
@@ -346,8 +346,8 @@
     "invalidation": 389.5,
     "target": 415.4,
     "latestClose": 409.85,
-    "pnlPct": 2.6,
-    "status": "IN PLAY",
+    "pnlPct": 0.0,
+    "status": "UNFILLED (NO CHASE)",
     "notes": "Banking sector dividend support."
   },
   {
