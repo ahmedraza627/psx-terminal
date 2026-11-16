@@ -33,6 +33,10 @@ jobs:
       - name: Run sync_market pipeline
         run: |
           python backend/scripts/sync_market.py --verbose
+
+      - name: Run daily tape processor (4 quantitative modules)
+        run: |
+          python backend/scripts/process_daily_tape.py --verbose
         working-directory: .
 
       - name: Commit and push latest.json

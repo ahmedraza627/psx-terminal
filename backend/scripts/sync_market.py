@@ -621,6 +621,18 @@ def sync_market(verbose: bool = False, session_date: Optional[str] = None) -> in
     _write_output(payload)
 
     LOGGER.info("Market state compiled: %d buys, %d avoids", len(buys), len(avoids))
+
+    # Run the quantitative daily tape processor (4 modules)
+    import sys as _sys
+    _sys.path.insert(0, str(BASE_DIR / "backend" / "scripts"))
+    try:
+        import process_daily_tape
+        process_daily_tape.main()
+        LOGGER.info("Daily tape processor completed successfully")
+    except ImportError as e:
+        LOGGER.warning("Daily tape processor skipped: %s", e)
+        LOGGER.info("Continuing with sync_market output only")
+
     return 0
 
 
