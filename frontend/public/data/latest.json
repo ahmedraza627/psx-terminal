@@ -1,12 +1,73 @@
 {
   "sessionDate": "Monday, Nov 16, 2026",
-  "sessionTime": "20:45 PKT",
+  "sessionTime": "21:02 PKT",
   "macro": {
     "policyRate": 11.0,
     "tbill6m": 10.75,
     "deltaBps": -15,
     "stance": "EASING (YIELD DROP)"
   },
+  "indexMap": {
+    "zoneLabel": "KSE-100 Breadth: 55.0% | Accumulation Buy Zone: Breadth > 52% & Pullback Dips",
+    "action": "SELECTIVE PULLBACK ACCUMULATION IN INFLOW SECTORS",
+    "level": 0,
+    "buyZone": "N/A",
+    "resistance": "N/A"
+  },
+  "valuePullbacks": [
+    {
+      "rank": 1,
+      "ticker": "DGKC",
+      "sector": "CEMENT",
+      "provenWinner": false,
+      "discountPct": "-6.2% from High",
+      "swingHigh": "PKR 215.31",
+      "entryZone": "PKR 199.72 - 202.01",
+      "stop": "PKR 194.16",
+      "target": "PKR 214.23 (+6.0%)",
+      "sectorFlow": "+451.4M PKR",
+      "notes": "Trading 6.2% below 20-session high (PKR 215.31) above 50-SMA support while CEMENT sees +451.4M PKR institutional inflow. Limit accumulate in PKR 199.72-202.01 for +6.0% mean-reversion."
+    },
+    {
+      "rank": 2,
+      "ticker": "FCCL",
+      "sector": "CEMENT",
+      "provenWinner": false,
+      "discountPct": "-5.0% from High",
+      "swingHigh": "PKR 63.86",
+      "entryZone": "PKR 59.91 - 60.64",
+      "stop": "PKR 58.14",
+      "target": "PKR 63.54 (+4.8%)",
+      "sectorFlow": "+451.4M PKR",
+      "notes": "Trading 5.0% below 20-session high (PKR 63.86) above 50-SMA support while CEMENT sees +451.4M PKR institutional inflow. Limit accumulate in PKR 59.91-60.64 for +4.8% mean-reversion."
+    },
+    {
+      "rank": 3,
+      "ticker": "KOHC",
+      "sector": "CEMENT",
+      "provenWinner": false,
+      "discountPct": "-6.2% from High",
+      "swingHigh": "PKR 102.34",
+      "entryZone": "PKR 94.56 - 96.03",
+      "stop": "PKR 90.98",
+      "target": "PKR 101.83 (+6.0%)",
+      "sectorFlow": "+451.4M PKR",
+      "notes": "Trading 6.2% below 20-session high (PKR 102.34) above 50-SMA support while CEMENT sees +451.4M PKR institutional inflow. Limit accumulate in PKR 94.56-96.03 for +6.0% mean-reversion."
+    },
+    {
+      "rank": 4,
+      "ticker": "MLCF",
+      "sector": "CEMENT",
+      "provenWinner": false,
+      "discountPct": "-3.6% from High",
+      "swingHigh": "PKR 108.87",
+      "entryZone": "PKR 103.72 - 104.90",
+      "stop": "PKR 100.86",
+      "target": "PKR 108.33 (+3.3%)",
+      "sectorFlow": "+451.4M PKR",
+      "notes": "Trading 3.6% below 20-session high (PKR 108.87) above 50-SMA support while CEMENT sees +451.4M PKR institutional inflow. Limit accumulate in PKR 103.72-104.90 for +3.3% mean-reversion."
+    }
+  ],
   "sectorSummary": {
     "buying": [
       "E&P (+865.3M)",
@@ -27,10 +88,11 @@
     "isDefensive": false
   },
   "flow": {
-    "fipiUsd": -341.1,
-    "mutualFunds": 968.2,
-    "individuals": -874.0,
-    "netSmartFlow": 874.0,
+    "mutualFundsM": 968.2,
+    "foreignUsdK": -341.1,
+    "individualsM": -874.0,
+    "smartMoneyDeltaM": 874.0,
+    "isSmartMoneyBuying": true,
     "sentiment": "STRONG INSTITUTIONAL ABSORPTION (FUNDS BUYING RETAIL PANIC)"
   },
   "buys": [],

@@ -56,14 +56,38 @@ interface InstitutionalFlow {
   isSmartMoneyBuying: boolean;
 }
 
+interface IndexMapData {
+  zoneLabel: string;
+  action: string;
+  level: number;
+  buyZone: string;
+  resistance: string;
+}
+
+interface ValuePullback {
+  rank: number;
+  ticker: string;
+  sector: string;
+  provenWinner: boolean;
+  discountPct: string;
+  swingHigh: string;
+  entryZone: string;
+  stop: string;
+  target: string;
+  sectorFlow: string;
+  notes: string;
+}
+
 interface LatestData {
   sessionDate: string;
   sessionTime: string;
   macro?: MacroData;
+  indexMap?: IndexMapData;
   sectorSummary?: SectorSummary;
   regime?: MarketRegime;
   flow?: InstitutionalFlow;
   buys: StockSetup[];
+  valuePullbacks?: ValuePullback[];
   avoids: StockSetup[];
 }
 
@@ -263,6 +287,86 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
+
+            {/* KSE-100 INDEX STRUCTURAL BUY & RESISTANCE MAP */}
+      {data.indexMap && (
+        <div className="p-3.5 rounded-xl bg-slate-900 text-white border border-slate-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-xs font-mono">
+          <div>
+            <div className="text-[10px] uppercase tracking-wider text-emerald-400 font-bold">
+              KSE-100 INDEX STRUCTURAL LEVEL &amp; BUY ZONE
+            </div>
+            <div className="text-sm font-bold text-white mt-0.5">
+              {data.indexMap.zoneLabel}
+            </div>
+          </div>
+          <div className="px-3 py-1.5 rounded-lg bg-emerald-500/15 border border-emerald-400/30 text-emerald-300 text-[11px] font-bold">
+            {data.indexMap.action}
+          </div>
+        </div>
+      )}
+
+      {/* SBP MACRO & SECTOR FLOW STRIP */}
+            {/* DISCOUNTED VALUE PULLBACKS (HISTORY & INFLOW SECTOR DIPS) */}
+      <div className="rounded-xl border border-indigo-200 bg-indigo-50/40 p-4 space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+          <div>
+            <h2 className="text-xs font-mono font-bold uppercase tracking-wider text-indigo-950">
+              DISCOUNTED VALUE PULLBACKS (HISTORY AUDIT + INFLOW SECTORS)
+            </h2>
+            <p className="text-[11px] text-slate-600">
+              Tier-1 stocks trading 3%–16% below 20-day swing highs above 50-SMA support in institutional inflow sectors (Spot Market Limit Buys).
+            </p>
+          </div>
+          <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-indigo-900 text-indigo-100">
+            SPOT LIMIT DIP SETUPS ({data.valuePullbacks?.length ?? 0})
+          </span>
+        </div>
+
+        {data.valuePullbacks && data.valuePullbacks.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {data.valuePullbacks.map((vp) => (
+              <div key={vp.ticker} className="bg-white rounded-lg border border-indigo-200/80 p-3.5 shadow-sm space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-mono font-bold text-slate-400">#{vp.rank}</span>
+                    <span className="text-sm font-bold text-slate-900">{vp.ticker}</span>
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-indigo-100 text-indigo-800">
+                      {vp.discountPct}
+                    </span>
+                    {vp.provenWinner && (
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-100 text-emerald-800">
+                        PROVEN WINNER
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-[11px] font-mono font-semibold text-emerald-700">
+                    {vp.sector}: {vp.sectorFlow}
+                  </span>
+                </div>
+                <div className="grid grid-cols-3 gap-2 text-center font-mono text-xs">
+                  <div className="p-2 rounded bg-slate-50 border border-slate-200">
+                    <div className="text-[10px] text-slate-500">LIMIT BUY ZONE</div>
+                    <div className="font-bold text-slate-900">{vp.entryZone}</div>
+                  </div>
+                  <div className="p-2 rounded bg-rose-50/70 border border-rose-200">
+                    <div className="text-[10px] text-rose-700">HARD STOP</div>
+                    <div className="font-bold text-rose-800">{vp.stop}</div>
+                  </div>
+                  <div className="p-2 rounded bg-emerald-50/70 border border-emerald-200">
+                    <div className="text-[10px] text-emerald-700">SWING TARGET</div>
+                    <div className="font-bold text-emerald-800">{vp.target}</div>
+                  </div>
+                </div>
+                <p className="text-[11px] text-slate-600 leading-relaxed">{vp.notes}</p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-xs font-mono text-slate-500 bg-white/80 rounded-lg p-3 border border-indigo-100">
+            Accumulating multi-day EOD history for swing-high discount scan. Run daily autopilot after 7:00 PM PKT.
+          </div>
+        )}
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* BUY COLUMN */}

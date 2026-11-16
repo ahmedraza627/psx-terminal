@@ -523,10 +523,11 @@ def resolve_session_flow(cur, db_date, kse100_pct, breadth_pct):
         """, (db_date, fipi_usd_k, inst_m, retail_m, smart_net, sentiment))
 
         return {
-            "fipiUsd": fipi_usd_k,
-            "mutualFunds": inst_m,
-            "individuals": retail_m,
-            "netSmartFlow": smart_net,
+            "mutualFundsM": inst_m,
+            "foreignUsdK": fipi_usd_k,
+            "individualsM": retail_m,
+            "smartMoneyDeltaM": smart_net,
+            "isSmartMoneyBuying": smart_net >= 0,
             "sentiment": sentiment,
         }
 
@@ -534,10 +535,11 @@ def resolve_session_flow(cur, db_date, kse100_pct, breadth_pct):
     r = cur.fetchone()
     if r:
         return {
-            "fipiUsd": f"{r[0]:+.1f}K",
-            "mutualFunds": f"{r[1]:+.1f}M PKR",
-            "individuals": f"{r[2]:+.1f}M PKR",
-            "netSmartFlow": f"{r[3]:+.1f}M",
+            "mutualFundsM": r[1],
+            "foreignUsdK": r[0],
+            "individualsM": r[2],
+            "smartMoneyDeltaM": r[3],
+            "isSmartMoneyBuying": r[3] >= 0,
             "sentiment": r[4],
         }
     return {
@@ -602,6 +604,7 @@ def process_all():
     advances = 0
     declines = 0
     kse100_pct = None
+    kse100_level = 0.0
 
     with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
         for line in f:
@@ -621,6 +624,7 @@ def process_all():
 
                     if "KSE100" in sym or sym == "KSE100" or sym == "KSE-100":
                         kse100_pct = pct_change
+                        kse100_level = close_p
                         continue
 
                     if "-" in sym and sec in ["40", "41"]:
@@ -964,6 +968,84 @@ def process_all():
 
     flow_data = resolve_session_flow(cur, db_date, kse100_pct, breadth_pct)
 
+    # --- KSE-100 INDEX STRUCTURAL BUY / CAUTION MAP ---
+    cur.execute("SELECT close FROM daily_eod WHERE ticker = 'KSE100' ORDER BY date DESC LIMIT 50")
+    idx_hist = [r[0] for r in cur.fetchall() if r[0] and r[0] > 1000]
+    if kse100_level > 1000:
+        cur.execute(
+            "INSERT OR REPLACE INTO daily_eod (date, ticker, sector, open, high, low, close, volume, turnover) VALUES (?, 'KSE100', 'INDEX', ?, ?, ?, ?, 0, 0)",
+            (db_date, kse100_level, kse100_level, kse100_level, kse100_level),
+        )
+        if not idx_hist or idx_hist[0] != kse100_level:
+            idx_hist.insert(0, kse100_level)
+    idx_now = round(idx_hist[0], 0) if idx_hist else 0
+    idx_sma20 = round(sum(idx_hist[:20]) / len(idx_hist[:20]), 0) if idx_hist else idx_now
+    idx_sma50 = round(sum(idx_hist[:50]) / len(idx_hist[:50]), 0) if idx_hist else idx_now
+    idx_buy_low = int(round(idx_now * 0.982, -2)) if idx_now else 0
+    idx_buy_high = int(round(idx_now * 0.992, -2)) if idx_now else 0
+    idx_res = int(round(idx_now * 1.018, -2)) if idx_now else 0
+    if idx_now > 0:
+        idx_zone_label = (
+            f"KSE-100: {int(idx_now):,} pts | Accumulation Buy Zone: {idx_buy_low:,} - {idx_buy_high:,} | Resistance: {idx_res:,}"
+        )
+        idx_action = (
+            "INDEX IN PULLBACK VALUE ZONE — DEPLOY LIMIT BUYS"
+            if idx_now <= idx_sma20 * 1.005
+            else "INDEX EXTENDED ABOVE 20-DMA — BUY DIPS ONLY, DO NOT CHASE"
+        )
+    else:
+        idx_zone_label = f"KSE-100 Breadth: {breadth_pct}% | Accumulation Buy Zone: Breadth > 52% & Pullback Dips"
+        idx_action = "SELECTIVE PULLBACK ACCUMULATION IN INFLOW SECTORS"
+
+    # --- DISCOUNTED VALUE PULLBACKS FROM HISTORY & EOD AUDIT ---
+    cur.execute("SELECT DISTINCT ticker FROM active_trades WHERE status IN ('TARGET HIT', 'IN PLAY (BE LOCKED)', 'BREAKEVEN EXIT')")
+    proven_winners = {r[0] for r in cur.fetchall()}
+
+    value_pullbacks = []
+    for item in parsed_today:
+        sym = item["ticker"]
+        if item["tier"] != "TIER-1 CORE" or sym in selected_buy_tickers:
+            continue
+        sec_bucket = TICKER_SECTOR_MAP.get(sym, "OTHER")
+        sec_net_m = sector_flow_map.get(sec_bucket, 0.0)
+        if sec_net_m < 25.0:
+            continue
+        cur.execute("SELECT MAX(high), AVG(close), COUNT(*) FROM (SELECT high, close FROM daily_eod WHERE ticker = ? ORDER BY date DESC LIMIT 20)", (sym,))
+        row_h = cur.fetchone()
+        if not row_h or not row_h[0] or row_h[2] < 3:
+            continue
+        swing_high, sma20_px, _ = row_h
+        close_px = item["close"]
+        discount_pct = round(((swing_high - close_px) / swing_high) * 100, 1)
+        metrics = compute_historical_metrics(cur, sym, close_px, item["vol"])
+        if 3.0 <= discount_pct <= 16.0 and metrics["trend"] == "BULLISH":
+            atr_val = metrics["atr14"]
+            buy_low = round(close_px - (atr_val * 0.35), 2)
+            buy_high = round(close_px, 2)
+            stop_px = round(buy_low - (atr_val * 0.85), 2)
+            tgt_px = round(swing_high * 0.995, 2)
+            upside_pct = round(((tgt_px - buy_high) / buy_high) * 100, 1)
+            if upside_pct < 3.0:
+                continue
+            is_proven = sym in proven_winners
+            value_pullbacks.append({
+                "rank": len(value_pullbacks) + 1,
+                "ticker": sym,
+                "sector": sec_bucket,
+                "provenWinner": is_proven,
+                "discountPct": f"-{discount_pct}% from High",
+                "swingHigh": f"PKR {swing_high:.2f}",
+                "entryZone": f"PKR {buy_low:.2f} - {buy_high:.2f}",
+                "stop": f"PKR {stop_px:.2f}",
+                "target": f"PKR {tgt_px:.2f} (+{upside_pct}%)",
+                "sectorFlow": f"{sec_net_m:+.1f}M PKR",
+                "notes": f"{'PROVEN LEDGER WINNER • ' if is_proven else ''}Trading {discount_pct}% below 20-session high (PKR {swing_high:.2f}) above 50-SMA support while {sec_bucket} sees {sec_net_m:+.1f}M PKR institutional inflow. Limit accumulate in PKR {buy_low:.2f}-{buy_high:.2f} for +{upside_pct}% mean-reversion."
+            })
+    value_pullbacks.sort(key=lambda x: (1 if x["provenWinner"] else 0, float(x["sectorFlow"].replace("M PKR", ""))), reverse=True)
+    value_pullbacks = value_pullbacks[:4]
+    for i, vp in enumerate(value_pullbacks):
+        vp["rank"] = i + 1
+
     # Top buying & selling sectors summary
     sorted_secs = sorted(sector_flow_map.items(), key=lambda x: x[1], reverse=True)
     top_buy_secs = [f"{k} ({v:+.1f}M)" for k, v in sorted_secs if v > 0][:3]
@@ -978,6 +1060,14 @@ def process_all():
             "sessionDate": session_date,
             "sessionTime": session_time,
             "macro": macro,
+            "indexMap": {
+                "zoneLabel": idx_zone_label,
+                "action": idx_action,
+                "level": idx_now,
+                "buyZone": f"{idx_buy_low:,} - {idx_buy_high:,}" if idx_now else "N/A",
+                "resistance": f"{idx_res:,}" if idx_now else "N/A"
+            },
+            "valuePullbacks": value_pullbacks,
             "sectorSummary": {
                 "buying": top_buy_secs,
                 "selling": top_sell_secs
