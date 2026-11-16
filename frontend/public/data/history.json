@@ -343,7 +343,7 @@
     "type": "BUY",
     "timeframe": "1M",
     "entryRef": 399.48,
-    "invalidation": 389.5,
+    "invalidation": 399.48,
     "target": 415.4,
     "latestClose": 409.85,
     "pnlPct": 2.6,
