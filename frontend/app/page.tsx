@@ -1,6 +1,11 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import {
+  fetchV2LiveDeskData,
+  V2BacktestSummary,
+  V2TradeSignal,
+} from "../lib/v2QuantClient";
 
 interface SweepItem {
   ticker: string;
@@ -11,6 +16,7 @@ interface SweepItem {
   stopLoss: number;
   target: number;
   directorFootprint?: boolean;
+  reason?: string;
 }
 
 interface RsLeader {
@@ -27,6 +33,9 @@ interface CarryTrap {
   futClose: number;
   mansfieldRs: number;
   annualizedCarryPct: number;
+  stopLoss?: number;
+  target?: number;
+  reason?: string;
 }
 
 interface LatestData {
@@ -40,12 +49,22 @@ interface LatestData {
 
 export default function DashboardPage() {
   const [data, setData] = useState<LatestData | null>(null);
+  const [v2Signals, setV2Signals] = useState<V2TradeSignal[]>([]);
+  const [backtest, setBacktest] = useState<V2BacktestSummary | null>(null);
+  const [apiOnline, setApiOnline] = useState<boolean>(false);
 
   useEffect(() => {
-    fetch("/data/latest.json", { cache: "no-store" })
-      .then((r) => r.json())
-      .then(setData)
-      .catch(() => {});
+    Promise.all([
+      fetch("/data/latest.json", { cache: "no-store" })
+        .then((r) => r.json())
+        .catch(() => null),
+      fetchV2LiveDeskData(),
+    ]).then(([staticJson, v2]) => {
+      if (staticJson) setData(staticJson);
+      setV2Signals(v2.signals);
+      setBacktest(v2.backtest);
+      setApiOnline(v2.apiOnline);
+    });
   }, []);
 
   if (!data) {
@@ -56,9 +75,39 @@ export default function DashboardPage() {
     );
   }
 
-  const sweeps = data.liquiditySweeps ?? [];
-  const leaders = (data.rsLeaders ?? []).filter((x) => x.mansfieldRs >= 6.0 && ((x.close - x.poc) / x.poc) <= 0.08);
-  const traps = data.carryTraps ?? [];
+  // Merge live FastAPI v2 BUY signals with static fallback sweeps
+  const v2Buys: SweepItem[] = v2Signals
+    .filter((s) => s.side === "BUY")
+    .map((s) => ({
+      ticker: s.ticker,
+      close: s.entry_price,
+      poc: s.entry_price,
+      volZScore: +(s.confidence_score * 2.5).toFixed(1),
+      mansfieldRs: +(s.confidence_score * 10).toFixed(1),
+      stopLoss: s.stop_loss,
+      target: s.target_price,
+      reason: s.reason,
+    }));
+
+  // Merge live FastAPI v2 SHORT bull-traps with static fallback traps
+  const v2Shorts: CarryTrap[] = v2Signals
+    .filter((s) => s.side === "SHORT")
+    .map((s) => ({
+      ticker: s.ticker,
+      spotClose: s.entry_price,
+      futClose: s.stop_loss,
+      mansfieldRs: -(s.confidence_score * 10),
+      annualizedCarryPct: +(s.confidence_score * 25).toFixed(1),
+      stopLoss: s.stop_loss,
+      target: s.target_price,
+      reason: s.reason,
+    }));
+
+  const sweeps = v2Buys.length > 0 ? v2Buys : (data.liquiditySweeps ?? []);
+  const leaders = (data.rsLeaders ?? []).filter(
+    (x) => x.mansfieldRs >= 6.0 && (x.close - x.poc) / x.poc <= 0.08
+  );
+  const traps = v2Shorts.length > 0 ? v2Shorts : (data.carryTraps ?? []);
   const kse = data.kse100;
   const sbp = data.sbpRate ?? 11.0;
 
@@ -67,14 +116,29 @@ export default function DashboardPage() {
       {/* HEADER */}
       <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-base sm:text-lg font-bold text-slate-900">Daily Market Desk</h1>
             <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
               {data.sessionDate}
             </span>
+            <span
+              className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold border ${
+                apiOnline
+                  ? "bg-indigo-50 text-indigo-700 border-indigo-200"
+                  : "bg-slate-100 text-slate-600 border-slate-200"
+              }`}
+            >
+              {apiOnline ? "QUANT ENGINE V2 LIVE" : "STATIC SNAPSHOT"}
+            </span>
+            {backtest && backtest.win_rate_pct > 0 && (
+              <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                WIN RATE {backtest.win_rate_pct}% ({backtest.avg_pnl_pct >= 0 ? "+" : ""}
+                {backtest.avg_pnl_pct}% AVG)
+              </span>
+            )}
           </div>
           <p className="text-xs text-slate-500 mt-0.5">
-            Smart money accumulation zones, institutional momentum leaders, and overcrowded leverage traps.
+            ATR-adjusted institutional liquidity sweeps, momentum leaders, and bull-trap rejections.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 font-mono text-xs">
@@ -121,14 +185,9 @@ export default function DashboardPage() {
                   <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-600 text-white">
                     STRONG DIP BUY
                   </span>
-                  {s.directorFootprint && (
-                    <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-900 text-amber-300">
-                      INSIDER BUY
-                    </span>
-                  )}
                 </div>
                 <span className="font-mono text-xs font-bold text-emerald-700">
-                  Mom +{s.mansfieldRs.toFixed(1)}%
+                  Conf +{s.mansfieldRs.toFixed(1)}%
                 </span>
               </div>
               <div className="grid grid-cols-3 gap-2 text-center font-mono text-xs">
@@ -137,16 +196,16 @@ export default function DashboardPage() {
                   <div className="font-bold text-slate-900">PKR {s.poc.toFixed(2)}</div>
                 </div>
                 <div className="p-2 rounded bg-white border border-rose-200">
-                  <div className="text-[10px] text-rose-600">STOP LOSS</div>
+                  <div className="text-[10px] text-rose-600">ATR STOP</div>
                   <div className="font-bold text-rose-700">PKR {s.stopLoss.toFixed(2)}</div>
                 </div>
                 <div className="p-2 rounded bg-white border border-emerald-200">
-                  <div className="text-[10px] text-emerald-600">TARGET (+12%)</div>
+                  <div className="text-[10px] text-emerald-600">ATR TARGET</div>
                   <div className="font-bold text-emerald-700">PKR {s.target.toFixed(2)}</div>
                 </div>
               </div>
               <div className="text-[11px] font-mono text-slate-600">
-                Current Close: PKR {s.close.toFixed(2)} • Volume Surge: {s.volZScore.toFixed(1)}x
+                {s.reason ?? `Current Close: PKR ${s.close.toFixed(2)} | Volume Surge: ${s.volZScore.toFixed(1)}x`}
               </div>
             </div>
           ))}
@@ -182,9 +241,6 @@ export default function DashboardPage() {
                       <div className="font-bold text-emerald-700">PKR {target.toFixed(2)}</div>
                     </div>
                   </div>
-                  <div className="text-[11px] font-mono text-slate-500">
-                    Current Close: PKR {l.close.toFixed(2)} • Volume Surge: {l.volZScore.toFixed(1)}x
-                  </div>
                 </div>
               );
             })
@@ -197,15 +253,15 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* RIGHT: DO NOT BUY / LEVERAGE TRAPS */}
+        {/* RIGHT: DO NOT BUY / REJECTION & LEVERAGE TRAPS */}
         <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm space-y-3">
           <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
             <div>
               <h2 className="text-xs font-mono font-bold uppercase tracking-wider text-rose-800">
-                AVOID / DANGEROUS LEVERAGE TRAPS
+                AVOID / INSTITUTIONAL REJECTION TRAPS
               </h2>
               <p className="text-[11px] text-slate-500">
-                Over-leveraged retail longs paying excessive interest while stock lags market
+                False breakouts above 15-day highs &amp; overcrowded retail longs
               </p>
             </div>
             <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-rose-100 text-rose-800">
@@ -220,35 +276,40 @@ export default function DashboardPage() {
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-bold text-slate-900">{t.ticker}</span>
                     <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-rose-600 text-white">
-                      STAY AWAY / EXIT
+                      STAY AWAY / SHORT TRAP
                     </span>
                   </div>
                   <span className="font-mono text-xs font-bold text-rose-700">
-                    {t.annualizedCarryPct.toFixed(1)}% INTEREST
+                    {t.target ? `TP PKR ${t.target.toFixed(2)}` : `${t.annualizedCarryPct.toFixed(1)}% INTEREST`}
                   </span>
                 </div>
                 <div className="grid grid-cols-3 gap-2 text-center font-mono text-xs">
                   <div className="p-2 rounded bg-white border border-slate-200">
-                    <div className="text-[10px] text-slate-500">SPOT PRICE</div>
+                    <div className="text-[10px] text-slate-500">SPOT CLOSE</div>
                     <div className="font-bold text-slate-900">PKR {t.spotClose.toFixed(2)}</div>
                   </div>
-                  <div className="p-2 rounded bg-white border border-slate-200">
-                    <div className="text-[10px] text-slate-500">FUTURES PRICE</div>
-                    <div className="font-bold text-slate-900">PKR {t.futClose.toFixed(2)}</div>
-                  </div>
                   <div className="p-2 rounded bg-white border border-rose-200">
-                    <div className="text-[10px] text-rose-600">STRENGTH</div>
-                    <div className="font-bold text-rose-700">{t.mansfieldRs.toFixed(1)}%</div>
+                    <div className="text-[10px] text-rose-600">{t.stopLoss ? "INVALIDATION" : "FUTURES"}</div>
+                    <div className="font-bold text-rose-700">
+                      PKR {(t.stopLoss ?? t.futClose).toFixed(2)}
+                    </div>
+                  </div>
+                  <div className="p-2 rounded bg-white border border-emerald-200">
+                    <div className="text-[10px] text-emerald-600">{t.target ? "DOWNSIDE TP" : "STRENGTH"}</div>
+                    <div className="font-bold text-emerald-700">
+                      {t.target ? `PKR ${t.target.toFixed(2)}` : `${t.mansfieldRs.toFixed(1)}%`}
+                    </div>
                   </div>
                 </div>
                 <div className="text-[11px] font-mono text-rose-800">
-                  Retail buyers are paying dangerous interest rates while price underperforms the broader market. High risk of margin unwinding.
+                  {t.reason ??
+                    "Retail buyers trapped above resistance while institutional flow distributes."}
                 </div>
               </div>
             ))
           ) : (
             <div className="p-6 text-center rounded-lg border border-dashed border-slate-200 text-xs font-mono text-slate-500">
-              No dangerous leverage traps detected in this session.
+              No dangerous traps detected in this session.
             </div>
           )}
         </div>
