@@ -207,7 +207,7 @@ export default function DashboardPage() {
                 DO NOT BUY (AVOID) • DFX OVERHEATED TRAPS
               </h2>
               <p className="text-[11px] text-slate-500">
-                Retail paying &gt;18% annualized carry while stock underperforms KSE-100 (RS &lt; 0)
+                Retail paying &gt;28% annualized carry while stock underperforms KSE-100 (RS &lt; 0)
               </p>
             </div>
             <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-rose-100 text-rose-800">
