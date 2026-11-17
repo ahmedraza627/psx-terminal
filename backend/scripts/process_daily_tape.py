@@ -128,7 +128,7 @@ def liquid(cur, window: list[str], session: str) -> list:  # 15-session median t
         ORDER BY close_price*COALESCE(volume,0) DESC""", (session, MIN_CLOSE_PKR, MIN_TURNOVER_PKR)).fetchall()
     return [row for row in rows if median(series.get(row["ticker"], [0])) >= MIN_MEDIAN_TURNOVER_PKR]
 def analyse(cur, session: str, session_date, rows) -> tuple[list, list, list]:  # four modules
-    kse_proxy = one(cur, "SELECT AVG(close_price) FROM psx_daily_eod WHERE trade_date=? AND close_price>0 AND ticker "
+    kse_proxy = one(cur, "SELECT AVG(close_price) FROM psx_daily_eod WHERE trade_date=? AND close_price>0 AND volume>0 AND ticker "
                          "NOT LIKE '%-%'", (session,))
     sweeps, leaders, traps = [], [], []
     for row in rows:
@@ -142,7 +142,7 @@ def analyse(cur, session: str, session_date, rows) -> tuple[list, list, list]:  
         if mansfield > 0 and (vpvr["volZScore"] or 0) >= 1.0:
             leaders.append({"ticker": ticker, "close": close, "mansfieldRs": mansfield,
                             "volZScore": vpvr["volZScore"], "poc": vpvr["poc"]})
-        fut = one(cur, "SELECT close_price FROM psx_futures_eod WHERE trade_date=? AND ticker LIKE ? AND close_price>0 "
+        fut = one(cur, "SELECT close_price FROM psx_futures_eod WHERE trade_date=? AND ticker LIKE ? AND close_price>0 AND volume>0 "
                        "ORDER BY COALESCE(volume,0) DESC LIMIT 1", (session, f"{ticker}-%"))
         carry = calc_dfx_carry(close, fut, session_date)
         if (carry["annualizedCarryPct"] or 0.0) > 28.0 and mansfield < -3.0:  # never short a strong RS leader

@@ -10,53 +10,38 @@
     {
       "ticker": "ZUMA",
       "close": 38.82,
-      "mansfieldRs": 23.88,
+      "mansfieldRs": 23.98,
       "volZScore": 2.43,
       "poc": 30.31
     },
     {
       "ticker": "PIAHCLA",
       "close": 27.09,
-      "mansfieldRs": 11.5,
+      "mansfieldRs": 11.6,
       "volZScore": 3.15,
       "poc": 26.01
     },
     {
       "ticker": "TREET",
       "close": 26.55,
-      "mansfieldRs": 5.67,
+      "mansfieldRs": 5.76,
       "volZScore": 1.41,
       "poc": 26.61
     },
     {
       "ticker": "NRSL",
       "close": 36.22,
-      "mansfieldRs": 3.11,
+      "mansfieldRs": 3.2,
       "volZScore": 2.67,
       "poc": 36.79
     },
     {
       "ticker": "TGL",
       "close": 181.96,
-      "mansfieldRs": 2.79,
+      "mansfieldRs": 2.88,
       "volZScore": 2.58,
       "poc": 182.61
     }
   ],
-  "carryTraps": [
-    {
-      "ticker": "MACFL",
-      "spotClose": 53.35,
-      "futClose": 54.24,
-      "mansfieldRs": -7.49,
-      "annualizedCarryPct": 60.89
-    },
-    {
-      "ticker": "POL",
-      "spotClose": 665.48,
-      "futClose": 676.57,
-      "mansfieldRs": -4.04,
-      "annualizedCarryPct": 60.83
-    }
-  ]
+  "carryTraps": []
 }
