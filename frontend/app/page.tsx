@@ -57,7 +57,9 @@ export default function DashboardPage() {
   }
 
   const sweeps = data.liquiditySweeps ?? [];
-  const leaders = (data.rsLeaders ?? []).filter((x) => x.mansfieldRs >= 6.0);
+  const leaders = (data.rsLeaders ?? []).filter(
+    (x) => x.mansfieldRs >= 6.0 && ((x.close - x.poc) / x.poc) <= 0.08
+  );
   const traps = data.carryTraps ?? [];
   const kse = data.kse100;
   const sbp = data.sbpRate ?? 11.0;
@@ -153,8 +155,8 @@ export default function DashboardPage() {
 
           {leaders.length > 0 ? (
             leaders.map((l) => {
-              const stop = +(l.close * 0.93).toFixed(2);
-              const target = +(l.close * 1.12).toFixed(2);
+              const stop = +(l.poc * 0.93).toFixed(2);
+              const target = +(l.poc * 1.12).toFixed(2);
               return (
                 <div key={l.ticker} className="p-3.5 rounded-lg border border-slate-200 bg-slate-50/70 space-y-2">
                   <div className="flex items-center justify-between">

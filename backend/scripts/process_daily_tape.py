@@ -145,7 +145,7 @@ def analyse(cur, session: str, session_date, rows) -> tuple[list, list, list]:  
         fut = one(cur, "SELECT close_price FROM psx_futures_eod WHERE trade_date=? AND ticker LIKE ? AND close_price>0 "
                        "ORDER BY COALESCE(volume,0) DESC LIMIT 1", (session, f"{ticker}-%"))
         carry = calc_dfx_carry(close, fut, session_date)
-        if carry["leverageOverheated"] and mansfield < 0:  # never short a strong RS leader
+        if (carry["annualizedCarryPct"] or 0.0) > 28.0 and mansfield < -3.0:  # never short a strong RS leader
             traps.append({"ticker": ticker, "spotClose": close, "futClose": fut, "mansfieldRs": mansfield,
                           "annualizedCarryPct": carry["annualizedCarryPct"]})
     sweeps.sort(key=lambda s: -s["mansfieldRs"])

@@ -1,8 +1,8 @@
 {
   "sessionDate": "2026-11-17",
   "kse100": {
-    "close": 177517.73,
-    "changePct": -0.37
+    "close": null,
+    "changePct": null
   },
   "sbpRate": 11.0,
   "liquiditySweeps": [],
@@ -57,27 +57,6 @@
       "futClose": 676.57,
       "mansfieldRs": -4.04,
       "annualizedCarryPct": 60.83
-    },
-    {
-      "ticker": "EFERT",
-      "spotClose": 209.52,
-      "futClose": 213.01,
-      "mansfieldRs": -0.03,
-      "annualizedCarryPct": 60.8
-    },
-    {
-      "ticker": "GLAXO",
-      "spotClose": 333.18,
-      "futClose": 338.73,
-      "mansfieldRs": -1.57,
-      "annualizedCarryPct": 60.8
-    },
-    {
-      "ticker": "FCEPL",
-      "spotClose": 141.13,
-      "futClose": 143.48,
-      "mansfieldRs": -1.09,
-      "annualizedCarryPct": 60.78
     }
   ]
 }
