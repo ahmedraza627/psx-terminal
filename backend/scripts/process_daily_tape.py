@@ -1,222 +1,179 @@
-# ---------------------------------------------------------------------------
-# Module 3: Mansfield Relative Strength vs KSE-100
-# ---------------------------------------------------------------------------
+#!/usr/bin/env python3
+# process_daily_tape.py - PSX .Z tape -> frontend/public/data/latest.json
+from __future__ import annotations
 
-class MansfieldRS:
-    def __init__(self, conn: sqlite3.Connection):
-        self.conn = conn
-        self._cache = {}
-
-    def get_stock_close(self, ticker: str) -> Optional[float]:
-        r = self.conn.execute("SELECT close_price FROM psx_daily_eod WHERE ticker = ? ORDER BY trade_date DESC LIMIT 1", (ticker,)).fetchone()
-        return r["close_price"] if r else None
-
-    def get_kse100_close(self) -> Optional[float]:
-        r = self.conn.execute("SELECT close_price FROM psx_daily_eod WHERE ticker = 'KSE-100' ORDER BY trade_date DESC LIMIT 1").fetchone()
-        return r["close_price"] if r else None
-
-    def _get_rs20(self, ticker: str) -> Optional[float]:
-        if ticker in self._cache:
-            return self._cache[ticker]
-        stock = self.get_stock_close(ticker)
-        kse100 = self.get_kse100_close()
-        if not stock or not kse100 or kse100 == 0:
-            self._cache[ticker] = None
-            return None
-        rs = stock / kse100
-        rows = self.conn.execute("SELECT close_price FROM psx_daily_eod WHERE ticker = ? ORDER BY trade_date DESC LIMIT 20", (ticker,)).fetchall()
-        rs_vals = []
-        for r in rows:
-            k = self.conn.execute("SELECT close_price FROM psx_daily_eod WHERE ticker = 'KSE-100' ORDER BY trade_date DESC LIMIT 1 OFFSET ?", (0,)).fetchone()
-            if k:
-                rs_vals.append(r["close_price"] / k["close_price"])
-        if not rs_vals:
-            self._cache[ticker] = None
-            return None
-        avg = sum(rs_vals) / len(rs_vals)
-        self._cache[ticker] = avg
-        return avg
-
-    def compute_mansfield_rs(self, ticker: str) -> dict:
-        stock_close = self.get_stock_close(ticker)
-        kse100_close = self.get_kse100_close()
-        if not stock_close or not kse100_close or kse100_close == 0:
-            return {"ticker": ticker, "rs": None, "mansfieldRs": None, "hardDrop": False, "flagRisingPositive": False}
-        rs = stock_close / kse100_close
-        rs20 = self._get_rs20(ticker)
-        if not rs20 or rs20 == 0:
-            return {"ticker": ticker, "rs": round(rs, 4), "mansfieldRs": None, "hardDrop": False, "flagRisingPositive": False}
-        mans = ((rs / rs20) - 1) * 100
-        hard_drop = mans < 0
-        LOGGER.info("Mansfield RS %s: rs=%.4f rs20=%.4f mans=%.2f drop=%s", ticker, rs, rs20, mans, hard_drop)
-        return {"ticker": ticker, "rs": round(rs, 4), "mansfieldRs": round(mans, 2), "hardDrop": hard_drop, "flagRisingPositive": True}
-
-    def evaluate(self) -> list[dict]:
-        tickers = [r["ticker"] for r in self.conn.execute("SELECT DISTINCT ticker FROM psx_daily_eod ORDER BY ticker").fetchall()]
-        return [self.compute_mansfield_rs(t) for t in tickers]
-
-
-# ---------------------------------------------------------------------------
-# Module 4: Director Footprint (Clause 5.6.4)
-# ---------------------------------------------------------------------------
-
-class DirectorFootprint:
-    def __init__(self, conn: sqlite3.Connection):
-        self.conn = conn
-        self.acq_kw = ["acquisition", "acquirer", "bid", "takeover", "merger", "joint venture", "investment"]
-        self.disposal_kw = ["disposal", "sale", "divestiture", "exit", "partition", "transfer", "donation", "sell"]
-
-    def _classify(self, headline: str) -> str:
-        hl = headline.lower()
-        for kw in self.acq_kw:
-            if kw in hl:
-                return "ACQ"
-        for kw in self.disposal_kw:
-            if kw in hl:
-                return "DIS"
-        return "NONE"
-
-    def get_disclosures(self, ticker: str) -> list[dict]:
-        try:
-            rows = self.conn.execute(
-                "SELECT trade_date, headline, disclosure_url FROM psx_disclosures WHERE ticker = ? AND headline IS NOT NULL ORDER BY trade_date DESC LIMIT 10", (ticker,)
-            ).fetchall()
-            return [dict(r) for r in rows]
-        except sqlite3.OperationalError:
-            return []
-
-    def get_current_close(self, ticker: str) -> Optional[float]:
-        r = self.conn.execute("SELECT close_price FROM psx_daily_eod WHERE ticker = ? ORDER BY trade_date DESC LIMIT 1", (ticker,)).fetchone()
-        return r["close_price"] if r else None
-
-    def get_poc(self) -> Optional[float]:
-        ls = LiquiditySweep(self.conn)
-        poc, _ = ls.compute_poc()
-        return poc
-
-    def evaluate(self, ticker: str) -> dict:
-        disclosures = self.get_disclosures(ticker)
-        if not disclosures:
-            return {"ticker": ticker, "totalDisclosures": 0, "acquisitionDeclarations": 0, "disposalDisclosures": 0, "recentConvictionBoost": False, "priceWithin3pctPoc": False, "priceWithin3pctDisclosure": False}
-        acq = sum(1 for d in disclosures if self._classify(d["headline"]) == "ACQ")
-        dis = sum(1 for d in disclosures if self._classify(d["headline"]) == "DIS")
-        current_close = self.get_current_close(ticker)
-        poc = self.get_poc()
-        boost = False
-        if current_close and poc:
-            if abs(current_close - poc) / poc * 100 <= DIRECTOR_CONVICTION_TIGHT:
-                boost = True
-        return {
-            "ticker": ticker,
-            "totalDisclosures": len(disclosures),
-            "acquisitionDeclarations": acq,
-            "disposalDisclosures": dis,
-            "recentConvictionBoost": boost,
-            "priceWithin3pctPoc": boost,
-            "priceWithin3pctDisclosure": False,
-        }
-
-
-# ---------------------------------------------------------------------------
-# Main aggregation & JSON export
-# ---------------------------------------------------------------------------
-
-def aggregate_results() -> dict:
-    conn = get_db_connection()
-    try:
-        ensure_psx_tables(conn)
-        count = conn.execute("SELECT COUNT(*) FROM psx_daily_eod").fetchone()[0]
-        if conn.execute("SELECT COUNT(DISTINCT trade_date) FROM psx_daily_eod").fetchone()[0] < 20:
-            LOGGER.info("Only %d raw sessions in DB; backfilling from .Z", count)
-            backfill_last_n_sessions(conn, 25)
-
-        ls = LiquiditySweep(conn)
-        coc = CostOfCarry(conn)
-        mr = MansfieldRS(conn)
-        df = DirectorFootprint(conn)
-
-        ls_eval = ls.evaluate()
-        coc_results = coc.evaluate_all()
-        mans_results = mr.evaluate()
-        tickers = [r["ticker"] for r in conn.execute("SELECT DISTINCT ticker FROM psx_daily_eod ORDER BY ticker").fetchall()]
-        director_results = [df.evaluate(t) for t in tickers]
-
-        payload = {
-            "sessionDate": datetime.now().strftime("%Y-%m-%d"),
-            "sessionTime": datetime.now().strftime("%H:%M:%S"),
-            "poc": ls_eval.get("poc"),
-            "volZScore": ls_eval.get("volZScore"),
-            "liquiditySweep": ls_eval.get("liquidity_sweep"),
-            "annualizedCarryPct": {r["ticker"]: r["annualizedCarryPct"] for r in coc_results},
-            "carryFlags": {
-                r["ticker"]: {"leverageOverheated": r["leverageOverheated"], "daysToExpiry": r["days_to_expiry"]}
-                for r in coc_results
-            },
-            "mansfieldRs": {r["ticker"]: {
-                "rs": r["rs"], "mansfieldRs": r["mansfieldRs"], "mansfieldRs20dAvg": r["mansfield_rs_20d_avg"],
-                "hardDrop": r["hardDrop"], "flagRisingPositive": r["flagRisingPositive"],
-            } for r in mans_results},
-            "directorFootprint": {
-                t["ticker"]: {
-                    "totalDisclosures": t["totalDisclosures"],
-                    "acquisitionDeclarations": t["acquisitionDeclarations"],
-                    "disposalDisclosures": t["disposalDisclosures"],
-                    "priceWithin3pctPoc": t["priceWithin3pctPoc"],
-                    "priceWithin3pctDisclosure": t["priceWithin3pctDisclosure"],
-                    "recentConvictionBoost": t["recentConvictionBoost"],
-                } for t in director_results
-            },
-        }
-        LOGGER.info("Aggregated %d tickers into latest.json", len(tickers))
-        return payload
-    finally:
-        if not isinstance(conn, sqlite3.Connection):
-            try:
-                conn.close()
-            except Exception:
-                pass
-
-
-def write_json(payload: dict, path: Path) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    existing = None
-    if path.exists():
-        try:
-            with open(path) as f:
-                existing = json.load(f)
-        except Exception:
-            existing = None
-    if existing != payload:
-        with open(path, "w") as f:
-            json.dump(payload, f, indent=2)
-        LOGGER.info("Wrote %s (%d bytes)", path, path.stat().st_size)
+import gzip, json, logging, os, re, sqlite3, sys, urllib.request, zipfile, zlib
+from datetime import datetime, timedelta
+from pathlib import Path
+from statistics import median
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from quant_modules import (calc_dfx_carry, calc_director_footprint,  # noqa: E402
+                          calc_mansfield_rs, calc_vpvr_sweep)
+BASE_DIR = Path(__file__).resolve().parent.parent.parent  # project root
+DB_PATH = BASE_DIR / "data" / "portfolio.db"
+OUTPUT_PATH = Path(os.getenv("SYNC_OUTPUT_PATH",
+                             str(BASE_DIR / "frontend" / "public" / "data" / "latest.json")))
+LOCAL_Z_DIR = Path(os.getenv("PSX_Z_DIR", r"D:\downloads"))
+TAPE_URL = "https://dps.psx.com.pk/download/mkt_summary/{}.Z"
+INDICES_URL = "https://dps.psx.com.pk/indices"
+FILINGS_URL = "https://dps.psx.com.pk/company/{}"
+UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0 Safari/537.36"
+SBP_RATE_PCT = 11.0  # policy rate the frontend compares carry against
+MIN_CLOSE_PKR, MIN_TURNOVER_PKR, MIN_MEDIAN_TURNOVER_PKR = 12.0, 20_000_000, 15_000_000
+EOD_SCHEMA = ("CREATE TABLE IF NOT EXISTS {} (trade_date TEXT NOT NULL, ticker TEXT NOT NULL, open_price REAL, high_price REAL, "
+              "low_price REAL, close_price REAL, volume INTEGER, PRIMARY KEY (trade_date, ticker))")
+INSERT = ("INSERT OR REPLACE INTO {} (trade_date, ticker, open_price, high_price, low_price, close_price, volume) VALUES "
+          "(:trade_date, :ticker, :open_price, :high_price, :low_price, :close_price, :volume)")
+LOG = logging.getLogger("process_daily_tape")
+def fetch(url: str) -> str:
+    request = urllib.request.Request(url, headers={"User-Agent": UA})
+    return urllib.request.urlopen(request, timeout=60).read().decode("utf-8", "replace")
+def one(cur: sqlite3.Cursor, sql: str, params=()):
+    row = cur.execute(sql, params).fetchone(); return row[0] if row else None
+def ensure_tables(conn: sqlite3.Connection) -> None:
+    cur = conn.cursor()
+    for name in ("psx_daily_eod", "psx_futures_eod"):
+        cols = [row[1] for row in cur.execute(f"PRAGMA table_info({name})")]
+        if cols and "open_price" not in cols:
+            cur.execute(f"DROP TABLE {name}")
+        cur.execute(EOD_SCHEMA.format(name))
+    cur.execute("CREATE TABLE IF NOT EXISTS psx_disclosures (trade_date TEXT NOT NULL, ticker TEXT NOT NULL, "
+                "headline TEXT, disclosure_type TEXT, PRIMARY KEY (trade_date, ticker, headline))")
+    conn.commit()
+def parse_tape(path: Path) -> list[dict]:
+    """ZIP/gzip/LZW/plain tape: date|ticker|time|name|open|high|low|close|volume|prev."""
+    raw = path.read_bytes()
+    if zipfile.is_zipfile(path):
+        with zipfile.ZipFile(path) as archive:
+            text = "".join(archive.read(n).decode("utf-8", "replace") for n in archive.namelist())
+    elif raw[:2] == b"\x1f\x8b":
+        text = gzip.decompress(raw).decode("utf-8", "replace")
+    elif raw[:1] == b"\x1f":
+        text = zlib.decompress(raw, -15).decode("utf-8", "replace")
     else:
-        LOGGER.info("No change - skipped write")
-
-
-def main(argv: Optional[list[str]] = None) -> int:
-    _setup_logging()
-    LOGGER.info("Starting daily tape processor (quantitative pipeline)")
-    try:
-        payload = aggregate_results()
-        write_json(payload, OUTPUT_PATH)
-        LOGGER.info("Daily tape processor completed successfully")
-        return 0
-    except Exception as e:
-        LOGGER.exception("Daily tape processor failed: %s", e)
+        text = raw.decode("utf-8", "replace")
+    rows = []
+    for line in text.splitlines():
+        parts = line.split("|")
         try:
-            err = {
-                "sessionDate": datetime.now().strftime("%Y-%m-%d"),
-                "sessionTime": datetime.now().strftime("%H:%M:%S"),
-                "error": str(e), "poc": None, "volZScore": None,
-                "liquiditySweep": False, "annualizedCarryPct": {},
-                "carryFlags": {}, "mansfieldRs": {}, "directorFootprint": {},
-            }
-            write_json(err, OUTPUT_PATH)
-        except Exception:
-            pass
-        return 1
-
+            rows.append({"trade_date": parts[0].strip(), "ticker": parts[1].strip().upper(),
+                         "open_price": round(float(parts[4]), 2), "high_price": float(parts[5]),
+                         "low_price": float(parts[6]), "close_price": round(float(parts[7]), 2),
+                         "volume": int(float(parts[8] or 0))})
+        except (ValueError, IndexError):
+            continue
+    return rows
+def backfill(conn: sqlite3.Connection, n: int = 25) -> dict[str, int]:  # last n weekdays
+    cur, counts = conn.cursor(), {"files": 0, "rows": 0}
+    weekdays = [d.isoformat() for d in
+                (datetime.now().date() - timedelta(days=i) for i in range(120)) if d.weekday() < 5][:n]
+    for stamp in sorted(weekdays):
+        path = LOCAL_Z_DIR / f"{stamp}.Z"
+        if not path.is_file():
+            try:
+                path.parent.mkdir(parents=True, exist_ok=True); path.write_bytes(urllib.request.urlopen(
+                    urllib.request.Request(TAPE_URL.format(stamp), headers={"User-Agent": UA}), timeout=60).read())
+            except Exception as exc:  # offline, 404, holiday...
+                LOG.warning("no tape for %s (%s)", stamp, exc)
+                continue
+        rows = parse_tape(path)
+        counts["files"] += 1
+        for row in rows:
+            table = "psx_futures_eod" if "-" in row["ticker"] else "psx_daily_eod"
+            cur.execute(INSERT.format(table), row)
+        counts["rows"] += len(rows)
+    conn.commit()
+    return counts
+def index_snapshot() -> dict:  # KSE-100 close/change from the DPS indices board
+    try:
+        if hit := re.search(r"KSE100 ([\d,]+\.\d+) (-?[\d.]+) \((-?[\d.]+)%\)",
+                            re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", fetch(INDICES_URL)))):
+            return {"close": float(hit.group(1).replace(",", "")), "changePct": float(hit.group(3))}
+    except Exception as exc:
+        LOG.warning("indices unavailable (%s)", exc)
+    return {"close": None, "changePct": None}
+def scrape_disclosures(conn: sqlite3.Connection, tickers: list[str]) -> int:  # Clause 5.6.4
+    cur, added = conn.cursor(), 0
+    for ticker in tickers:
+        try:
+            html = fetch(FILINGS_URL.format(ticker))
+        except Exception as exc:
+            LOG.warning("filings unavailable for %s (%s)", ticker, exc); continue
+        start = html.find('class="tabs__panel" data-name="Others"')
+        block = html[start:html.find("</table>", start)] if start != -1 else ""
+        for date, title in re.findall(r"<tr><td>([^<]+)</td><td>(.*?)</td>", block, re.S):
+            headline = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", "", title)).strip()
+            if not headline or not any(h in headline.lower() for h in ("5.6.4", "director", "acquisition",
+                                       "purchase", "sale of shares", "disclosure of interest", "insider")):
+                continue
+            try:
+                day = datetime.strptime(date.strip(), "%b %d, %Y").strftime("%d%b%Y")
+            except ValueError:
+                continue
+            cur.execute("INSERT OR REPLACE INTO psx_disclosures VALUES (?,?,?,?)",
+                        (day, ticker, headline[:300], "Clause 5.6.4"))
+            added += 1
+    conn.commit()
+    LOG.info("clause 5.6.4 filings stored: %d", added)
+    return added
+def liquid(cur, window: list[str], session: str) -> list:  # 15-session median turnover floor
+    marks = ",".join("?" * len(window))
+    series: dict[str, list[float]] = {}
+    sql = (f"SELECT ticker, close_price*COALESCE(volume,0) FROM psx_daily_eod WHERE trade_date IN ({marks}) "
+           f"AND ticker NOT LIKE '%-%' AND ticker NOT GLOB '*[0-9]*'")
+    for ticker, turnover in cur.execute(sql, tuple(window)):
+        series.setdefault(ticker, []).append(turnover or 0.0)
+    rows = cur.execute("""SELECT ticker, close_price, low_price FROM psx_daily_eod WHERE trade_date=? AND close_price>=?
+        AND ticker NOT LIKE '%-%' AND ticker NOT GLOB '*[0-9]*' AND close_price*COALESCE(volume,0)>=?
+        ORDER BY close_price*COALESCE(volume,0) DESC""", (session, MIN_CLOSE_PKR, MIN_TURNOVER_PKR)).fetchall()
+    return [row for row in rows if median(series.get(row["ticker"], [0])) >= MIN_MEDIAN_TURNOVER_PKR]
+def analyse(cur, session: str, session_date, rows) -> tuple[list, list, list]:  # four modules
+    kse_proxy = one(cur, "SELECT AVG(close_price) FROM psx_daily_eod WHERE trade_date=? AND close_price>0 AND ticker "
+                         "NOT LIKE '%-%'", (session,))
+    sweeps, leaders, traps = [], [], []
+    for row in rows:
+        ticker, close = row["ticker"], row["close_price"]
+        vpvr = calc_vpvr_sweep(cur, ticker)
+        mansfield = calc_mansfield_rs(cur, ticker, close, kse_proxy)["mansfieldRs"] or 0.0
+        if vpvr["liquiditySweep"] and mansfield > 0:
+            sweeps.append({"ticker": ticker, "close": close, "poc": vpvr["poc"], "mansfieldRs": mansfield,
+                           "volZScore": vpvr["volZScore"], "target": round(close * 1.12, 2),
+                           "stopLoss": round(min(row["low_price"] * 0.99, close * 0.93), 2), "directorFootprint": False})
+        if mansfield > 0 and (vpvr["volZScore"] or 0) >= 1.0:
+            leaders.append({"ticker": ticker, "close": close, "mansfieldRs": mansfield,
+                            "volZScore": vpvr["volZScore"], "poc": vpvr["poc"]})
+        fut = one(cur, "SELECT close_price FROM psx_futures_eod WHERE trade_date=? AND ticker LIKE ? AND close_price>0 "
+                       "ORDER BY COALESCE(volume,0) DESC LIMIT 1", (session, f"{ticker}-%"))
+        carry = calc_dfx_carry(close, fut, session_date)
+        if carry["leverageOverheated"] and mansfield < 0:  # never short a strong RS leader
+            traps.append({"ticker": ticker, "spotClose": close, "futClose": fut, "mansfieldRs": mansfield,
+                          "annualizedCarryPct": carry["annualizedCarryPct"]})
+    sweeps.sort(key=lambda s: -s["mansfieldRs"])
+    leaders.sort(key=lambda s: -s["mansfieldRs"])
+    traps.sort(key=lambda s: -s["annualizedCarryPct"])
+    return sweeps[:5], leaders[:5], traps[:5]
+def main() -> dict:
+    logging.basicConfig(level=logging.INFO, format="%(levelname)-8s %(message)s")
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(DB_PATH); conn.row_factory = sqlite3.Row
+    ensure_tables(conn)
+    stats = backfill(conn, 25)
+    LOG.info("tape files loaded: %d, rows: %d", stats["files"], stats["rows"])
+    cur = conn.cursor()
+    dates = [r[0] for r in cur.execute("SELECT DISTINCT trade_date FROM psx_daily_eod")]
+    if not dates: raise SystemExit("no PSX tape rows - put YYYY-MM-DD.Z in " + str(LOCAL_Z_DIR))
+    dates.sort(key=lambda s: datetime.strptime(s, "%d%b%Y"))
+    session = dates[-1]; session_date = datetime.strptime(session, "%d%b%Y").date()
+    sweeps, leaders, traps = analyse(cur, session, session_date, liquid(cur, dates[-15:], session))
+    scrape_disclosures(conn, sorted({row["ticker"] for row in sweeps + leaders + traps}))
+    for item in sweeps:
+        item["directorFootprint"] = calc_director_footprint(cur, item["ticker"], item["close"], item["poc"])["directorFootprint"]
+    payload = {"sessionDate": session_date.isoformat(), "kse100": index_snapshot(), "sbpRate": SBP_RATE_PCT,
+               "liquiditySweeps": sweeps, "rsLeaders": leaders, "carryTraps": traps}
+    OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
+    OUTPUT_PATH.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    LOG.info("wrote %s", OUTPUT_PATH)
+    return payload
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()
