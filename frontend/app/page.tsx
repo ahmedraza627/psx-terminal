@@ -1,11 +1,8 @@
-import fs from "node:fs";
-import path from "node:path";
+"use client";
 
-/** PSX Institutional Signal Desk — reads public/data/latest.json at request time. */
+import React, { useEffect, useState } from "react";
 
-export const dynamic = "force-dynamic";
-
-type Sweep = {
+interface SweepItem {
   ticker: string;
   close: number;
   poc: number;
@@ -13,256 +10,248 @@ type Sweep = {
   mansfieldRs: number;
   stopLoss: number;
   target: number;
-  directorFootprint: boolean;
-};
+  directorFootprint?: boolean;
+}
 
-type Leader = {
+interface RsLeader {
   ticker: string;
   close: number;
   mansfieldRs: number;
   volZScore: number;
   poc: number;
-};
+}
 
-type Trap = {
+interface CarryTrap {
   ticker: string;
   spotClose: number;
   futClose: number;
-  annualizedCarryPct: number;
   mansfieldRs: number;
-};
+  annualizedCarryPct: number;
+}
 
-type Latest = {
+interface LatestData {
   sessionDate: string;
-  kse100?: { close: number | null; changePct: number | null };
+  kse100?: { close: number; changePct: number };
   sbpRate?: number;
-  liquiditySweeps?: Sweep[];
-  rsLeaders?: Leader[];
-  carryTraps?: Trap[];
-};
+  liquiditySweeps?: SweepItem[];
+  rsLeaders?: RsLeader[];
+  carryTraps?: CarryTrap[];
+}
 
-function readLatest(): Latest | null {
-  const candidates = [
-    path.join(process.cwd(), "public", "data", "latest.json"),
-    path.join(process.cwd(), "frontend", "public", "data", "latest.json"),
-  ];
-  for (const file of candidates) {
-    try {
-      return JSON.parse(fs.readFileSync(file, "utf-8")) as Latest;
-    } catch {
-      // try the next location
-    }
+export default function DashboardPage() {
+  const [data, setData] = useState<LatestData | null>(null);
+
+  useEffect(() => {
+    fetch("/data/latest.json", { cache: "no-store" })
+      .then((r) => r.json())
+      .then(setData)
+      .catch(() => {});
+  }, []);
+
+  if (!data) {
+    return (
+      <div className="p-8 text-center font-mono text-xs text-slate-500">
+        Loading PSX Institutional session...
+      </div>
+    );
   }
-  return null;
-}
 
-const num = (value: number | null | undefined, digits = 2) =>
-  value === null || value === undefined || Number.isNaN(value) ? "—" : value.toFixed(digits);
-
-const pkr = (value: number | null | undefined) =>
-  value === null || value === undefined ? "—" : value.toLocaleString("en-PK", { maximumFractionDigits: 2 });
-
-function Empty({ message }: { message: string }) {
-  return <div className="px-4 py-6 text-center text-xs text-slate-400">{message}</div>;
-}
-
-export default function SignalDeskPage() {
-  const latest = readLatest();
-  const sweeps = latest?.liquiditySweeps ?? [];
-  const leaders = latest?.rsLeaders ?? [];
-  const traps = latest?.carryTraps ?? [];
-  const sbpRate = latest?.sbpRate ?? 11;
-  const kse = latest?.kse100;
-  const kseUp = (kse?.changePct ?? 0) >= 0;
+  const sweeps = data.liquiditySweeps ?? [];
+  const leaders = (data.rsLeaders ?? []).filter((x) => x.mansfieldRs >= 6.0);
+  const traps = data.carryTraps ?? [];
+  const kse = data.kse100;
+  const sbp = data.sbpRate ?? 11.0;
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
+    <div className="p-4 sm:p-6 max-w-6xl mx-auto space-y-5">
+      {/* HEADER */}
+      <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold tracking-tight text-slate-900">
-            PSX Institutional Signal Desk
-          </h1>
-          <p className="text-xs text-slate-500">
-            Session {latest?.sessionDate ?? "unavailable"} · Liquid universe: close ≥ PKR 12,
-            turnover ≥ PKR 20M
+          <div className="flex items-center gap-2">
+            <h1 className="text-lg font-bold text-slate-900">PSX Daily Action Desk</h1>
+            <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+              SESSION {data.sessionDate}
+            </span>
+          </div>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Filtered by 15-Day VPVR POC, Liquidity Sweeps, Mansfield RS vs KSE-100 &amp; DFX Cost-of-Carry.
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-right shadow-sm">
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-              KSE-100
+        <div className="flex flex-wrap items-center gap-2 font-mono text-xs">
+          {kse && (
+            <div className="px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200">
+              <span className="text-slate-500">KSE-100: </span>
+              <span className="font-bold text-slate-900">{kse.close.toLocaleString()}</span>{" "}
+              <span className={kse.changePct >= 0 ? "text-emerald-600 font-bold" : "text-rose-600 font-bold"}>
+                ({kse.changePct >= 0 ? "+" : ""}
+                {kse.changePct.toFixed(2)}%)
+              </span>
             </div>
-            <div className="font-mono text-sm font-bold text-slate-800">{pkr(kse?.close)}</div>
-          </div>
-          <div
-            className={`rounded-lg border px-3 py-1.5 font-mono text-sm font-bold shadow-sm ${
-              kseUp
-                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                : "border-rose-200 bg-rose-50 text-rose-700"
-            }`}
-          >
-            {(kse?.changePct ?? 0) >= 0 ? "+" : ""}
-            {num(kse?.changePct)}%
+          )}
+          <div className="px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200">
+            <span className="text-slate-500">SBP Rate: </span>
+            <span className="font-bold text-slate-900">{sbp.toFixed(1)}%</span>
           </div>
         </div>
       </div>
 
-      {!latest && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-          No latest.json found. Run <code className="font-mono">python backend/scripts/process_daily_tape.py</code>{" "}
-          to generate the signal file.
+      {/* 2-COLUMN ACTION GRID */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        {/* LEFT: BUY / ACCUMULATE */}
+        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm space-y-3">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+            <div>
+              <h2 className="text-xs font-mono font-bold uppercase tracking-wider text-emerald-800">
+                BUY / ACCUMULATE SETUPS (SPOT)
+              </h2>
+              <p className="text-[11px] text-slate-500">
+                Liquidity sweeps reclaiming 15D POC + high Mansfield RS institutional leaders
+              </p>
+            </div>
+            <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-100 text-emerald-800">
+              {sweeps.length + leaders.length} ACTIVE
+            </span>
+          </div>
+
+          {sweeps.map((s) => (
+            <div key={s.ticker} className="p-3.5 rounded-lg border border-emerald-200 bg-emerald-50/40 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-bold text-slate-900">{s.ticker}</span>
+                  <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-600 text-white">
+                    LIQUIDITY SWEEP BUY
+                  </span>
+                  {s.directorFootprint && (
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-900 text-amber-300">
+                      DIRECTOR 5.6.4
+                    </span>
+                  )}
+                </div>
+                <span className="font-mono text-xs font-bold text-emerald-700">
+                  RS +{s.mansfieldRs.toFixed(1)}%
+                </span>
+              </div>
+              <div className="grid grid-cols-3 gap-2 text-center font-mono text-xs">
+                <div className="p-2 rounded bg-white border border-slate-200">
+                  <div className="text-[10px] text-slate-500">ENTRY / POC</div>
+                  <div className="font-bold text-slate-900">PKR {s.poc.toFixed(2)}</div>
+                </div>
+                <div className="p-2 rounded bg-white border border-rose-200">
+                  <div className="text-[10px] text-rose-600">HARD STOP</div>
+                  <div className="font-bold text-rose-700">PKR {s.stopLoss.toFixed(2)}</div>
+                </div>
+                <div className="p-2 rounded bg-white border border-emerald-200">
+                  <div className="text-[10px] text-emerald-600">TARGET (+12%)</div>
+                  <div className="font-bold text-emerald-700">PKR {s.target.toFixed(2)}</div>
+                </div>
+              </div>
+              <div className="text-[11px] font-mono text-slate-600">
+                Close: PKR {s.close.toFixed(2)} • Vol Z-Score: {s.volZScore.toFixed(2)}σ
+              </div>
+            </div>
+          ))}
+
+          {leaders.length > 0 ? (
+            leaders.map((l) => {
+              const stop = +(l.close * 0.93).toFixed(2);
+              const target = +(l.close * 1.12).toFixed(2);
+              return (
+                <div key={l.ticker} className="p-3.5 rounded-lg border border-slate-200 bg-slate-50/70 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-bold text-slate-900">{l.ticker}</span>
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-indigo-100 text-indigo-800">
+                        RS ACCUMULATION WATCH
+                      </span>
+                    </div>
+                    <span className="font-mono text-xs font-bold text-emerald-700">
+                      RS +{l.mansfieldRs.toFixed(1)}%
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-center font-mono text-xs">
+                    <div className="p-2 rounded bg-white border border-slate-200">
+                      <div className="text-[10px] text-slate-500">LIMIT DIP (15D POC)</div>
+                      <div className="font-bold text-slate-900">PKR {l.poc.toFixed(2)}</div>
+                    </div>
+                    <div className="p-2 rounded bg-white border border-rose-200">
+                      <div className="text-[10px] text-rose-600">MAX STOP (-7%)</div>
+                      <div className="font-bold text-rose-700">PKR {stop.toFixed(2)}</div>
+                    </div>
+                    <div className="p-2 rounded bg-white border border-emerald-200">
+                      <div className="text-[10px] text-emerald-600">SWING TARGET</div>
+                      <div className="font-bold text-emerald-700">PKR {target.toFixed(2)}</div>
+                    </div>
+                  </div>
+                  <div className="text-[11px] font-mono text-slate-500">
+                    Spot Close: PKR {l.close.toFixed(2)} • Vol Z-Score: {l.volZScore.toFixed(2)}σ
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            sweeps.length === 0 && (
+              <div className="p-6 text-center rounded-lg border border-dashed border-slate-200 text-xs font-mono text-slate-500">
+                No qualified sweep or RS setups today — preserve cash.
+              </div>
+            )
+          )}
         </div>
-      )}
 
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-        <section className="rounded-xl border border-blue-200 bg-blue-50/30 p-5 shadow-sm">
-          <header className="border-b border-blue-100 pb-3">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-blue-700">
-              Liquidity Sweep Longs
+        {/* RIGHT: DO NOT BUY / DFX SHORT TRAPS */}
+        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm space-y-3">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+            <div>
+              <h2 className="text-xs font-mono font-bold uppercase tracking-wider text-rose-800">
+                DO NOT BUY (AVOID) • DFX OVERHEATED TRAPS
+              </h2>
+              <p className="text-[11px] text-slate-500">
+                Retail paying &gt;18% annualized carry while stock underperforms KSE-100 (RS &lt; 0)
+              </p>
+            </div>
+            <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-rose-100 text-rose-800">
+              {traps.length} TRAPS
             </span>
-            <h2 className="text-base font-bold text-blue-900">Stop-hunt reclaim above POC</h2>
-            <p className="text-[11px] text-blue-700/70">
-              Low sweeps prior 3-session low, close reclaims POC, Vol Z ≥ 1.5
-            </p>
-          </header>
-          {sweeps.length === 0 ? (
-            <Empty message="No sweep reclaims passed the filter this session." />
-          ) : (
-            <ul className="divide-y divide-blue-100">
-              {sweeps.map((item) => (
-                <li key={item.ticker} className="py-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-sm font-bold text-slate-900">{item.ticker}</span>
-                        <span
-                          className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${
-                            item.directorFootprint
-                              ? "border border-violet-200 bg-violet-50 text-violet-700"
-                              : "border border-slate-200 bg-slate-50 text-slate-400"
-                          }`}
-                        >
-                          {item.directorFootprint ? "DIRECTOR" : "NO FILING"}
-                        </span>
-                      </div>
-                      <p className="mt-0.5 text-[11px] text-slate-500">
-                        POC {num(item.poc)} · Vol Z {num(item.volZScore)} · Mansfield RS{" "}
-                        <span className="font-semibold text-emerald-700">+{num(item.mansfieldRs)}%</span>
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-mono text-sm font-bold text-slate-800">{num(item.close)}</div>
-                      <div className="text-[10px] uppercase tracking-wide text-slate-400">close</div>
-                    </div>
+          </div>
+
+          {traps.length > 0 ? (
+            traps.map((t) => (
+              <div key={t.ticker} className="p-3.5 rounded-lg border border-rose-200 bg-rose-50/40 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold text-slate-900">{t.ticker}</span>
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-rose-600 text-white">
+                      SPOT AVOID • DFX SHORT ONLY
+                    </span>
                   </div>
-                  <div className="mt-2 grid grid-cols-2 gap-2 text-[11px]">
-                    <div className="rounded bg-white px-2 py-1 shadow-sm">
-                      <span className="text-rose-600 font-semibold">7% stop</span>
-                      <span className="ml-1 font-mono text-slate-700">{num(item.stopLoss)}</span>
-                    </div>
-                    <div className="rounded bg-white px-2 py-1 shadow-sm">
-                      <span className="text-emerald-600 font-semibold">target</span>
-                      <span className="ml-1 font-mono text-slate-700">{num(item.target)}</span>
-                    </div>
+                  <span className="font-mono text-xs font-bold text-rose-700">
+                    {t.annualizedCarryPct.toFixed(1)}% CARRY
+                  </span>
+                </div>
+                <div className="grid grid-cols-3 gap-2 text-center font-mono text-xs">
+                  <div className="p-2 rounded bg-white border border-slate-200">
+                    <div className="text-[10px] text-slate-500">SPOT CLOSE</div>
+                    <div className="font-bold text-slate-900">PKR {t.spotClose.toFixed(2)}</div>
                   </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-
-        <section className="rounded-xl border border-emerald-200 bg-emerald-50/30 p-5 shadow-sm">
-          <header className="border-b border-emerald-100 pb-3">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-emerald-700">
-              Institutional RS Leaders
-            </span>
-            <h2 className="text-base font-bold text-emerald-900">Relative strength vs KSE-100</h2>
-            <p className="text-[11px] text-emerald-700/70">
-              Positive Mansfield RS with Vol Z ≥ 1.0 — accumulation footprints
-            </p>
-          </header>
-          {leaders.length === 0 ? (
-            <Empty message="No stock is outperforming the index on expanding volume." />
+                  <div className="p-2 rounded bg-white border border-slate-200">
+                    <div className="text-[10px] text-slate-500">DFX FUTURES</div>
+                    <div className="font-bold text-slate-900">PKR {t.futClose.toFixed(2)}</div>
+                  </div>
+                  <div className="p-2 rounded bg-white border border-rose-200">
+                    <div className="text-[10px] text-rose-600">MANSFIELD RS</div>
+                    <div className="font-bold text-rose-700">{t.mansfieldRs.toFixed(2)}%</div>
+                  </div>
+                </div>
+                <div className="text-[11px] font-mono text-rose-800">
+                  Spread premium +{(t.annualizedCarryPct - sbp).toFixed(1)}% above {sbp.toFixed(1)}% SBP policy rate — trapped leveraged longs.
+                </div>
+              </div>
+            ))
           ) : (
-            <ul className="divide-y divide-emerald-100">
-              {leaders.map((item) => {
-                const width = Math.min(Math.max(item.mansfieldRs, 0), 40);
-                return (
-                  <li key={item.ticker} className="py-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-mono text-sm font-bold text-slate-900">{item.ticker}</span>
-                      <span className="font-mono text-xs text-slate-500">{num(item.close)}</span>
-                    </div>
-                    <div className="mt-1.5 flex items-center gap-2">
-                      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-emerald-100">
-                        <div
-                          className="h-full rounded-full bg-emerald-500"
-                          style={{ width: `${(width / 40) * 100}%` }}
-                        />
-                      </div>
-                      <span className="w-16 text-right font-mono text-xs font-semibold text-emerald-700">
-                        +{num(item.mansfieldRs)}%
-                      </span>
-                    </div>
-                    <p className="mt-1 text-[11px] text-slate-500">
-                      Vol Z {num(item.volZScore)} · POC {num(item.poc)}
-                    </p>
-                  </li>
-                );
-              })}
-            </ul>
+            <div className="p-6 text-center rounded-lg border border-dashed border-slate-200 text-xs font-mono text-slate-500">
+              No overheated DFX carry traps detected in this session.
+            </div>
           )}
-        </section>
-
-        <section className="rounded-xl border border-rose-200 bg-rose-50/30 p-5 shadow-sm">
-          <header className="border-b border-rose-100 pb-3">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-rose-700">
-              DFX Cost-of-Carry Traps
-            </span>
-            <h2 className="text-base font-bold text-rose-900">Spot avoid / futures short only</h2>
-            <p className="text-[11px] text-rose-700/70">
-              Annualised carry above 18% vs the {num(sbpRate, 1)}% SBP policy rate
-            </p>
-          </header>
-          {traps.length === 0 ? (
-            <Empty message="No futures contract is carrying above the overheat threshold." />
-          ) : (
-            <ul className="divide-y divide-rose-100">
-              {traps.map((item) => {
-                const spread = (item.annualizedCarryPct ?? 0) - sbpRate;
-                return (
-                  <li key={item.ticker} className="py-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <span className="font-mono text-sm font-bold text-slate-900">{item.ticker}</span>
-                        <p className="mt-0.5 text-[11px] text-slate-500">
-                          spot {num(item.spotClose)} · fut {num(item.futClose)} · RS{" "}
-                          {num(item.mansfieldRs)}%
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <div className="font-mono text-sm font-bold text-rose-700">
-                          {num(item.annualizedCarryPct)}%
-                        </div>
-                        <div className="text-[10px] uppercase tracking-wide text-slate-400">
-                          annualised
-                        </div>
-                      </div>
-                    </div>
-                    <div className="mt-2 flex items-center justify-between gap-2 rounded bg-white px-2 py-1 text-[11px] shadow-sm">
-                      <span className="font-semibold text-rose-600">
-                        +{num(spread)}% over SBP {num(sbpRate, 1)}%
-                      </span>
-                      <span className="rounded bg-rose-600 px-1.5 py-0.5 text-[10px] font-bold text-white">
-                        SHORT FUT ONLY
-                      </span>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </section>
+        </div>
       </div>
     </div>
   );

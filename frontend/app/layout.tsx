@@ -1,85 +1,47 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "PSX Quant Fund - Institutional Desk",
-  description:
-    "Institutional execution desk: Top 5 BUY / AVOID setups, macro cash defense, broker export and the audit & history log",
+  title: "PSX Institutional Trade Desk",
+  description: "Quantitative Liquidity Sweep, Mansfield RS & Cost-of-Carry Desk",
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className="bg-slate-950 text-slate-100">
-        <div className="min-h-screen flex">
-          {/* Sidebar: global terminal navigation */}
-          <aside className="w-64 shrink-0 border-r border-slate-800 bg-slate-900/60 flex flex-col">
-            <div className="flex items-center gap-2 px-4 h-14 border-b border-slate-800">
-              <span className="text-sm font-extrabold tracking-tight text-slate-100">
+      <body className="bg-slate-50 text-slate-900 antialiased min-h-screen flex flex-col md:flex-row">
+        <aside className="w-full md:w-60 bg-white border-b md:border-b-0 md:border-r border-slate-200 p-4 flex flex-col justify-between shrink-0">
+          <div className="space-y-6">
+            <div className="flex items-center gap-2 px-2 pt-1">
+              <span className="px-2 py-0.5 rounded bg-slate-900 text-emerald-400 font-mono text-xs font-bold">
                 PSX
               </span>
-              <span className="text-xs font-semibold text-slate-500">Quant Fund</span>
+              <span className="font-bold text-sm tracking-tight text-slate-900">
+                Institutional Desk
+              </span>
             </div>
-            <nav className="flex-1 px-3 py-4 space-y-1">
-              <SidebarLink href="/" label="Desk" active />
-              <SidebarLink href="/pulse" label="Pulse" />
-              <SidebarLink href="/flow" label="Flow" />
-              <SidebarLink href="/catalysts" label="Catalyst & Dividend" />
-              <SidebarLink href="/breakouts" label="Breakouts" />
-              <SidebarLink href="/history" label="Audit & History" />
-              <SidebarLink href="/insiders" label="Insider Tracking" />
+            <nav className="flex md:flex-col gap-1.5">
+              <Link
+                href="/"
+                className="px-3 py-2 rounded-lg text-xs font-semibold text-slate-800 hover:bg-slate-100 border border-transparent hover:border-slate-200 transition"
+              >
+                Daily Recommendations
+              </Link>
+              <Link
+                href="/history"
+                className="px-3 py-2 rounded-lg text-xs font-semibold text-slate-800 hover:bg-slate-100 border border-transparent hover:border-slate-200 transition"
+              >
+                Audit &amp; History
+              </Link>
             </nav>
-            <div className="px-3 py-4 border-t border-slate-800 text-[11px] text-slate-500 space-y-1">
-              <div className="truncate">Institutional Desk</div>
-              <div className="truncate">Session 2026-11-06</div>
-            </div>
-          </aside>
-          <main className="flex-1 overflow-auto p-6">{children}</main>
-        </div>
+          </div>
+          <div className="hidden md:block px-2 pt-4 border-t border-slate-100 text-[11px] font-mono text-slate-400">
+            V5 Quant Engine • Encapsulated
+          </div>
+        </aside>
+        <main className="flex-1 min-w-0">{children}</main>
       </body>
     </html>
-  );
-}
-
-function SidebarLink({
-  href,
-  label,
-  active,
-}: {
-  href: string;
-  label: string;
-  active?: boolean;
-}) {
-  return (
-    <a
-      href={href}
-      className={`
-        flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-semibold
-        transition ${active
-        ? "bg-blue-600/15 text-blue-400 border border-blue-600/30"
-        : "text-slate-400 hover:text-slate-100 hover:bg-slate-800/60 border border-transparent"
-      }`}
-    >
-      <svg
-        className="h-4 w-4"
-        fill="none"
-        viewBox="0 0 24 24"
-        stroke="currentColor"
-        strokeWidth={2}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        {active ? (
-          <path d="M5 13l4 4L19 7" />
-        ) : (
-          <path d="M3 12l9-9 9 9M9 21V9h6v12" />
-        )}
-      </svg>
-      {label}
-    </a>
   );
 }
