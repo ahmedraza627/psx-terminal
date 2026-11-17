@@ -173,7 +173,67 @@ def main() -> dict:
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     OUTPUT_PATH.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     LOG.info("wrote %s", OUTPUT_PATH)
+    sync_v5_history(cur, payload, str(OUTPUT_PATH.parent), session)
     return payload
+
+
+def sync_v5_history(cur, payload, out_dir, session):
+    import json, os
+    hist_path = os.path.join(out_dir, "history.json")
+    try:
+        raw = json.load(open(hist_path, "r", encoding="utf-8"))
+        rows = raw if isinstance(raw, list) else raw.get("history", [])
+    except Exception:
+        rows = []
+
+    sess = payload.get("sessionDate", "")
+    existing = {(r.get("date"), r.get("ticker"), r.get("type")) for r in rows}
+
+    for sw in payload.get("liquiditySweeps", []):
+        key = (sess, sw["ticker"], "BUY")
+        if key not in existing:
+            rows.insert(0, {
+                "date": sess, "ticker": sw["ticker"], "type": "BUY",
+                "entryRef": sw["close"], "invalidation": sw["stopLoss"],
+                "target": sw["target"], "latestClose": sw["close"],
+                "pnlPct": 0.0, "status": "IN PLAY",
+                "notes": f"V5 Liquidity Sweep | POC {sw['poc']} | RS +{sw['mansfieldRs']}%"
+            })
+
+    for tr in payload.get("carryTraps", []):
+        key = (sess, tr["ticker"], "AVOID")
+        if key not in existing:
+            rows.insert(0, {
+                "date": sess, "ticker": tr["ticker"], "type": "AVOID",
+                "entryRef": tr["spotClose"],
+                "invalidation": round(tr["spotClose"] * 1.05, 2),
+                "target": round(tr["spotClose"] * 0.90, 2),
+                "latestClose": tr["spotClose"], "pnlPct": 0.0, "status": "IN PLAY",
+                "notes": f"V5 DFX Carry Trap ({tr['annualizedCarryPct']}% carry | RS {tr['mansfieldRs']}%)"
+            })
+
+    for r in rows:
+        cur.execute("SELECT close_price FROM psx_daily_eod WHERE ticker = ? AND trade_date = ?", (r["ticker"], session))
+        res = cur.fetchone()
+        if res and res[0]:
+            lc = float(res[0])
+            r["latestClose"] = lc
+            ent = float(r["entryRef"])
+            if r["type"] == "BUY":
+                r["pnlPct"] = round(((lc - ent) / ent) * 100, 1)
+                if lc >= float(r["target"]):
+                    r["status"] = "TARGET HIT"
+                elif lc <= float(r["invalidation"]):
+                    r["status"] = "STOPPED OUT"
+            else:
+                r["pnlPct"] = round(((ent - lc) / ent) * 100, 1)
+                if lc <= float(r["target"]):
+                    r["status"] = "CAPITAL PRESERVED"
+                elif lc >= float(r["invalidation"]):
+                    r["status"] = "STOPPED OUT"
+
+    with open(hist_path, "w", encoding="utf-8") as hf:
+        json.dump(rows[:200], hf, indent=2)
 
 if __name__ == "__main__":
     main()

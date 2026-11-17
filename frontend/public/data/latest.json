@@ -1,83 +1,83 @@
 {
-  "sessionDate": "2026-11-16",
+  "sessionDate": "2026-11-17",
   "kse100": {
-    "close": 178034.96,
-    "changePct": -0.08
+    "close": 177517.73,
+    "changePct": -0.37
   },
   "sbpRate": 11.0,
   "liquiditySweeps": [],
   "rsLeaders": [
     {
-      "ticker": "DNCC",
-      "close": 27.76,
-      "mansfieldRs": 11.28,
-      "volZScore": 1.9,
-      "poc": 26.18
+      "ticker": "ZUMA",
+      "close": 38.82,
+      "mansfieldRs": 23.88,
+      "volZScore": 2.43,
+      "poc": 30.31
     },
     {
-      "ticker": "SPEL",
-      "close": 48.78,
-      "mansfieldRs": 8.81,
-      "volZScore": 1.0,
-      "poc": 47.98
-    },
-    {
-      "ticker": "MARI",
-      "close": 737.28,
-      "mansfieldRs": 8.23,
-      "volZScore": 2.16,
-      "poc": 710.36
+      "ticker": "PIAHCLA",
+      "close": 27.09,
+      "mansfieldRs": 11.5,
+      "volZScore": 3.15,
+      "poc": 26.01
     },
     {
       "ticker": "TREET",
-      "close": 26.64,
-      "mansfieldRs": 6.47,
-      "volZScore": 2.2,
-      "poc": 26.04
+      "close": 26.55,
+      "mansfieldRs": 5.67,
+      "volZScore": 1.41,
+      "poc": 26.61
     },
     {
-      "ticker": "ICL",
-      "close": 145.65,
-      "mansfieldRs": 5.68,
-      "volZScore": 1.18,
-      "poc": 138.86
+      "ticker": "NRSL",
+      "close": 36.22,
+      "mansfieldRs": 3.11,
+      "volZScore": 2.67,
+      "poc": 36.79
+    },
+    {
+      "ticker": "TGL",
+      "close": 181.96,
+      "mansfieldRs": 2.79,
+      "volZScore": 2.58,
+      "poc": 182.61
     }
   ],
   "carryTraps": [
     {
       "ticker": "MACFL",
-      "spotClose": 53.56,
-      "futClose": 54.48,
-      "mansfieldRs": -10.24,
-      "annualizedCarryPct": 57.0
+      "spotClose": 53.35,
+      "futClose": 54.24,
+      "mansfieldRs": -7.49,
+      "annualizedCarryPct": 60.89
     },
     {
-      "ticker": "PREMA",
-      "spotClose": 32.02,
-      "futClose": 32.57,
-      "mansfieldRs": -0.19,
-      "annualizedCarryPct": 57.0
+      "ticker": "POL",
+      "spotClose": 665.48,
+      "futClose": 676.57,
+      "mansfieldRs": -4.04,
+      "annualizedCarryPct": 60.83
     },
     {
-      "ticker": "NETSOL",
-      "spotClose": 116.72,
-      "futClose": 118.72,
-      "mansfieldRs": -5.77,
-      "annualizedCarryPct": 56.86
+      "ticker": "EFERT",
+      "spotClose": 209.52,
+      "futClose": 213.01,
+      "mansfieldRs": -0.03,
+      "annualizedCarryPct": 60.8
     },
     {
-      "ticker": "HCAR",
-      "spotClose": 204.72,
-      "futClose": 208.22,
-      "mansfieldRs": -2.33,
-      "annualizedCarryPct": 56.73
+      "ticker": "GLAXO",
+      "spotClose": 333.18,
+      "futClose": 338.73,
+      "mansfieldRs": -1.57,
+      "annualizedCarryPct": 60.8
     },
     {
-      "ticker": "OBOY",
-      "spotClose": 14.21,
-      "futClose": 14.45,
-      "mansfieldRs": -6.22,
-      "annualizedCarryPct": 56.04
+      "ticker": "FCEPL",
+      "spotClose": 141.13,
+      "futClose": 143.48,
+      "mansfieldRs": -1.09,
+      "annualizedCarryPct": 60.78
     }
   ]
 }
