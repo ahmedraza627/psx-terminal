@@ -29,13 +29,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 href="/"
                 className="flex-1 md:flex-none px-3 py-2 rounded-lg text-xs font-bold text-slate-800 bg-slate-100 hover:bg-slate-900 hover:text-white border border-slate-200/80 transition shadow-sm text-center md:text-left"
               >
-                📊 Daily Signals
+                 Daily Signals
               </Link>
               <Link
                 href="/history"
                 className="flex-1 md:flex-none px-3 py-2 rounded-lg text-xs font-bold text-slate-800 bg-slate-100 hover:bg-slate-900 hover:text-white border border-slate-200/80 transition shadow-sm text-center md:text-left"
               >
-                📜 Audit Log
+                 Audit Log
               </Link>
             </nav>
           </div>
