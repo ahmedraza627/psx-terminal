@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-18T14:47:15+00:00",
+  "generatedAt": "2026-11-18T15:36:49+00:00",
   "strategy": {
     "name": "Liquidity Sweep Reclaim + Institutional Filters",
     "lookbackDays": 5,
@@ -13,7 +13,11 @@
     "trendReferenceBars": 1,
     "minRvol": 1.5,
     "minVolZ": 1.0,
-    "atrStopMult": 2.0
+    "atrStopMult": 2.0,
+    "requireWeeklyConfluence": false,
+    "weeklyMaWeeks": 10,
+    "requirePocConfluence": false,
+    "pocBandPct": 3.0
   },
   "sessionRange": {
     "from": "2025-11-27",

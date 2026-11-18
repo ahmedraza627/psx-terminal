@@ -90,3 +90,56 @@ def test_flat_volume_tape_fails_the_z_score_gate():
     engine = LiquidityQuantEngine()
     flat_volume = with_sweep(tape(volumes=[100_000]), volume=220_000)
     assert engine.evaluate_ticker(flat_volume) is None
+
+
+def poc_tape(heavy_mid=110.0):
+    """Fifteen flat bars at 100 with one heavy print away from the cluster."""
+    bars = []
+    for i in range(15):
+        mid = heavy_mid if i == 7 else 100.0
+        bars.append(
+            DailyBar(
+                ticker="POC",
+                trade_date=START + timedelta(days=i),
+                open_price=mid,
+                high_price=mid + 0.5,
+                low_price=mid - 0.5,
+                close_price=mid,
+                volume=5_000_000 if i == 7 else 100_000,
+            )
+        )
+    return bars
+
+
+def test_weekly_bias_reads_the_higher_timeframe_regime():
+    engine = LiquidityQuantEngine()
+
+    assert engine.weekly_bias(tape()) == "UP"
+    assert engine.weekly_bias(tape(start_price=120.0, step=-0.25)) == "DOWN"
+    assert engine.weekly_confluence(tape()) is True
+
+
+def test_weekly_confluence_gate_blocks_a_non_up_week():
+    gated = LiquidityQuantEngine(require_weekly_confluence=True)
+    assert gated.evaluate_ticker(with_sweep(tape())) is not None
+
+    falling = with_sweep(tape(start_price=120.0, step=-0.25))
+    assert gated.evaluate_ticker(falling) is None
+
+
+def test_volume_poc_sits_on_the_heaviest_node():
+    poc = LiquidityQuantEngine().volume_poc(poc_tape())
+    assert poc is not None
+    assert abs(poc - 110.0) < 0.5  # one 5M print outweighs fourteen 100k prints
+
+
+def test_poc_confluence_gate_requires_an_entry_on_the_node():
+    bars = with_sweep(tape())
+    poc = LiquidityQuantEngine().volume_poc(bars[:-1])
+    gap_pct = abs((bars[-1].close_price / poc) - 1) * 100
+
+    tight = LiquidityQuantEngine(require_poc_confluence=True, poc_band_pct=gap_pct - 0.25)
+    assert tight.evaluate_ticker(bars) is None
+
+    loose = LiquidityQuantEngine(require_poc_confluence=True, poc_band_pct=gap_pct + 0.25)
+    assert loose.evaluate_ticker(bars) is not None

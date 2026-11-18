@@ -8,69 +8,61 @@
   "liquiditySweeps": [],
   "rsLeaders": [
     {
+      "ticker": "PRET",
+      "close": 688.46,
+      "mansfieldRs": 15.4,
+      "volZScore": 2.2,
+      "rvol": 3.44,
+      "trendStretchPct": 23.26,
+      "poc": 671.77,
+      "stopLoss": 585.19,
+      "target": 771.08
+    },
+    {
       "ticker": "BPL",
       "close": 118.33,
-      "mansfieldRs": 72.3,
-      "volZScore": 1.98,
-      "poc": 118.07
+      "mansfieldRs": 14.6,
+      "volZScore": 1.39,
+      "rvol": 1.87,
+      "trendStretchPct": 105.28,
+      "poc": 118.6,
+      "stopLoss": 103.58,
+      "target": 132.53
     },
     {
-      "ticker": "PIAHCLA",
-      "close": 28.33,
-      "mansfieldRs": 16.39,
-      "volZScore": 4.04,
-      "poc": 27.98
+      "ticker": "LIVEN",
+      "close": 43.31,
+      "mansfieldRs": 2.92,
+      "volZScore": 4.8,
+      "rvol": 4.23,
+      "trendStretchPct": 34.95,
+      "poc": 45.74,
+      "stopLoss": 38.14,
+      "target": 48.51
     },
     {
-      "ticker": "TGL",
-      "close": 179.43,
-      "mansfieldRs": 1.73,
-      "volZScore": 1.12,
-      "poc": 182.79
-    },
-    {
-      "ticker": "FATIMA",
-      "close": 145.73,
-      "mansfieldRs": 0.04,
-      "volZScore": 1.0,
-      "poc": 151.19
+      "ticker": "NICL",
+      "close": 276.62,
+      "mansfieldRs": 2.36,
+      "volZScore": 13.16,
+      "rvol": 16.29,
+      "trendStretchPct": 3.45,
+      "poc": 277.9,
+      "stopLoss": 260.78,
+      "target": 309.81
     }
   ],
-  "carryTraps": [
-    {
-      "ticker": "BAFL",
-      "spotClose": 59.68,
-      "futClose": 61.44,
-      "mansfieldRs": -0.76,
-      "annualizedCarryPct": 107.64
-    },
-    {
-      "ticker": "HCAR",
-      "spotClose": 200.14,
-      "futClose": 203.39,
-      "mansfieldRs": -3.59,
-      "annualizedCarryPct": 59.27
-    },
-    {
-      "ticker": "FCEPL",
-      "spotClose": 139.8,
-      "futClose": 142.07,
-      "mansfieldRs": -1.5,
-      "annualizedCarryPct": 59.27
-    },
-    {
-      "ticker": "CSAP",
-      "spotClose": 87.83,
-      "futClose": 89.25,
-      "mansfieldRs": -0.01,
-      "annualizedCarryPct": 59.01
-    },
-    {
-      "ticker": "MACFL",
-      "spotClose": 53.85,
-      "futClose": 54.72,
-      "mansfieldRs": -3.47,
-      "annualizedCarryPct": 58.97
-    }
-  ]
+  "carryTraps": [],
+  "engine": {
+    "lookbackDays": 5,
+    "trendMaDays": 50,
+    "trendSlopeBars": 10,
+    "minRvol": 1.5,
+    "minVolZ": 1.0,
+    "atrStopMult": 2.0,
+    "maxStopPct": 15.0,
+    "targetPct": 12.0,
+    "weeklyConfluence": false,
+    "pocConfluence": false
+  }
 }

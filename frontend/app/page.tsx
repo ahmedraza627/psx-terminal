@@ -12,6 +12,10 @@ type Sweep = {
   mansfieldRs: number;
   stopLoss: number;
   target: number;
+  rvol?: number;
+  trendStretchPct?: number;
+  atr?: number;
+  reason?: string;
   directorFootprint: boolean;
 };
 
@@ -21,6 +25,10 @@ type Leader = {
   mansfieldRs: number;
   volZScore: number;
   poc: number;
+  rvol?: number;
+  trendStretchPct?: number;
+  stopLoss?: number;
+  target?: number;
 };
 
 type Trap = {
@@ -38,6 +46,13 @@ type Latest = {
   liquiditySweeps?: Sweep[];
   rsLeaders?: Leader[];
   carryTraps?: Trap[];
+  engine?: {
+    trendMaDays?: number;
+    minRvol?: number;
+    minVolZ?: number;
+    atrStopMult?: number;
+    targetPct?: number;
+  };
 };
 
 function readLatest(): Latest | null {
@@ -85,6 +100,14 @@ function Stat({label, value, tone}: {label: string; value: string; tone?: string
 
 export default function DailyDeskPage() {
   const latest = readLatest();
+  // Live gates, published by the desk run. The desk and the 1-year lab share one engine.
+  const engine = {
+    trendMaDays: latest?.engine?.trendMaDays ?? 50,
+    minRvol: latest?.engine?.minRvol ?? 1.5,
+    minVolZ: latest?.engine?.minVolZ ?? 1.0,
+    atrStopMult: latest?.engine?.atrStopMult ?? 2,
+    targetPct: latest?.engine?.targetPct ?? 12,
+  };
   const sweeps = latest?.liquiditySweeps ?? [];
   const traps = (latest?.carryTraps ?? []).filter(
     (trap) => (trap.annualizedCarryPct ?? 0) > CARRY_FLOOR && (trap.mansfieldRs ?? 0) < 0,
@@ -103,8 +126,14 @@ export default function DailyDeskPage() {
         <div>
           <h1 className="text-xl font-bold tracking-tight text-slate-900">Today&apos;s Trade Desk</h1>
           <p className="text-xs text-slate-500">
-            Buys and avoids are computed at the close — no settings, no charts, just the call.
+            Buys and avoids are computed at the close — one engine, the same gates the 1-year lab replays.
           </p>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            <Tag>Above SMA{engine.trendMaDays}</Tag>
+            <Tag>RVOL ≥ {engine.minRvol}x · Z ≥ {engine.minVolZ}</Tag>
+            <Tag>ATR × {engine.atrStopMult} stop</Tag>
+            <Tag>Target +{engine.targetPct}%</Tag>
+          </div>
         </div>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 sm:gap-3">
           <Stat label="Session" value={latest?.sessionDate ?? "—"} />
@@ -134,7 +163,7 @@ export default function DailyDeskPage() {
               </span>
             </div>
             <p className="mt-0.5 text-[11px] text-slate-500">
-              Enter near the volume point of control, hard stop inside 7%, target +12%.
+              Enter near the volume point of control, ATR × {engine.atrStopMult} stop, target +{engine.targetPct}%.
             </p>
           </header>
 
@@ -145,7 +174,7 @@ export default function DailyDeskPage() {
           ) : (
             <ul className="divide-y divide-slate-200">
               {sweeps.map((item) => {
-                const stop = Math.max(item.stopLoss, item.close * 0.93);
+                const stop = item.stopLoss;
                 return (
                   <li key={item.ticker} className="py-3">
                     <div className="flex items-start justify-between gap-2">
@@ -175,6 +204,7 @@ export default function DailyDeskPage() {
 
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       <Tag>POC {pct(item.poc)}</Tag>
+                      <Tag>RVOL {pct(item.rvol)}x</Tag>
                       <Tag>Vol Z {pct(item.volZScore)}</Tag>
                       <Tag>Mansfield RS +{pct(item.mansfieldRs)}%</Tag>
                       <Tag>{item.directorFootprint ? "Director footprint" : "No director filing"}</Tag>
@@ -204,16 +234,19 @@ export default function DailyDeskPage() {
                       </div>
                       <div className="rounded border border-rose-200 bg-rose-50 px-2 py-1">
                         <div className="text-[9px] uppercase tracking-wide text-rose-500">Hard Stop</div>
-                        <div className="font-mono font-bold text-rose-700">{money(item.close * 0.93)}</div>
+                        <div className="font-mono font-bold text-rose-700">{money(item.stopLoss ?? item.close * 0.85)}</div>
                       </div>
                       <div className="rounded border border-emerald-200 bg-emerald-50 px-2 py-1">
                         <div className="text-[9px] uppercase tracking-wide text-emerald-600">Target +12%</div>
-                        <div className="font-mono font-bold text-emerald-700">{money(item.close * 1.12)}</div>
+                        <div className="font-mono font-bold text-emerald-700">
+                          {money(item.target ?? item.close * (1 + engine.targetPct / 100))}
+                        </div>
                       </div>
                     </div>
 
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       <Tag>POC {pct(item.poc)}</Tag>
+                      <Tag>RVOL {pct(item.rvol)}x</Tag>
                       <Tag>Vol Z {pct(item.volZScore)}</Tag>
                       <Tag>Mansfield RS +{pct(item.mansfieldRs)}%</Tag>
                     </div>

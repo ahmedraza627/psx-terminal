@@ -45,6 +45,11 @@ class StrategyConfig:
     min_vol_z: float = 1.0
     atr_stop_mult: float = 2.0
     trend_reference_bars: int = 1
+    # Confluence hooks: off by default, so the published baseline is unchanged.
+    require_weekly_confluence: bool = False
+    weekly_ma_weeks: int = 10
+    require_poc_confluence: bool = False
+    poc_band_pct: float = 3.0
 
 
 @dataclass
@@ -93,6 +98,10 @@ class StrategyBacktester:
             min_rvol=cfg.min_rvol,
             min_vol_z=cfg.min_vol_z,
             trend_reference_bars=cfg.trend_reference_bars,
+            require_weekly_confluence=cfg.require_weekly_confluence,
+            weekly_ma_weeks=cfg.weekly_ma_weeks,
+            require_poc_confluence=cfg.require_poc_confluence,
+            poc_band_pct=cfg.poc_band_pct,
         )
 
         closes: Dict[str, Dict[date, DailyBar]] = {}
@@ -243,6 +252,10 @@ class StrategyBacktester:
                 "minRvol": cfg.min_rvol,
                 "minVolZ": cfg.min_vol_z,
                 "atrStopMult": cfg.atr_stop_mult,
+                "requireWeeklyConfluence": cfg.require_weekly_confluence,
+                "weeklyMaWeeks": cfg.weekly_ma_weeks,
+                "requirePocConfluence": cfg.require_poc_confluence,
+                "pocBandPct": cfg.poc_band_pct,
             },
             "sessionRange": {
                 "from": sessions[0].isoformat() if sessions else None,

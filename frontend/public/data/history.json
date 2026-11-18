@@ -1,7 +1,33 @@
 {
-  "sessionDate": "18NOV2026",
-  "generatedAt": "2026-11-18T13:10:17.389496+00:00",
+  "sessionDate": "18Nov2026",
+  "generatedAt": "2026-11-18T15:36:34.686865+00:00",
   "entries": [
+    {
+      "date": "18 Nov 2026",
+      "ticker": "PRET",
+      "call": "BUY",
+      "label": "LIQUIDITY SWEEP BUY",
+      "entry": 671.77,
+      "stop": 585.19,
+      "target": 771.08,
+      "latestClose": 688.46,
+      "pnlPct": 2.48,
+      "status": "IN PLAY",
+      "notes": "LIQUIDITY SWEEP BUY \u00b7 POC 671.77 \u00b7 Vol Z 2.20 \u00b7 Mansfield RS +15.40%"
+    },
+    {
+      "date": "18 Nov 2026",
+      "ticker": "BPL",
+      "call": "BUY",
+      "label": "LIQUIDITY SWEEP BUY",
+      "entry": 118.6,
+      "stop": 103.58,
+      "target": 132.53,
+      "latestClose": 118.33,
+      "pnlPct": -0.23,
+      "status": "IN PLAY",
+      "notes": "LIQUIDITY SWEEP BUY \u00b7 POC 118.60 \u00b7 Vol Z 1.39 \u00b7 Mansfield RS +14.60%"
+    },
     {
       "date": "18 Nov 2026",
       "ticker": "CSAP",

@@ -113,6 +113,8 @@ def run_daily_sync(session: date | None = None, offline: bool = False) -> int:
             "minRvol": MIN_RVOL,
             "minVolZ": MIN_VOL_Z,
             "atrStopMult": ATR_STOP_MULT,
+            "weeklyConfluence": False,
+            "pocConfluence": False,
         },
         "signals": signals,
     }, indent=2), encoding="utf-8")

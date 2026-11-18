@@ -23,6 +23,12 @@ class LiquidityQuantEngine:
         min_rvol: float = 1.5,
         min_vol_z: float = 1.0,
         trend_reference_bars: int = 1,
+        require_weekly_confluence: bool = False,
+        weekly_ma_weeks: int = 10,
+        require_poc_confluence: bool = False,
+        poc_window_days: int = 15,
+        poc_bins: int = 20,
+        poc_band_pct: float = 3.0,
     ):
         self.lookback_days = lookback_days
         self.min_avg_volume = min_avg_volume
@@ -33,6 +39,12 @@ class LiquidityQuantEngine:
         self.min_rvol = min_rvol
         self.min_vol_z = min_vol_z
         self.trend_reference_bars = max(1, trend_reference_bars)
+        self.require_weekly_confluence = require_weekly_confluence
+        self.weekly_ma_weeks = weekly_ma_weeks
+        self.require_poc_confluence = require_poc_confluence
+        self.poc_window_days = poc_window_days
+        self.poc_bins = max(1, poc_bins)
+        self.poc_band_pct = poc_band_pct
 
     def compute_atr(self, bars: List[DailyBar], period: int = 14) -> float:
         if len(bars) < 2:
@@ -83,11 +95,76 @@ class LiquidityQuantEngine:
                 return False
         return True
 
+    def weekly_bias(self, bars: List[DailyBar]) -> Optional[str]:
+        """Higher-timeframe regime resampled from the daily tape (5 sessions = 1 week).
+
+        Returns ``"UP"`` when the weekly average is rising and the latest week closes
+        above it, ``"DOWN"`` when it is falling, otherwise ``None``/``"FLAT"``. This is
+        the hook for multi-timeframe confluence: a daily sweep inside a weekly uptrend
+        is a pullback, the same sweep inside a weekly downtrend is a falling knife.
+        """
+        weeks = self.weekly_ma_weeks
+        if weeks <= 0 or len(bars) < weeks * 5 + 5:
+            return None
+        closes = [b.close_price for b in bars]
+        weekly = [sum(closes[i : i + 5]) / 5 for i in range(0, len(closes) - 4, 5)]
+        if len(weekly) < weeks + 1:
+            return None
+        current = sum(weekly[-weeks:]) / weeks
+        prior = sum(weekly[-weeks - 1 : -1]) / weeks
+        if current > prior and weekly[-1] > current:
+            return "UP"
+        if current < prior:
+            return "DOWN"
+        return "FLAT"
+
+    def weekly_confluence(self, bars: List[DailyBar]) -> bool:
+        return self.weekly_bias(bars) == "UP"
+
+    def volume_poc(self, bars: List[DailyBar]) -> Optional[float]:
+        """Point of control: centre of the heaviest volume-weighted price bucket.
+
+        Bins are built from typical price ((H+L+C)/3) so the node approximates where
+        institutions actually transacted, not where the last print happened.
+        """
+        window = bars[-self.poc_window_days :]
+        if len(window) < 2:
+            return None
+        mids = [(b.high_price + b.low_price + b.close_price) / 3 for b in window]
+        low, high = min(mids), max(mids)
+        if high - low < 1e-9:
+            return round(low, 2)
+        width = (high - low) / self.poc_bins
+        buckets = [0.0] * self.poc_bins
+        for bar, mid in zip(window, mids):
+            buckets[min(int((mid - low) / width), self.poc_bins - 1)] += float(bar.volume)
+        return round(low + (buckets.index(max(buckets)) + 0.5) * width, 2)
+
+    def poc_confluence(self, bars: List[DailyBar]) -> bool:
+        """Entry must sit on the control node: no chasing far above it, no knife below."""
+        if len(bars) < 3:
+            return False
+        poc = self.volume_poc(bars[:-1])
+        if not poc:
+            return False
+        return abs((bars[-1].close_price / poc) - 1) * 100 <= self.poc_band_pct
+
+    def atr_stop_price(self, entry: float, atr: float) -> float:
+        """Risk in volatility units: 2x ATR keeps normal noise inside the stop."""
+        return round(entry - (atr * self.atr_stop_mult), 2)
+
     def required_history(self) -> int:
-        return max(self.lookback_days + 1, self.trend_ma_days + self.trend_slope_bars + 1)
+        base = max(self.lookback_days + 1, self.trend_ma_days + self.trend_slope_bars + 1)
+        if self.require_weekly_confluence:
+            base = max(base, self.weekly_ma_weeks * 5 + 6)
+        return base
 
     def evaluate_ticker(self, bars: List[DailyBar]) -> Optional[TradeSignal]:
         if self.trend_ma_days > 0 and len(bars) < self.required_history():
+            return None
+        if self.require_weekly_confluence and not self.weekly_confluence(bars):
+            return None
+        if self.require_poc_confluence and not self.poc_confluence(bars):
             return None
         if len(bars) <= self.lookback_days:
             return None
@@ -120,6 +197,12 @@ class LiquidityQuantEngine:
         tape = f"RVOL {rvol:.1f}x | Z {vol_z:.1f}"
         if sma:
             tape += f" | Trend +{stretch:.1f}%"
+        poc = self.volume_poc(bars[:-1])
+        weekly = self.weekly_bias(bars)
+        if self.require_poc_confluence and poc:
+            tape += f" | POC {poc:.2f}"
+        if self.require_weekly_confluence and weekly:
+            tape += f" | W {weekly}"
 
         # Bullish Liquidity Sweep: sweeps 15d low, reclaims above it, closes in upper 40% of range
         if current.low_price < window_low and current.close_price > window_low:
@@ -134,6 +217,8 @@ class LiquidityQuantEngine:
                     target_price=round(entry + (atr * self.atr_tp_mult), 2),
                     confidence_score=min(1.0, round(current.volume / (avg_vol * 3.0), 2)),
                     reason=f"Swept {self.lookback_days}d low ({window_low}) | {tape} | ATR {atr:.2f}",
+                    poc=poc,
+                    weekly_bias=weekly,
                 )
 
         # Bearish Bull-Trap: pierces 15d high, closes back below it in lower 40% of range
@@ -149,6 +234,8 @@ class LiquidityQuantEngine:
                     target_price=round(entry - (atr * self.atr_tp_mult), 2),
                     confidence_score=min(1.0, round(current.volume / (avg_vol * 3.0), 2)),
                     reason=f"Rejected above {self.lookback_days}d high ({window_high}) | {tape} | ATR {atr:.2f}",
+                    poc=poc,
+                    weekly_bias=weekly,
                 )
 
         return None

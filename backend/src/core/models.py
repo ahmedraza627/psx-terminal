@@ -1,5 +1,5 @@
 from datetime import date
-from typing import Literal
+from typing import Literal, Optional
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 
@@ -37,3 +37,5 @@ class TradeSignal(BaseModel):
     target_price: float = Field(..., gt=0)
     confidence_score: float = Field(..., ge=0.0, le=1.0)
     reason: str
+    poc: Optional[float] = None  # volume point of control behind the setup
+    weekly_bias: Optional[str] = None  # higher-timeframe regime: UP / DOWN / FLAT
