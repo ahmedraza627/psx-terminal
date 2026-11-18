@@ -7,8 +7,13 @@ from datetime import date, timedelta
 import pytest
 
 from src.quant.risk_sizing import (
+    KellyConfig,
     SizingConfig,
     SizingDiagnostics,
+    VarConfig,
+    book_kelly_scale,
+    historical_var_pct,
+    historical_var_scale,
     position_shares,
     position_weight,
     risk_parity_weights,
@@ -107,6 +112,20 @@ class TestPositionWeight:
         w_beta = position_weight(100.0, 93.0, stock_tape, cfg, index_bars=index_tape)
         assert w_beta < w_neutral
 
+    def test_kelly_book_scale_below_one_on_weak_record(self) -> None:
+        bars = _tape(100.0, steps=200)
+        cfg = SizingConfig(kelly=KellyConfig(fraction=1.0, min_win_rate=0.30, max_edge=0.5))
+        bad_record = [{"outcome": "TARGET HIT", "pnlPct": -1.0} for _ in range(15)]
+        scale = book_kelly_scale(bad_record, cfg, window=20)
+        assert scale < 1.0
+
+    def test_book_kelly_scale_is_one_when_kelly_disabled(self) -> None:
+        bars = _tape(100.0, steps=200)
+        cfg = SizingConfig(kelly=None)
+        record = [{"outcome": "TARGET HIT", "pnlPct": 5.0} for _ in range(20)]
+        scale = book_kelly_scale(record, cfg, window=20)
+        assert scale == 1.0
+
     def test_concentration_cap_clamps_weight(self) -> None:
         bars = _tape(100.0, steps=200)
         cfg = SizingConfig(target_risk_pct=50.0, max_weight_pct=5.0)
@@ -198,3 +217,21 @@ class TestSizingTable:
             b.close_price = index[i].close_price * (1 + 0.0016 * i) / (1 + 0.0008 * i)
         diag = sizing_table("A", 100.0, 93.0, stock, 100_000.0, SizingConfig(), index_bars=index)
         assert diag.beta > 1.0
+
+    def test_historical_var_pct_returns_worst_tail(self) -> None:
+        losses = [-0.01 * i for i in range(200)]
+        var = historical_var_pct(losses, confidence=0.99, lookback_days=126)
+        assert var >= 0.0
+        assert var <= 2.0
+
+    def test_historical_var_scale_clamps_when_var_exceeds_cap(self) -> None:
+        cfg = SizingConfig(var=VarConfig(max_var_pct=1.0))
+        big_losses = [-0.03 * i for i in range(200)]
+        scale = historical_var_scale({}, 100_000.0, big_losses, cfg)
+        assert scale is not None
+        assert 0.0 < scale < 1.0
+
+    def test_historical_var_scale_returns_none_without_history(self) -> None:
+        cfg = SizingConfig(var=VarConfig(max_var_pct=2.0))
+        scale = historical_var_scale({}, 100_000.0, [], cfg)
+        assert scale is None
