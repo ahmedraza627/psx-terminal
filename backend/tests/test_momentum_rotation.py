@@ -80,6 +80,7 @@ def momentum_config(**overrides) -> MomentumConfig:
         top_n=10,
         hard_stop_pct=7.0,
         sma_stop_days=50,
+        sizing_mode="equal",  # preserve the classic one-share-per-leader basket read
         starting_capital=100_000.0,
     )
     base.update(overrides)

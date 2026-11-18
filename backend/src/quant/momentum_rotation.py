@@ -11,8 +11,12 @@ The design choices mirror what a long-only factor ETF would actually do:
 * rebalancing is calendar-monthly on the last trading day, like a month-end factor
   rebalance, not on every signal bar
 * risk is cut either on a 7% hard stop or a 50-day SMA breach, whichever happens first
-* each leader is sized equally within the book so the backtest reads like a basket,
-  not a concentrated single-name bet
+* position sizing can be volatility-adjusted (ATR + beta dampening) so high-beta /
+  high-volatility leaders receive less capital and portfolio drawdown is bounded by
+  construction; the default is still equal-weight for a clean basket read
+* an optional sector catalyst filter favors names in the top-2 outperforming sectors
+  of the month, with a configurable bias so out-of-sector strong names are not fully
+  excluded
 
 Run it:  python backend/src/quant/momentum_rotation.py [--db PATH] [--out PATH] [--top-n 10]
 """
@@ -34,6 +38,15 @@ if str(BACKEND_DIR) not in sys.path:  # allow direct CLI execution
 from src.core.models import DailyBar  # noqa: E402
 from src.ingestion.sqlite_adapter import load_validated_bars  # noqa: E402
 from src.ingestion.universe import active_universe  # noqa: E402
+from src.quant.risk_sizing import SizingConfig, position_shares, risk_parity_weights  # noqa: E402
+from src.quant.sector_rotation import (  # noqa: E402
+    DEFAULT_SECTOR_MAP,
+    sector_catalyst_scores,
+    sector_filtered_leaders,
+    sector_momentum_stats,
+    sector_of,
+    top_n_sectors,
+)
 
 PROJECT_ROOT = BACKEND_DIR.parent
 DATA_DIR = PROJECT_ROOT / "frontend" / "public" / "data"
@@ -52,8 +65,21 @@ class MomentumConfig:
     top_n: int = TOP_N_DEFAULT
     hard_stop_pct: float = HARD_STOP_PCT
     sma_stop_days: int = SMA_STOP_DAYS
-    position_count: int = 1  # one share per leader for the equity-curve mark
+    # Sizing mode: 'equal' = one share per leader (classic basket read);
+    # 'atrp' = ATR/volatility-adjusted risk-parity shares from the shared policy.
+    sizing_mode: str = "equal"
+    # When sizing_mode == 'equal', each new leader gets this many shares.
+    position_count: int = 1
+    # Sector catalyst filter: top-2 sectors each month; off by default.
+    sector_filter: bool = False
+    sector_bias_weight: float = 0.5  # momentum discount for out-of-sector names
+    # Shared volatility-adjusted sizing policy (used when sizing_mode == 'atrp').
+    sizing: SizingConfig = None  # set in __post_init__ to a sensible default
     starting_capital: float = 100_000.0
+
+    def __post_init__(self) -> None:
+        if self.sizing is None:
+            self.sizing = SizingConfig()
 
 
 @dataclass
@@ -208,6 +234,9 @@ def _run_rotation_on_bars(
     peak = equity
     curve: List[dict] = []
 
+    # Sector catalyst overlay (monthly, refreshed each rebalance).
+    sector_map = DEFAULT_SECTOR_MAP
+
     for i, session in enumerate(sessions):
         session_str = session.isoformat()
 
@@ -254,6 +283,19 @@ def _run_rotation_on_bars(
         # 2) Monthly rebalance: drop laggards, add new leaders.
         if session in monthly_rankings:
             ranked = monthly_rankings[session]
+
+            # Sector catalyst filter: bias the ranking toward top-2 sectors if enabled.
+            if config.sector_filter:
+                top_sectors = [s for s, _ in top_n_sectors(bars_by_ticker, top_n=2, sector_map=sector_map)]
+                ranked = sector_filtered_leaders(
+                    ranked,
+                    bars_by_ticker,
+                    top_sectors,
+                    sector_map=sector_map,
+                    sector_bias_weight=config.sector_bias_weight,
+                )
+
+            # Leader set for this month (after any sector bias).
             leaders = [ticker for ticker, _ in ranked[: config.top_n]]
 
             # Exit anything that is no longer a leader.
@@ -273,9 +315,9 @@ def _run_rotation_on_bars(
                             equity += pos.shares * (close - pos.entry_price)
 
             # Enter the new leaders that are not already held.
-            for ticker in leaders:
-                if ticker in open_by_ticker:
-                    continue
+            new_leaders = [t for t in leaders if t not in open_by_ticker]
+            entry_candidates: List[Tuple[str, float, float, List[DailyBar], None]] = []
+            for ticker in new_leaders:
                 bar_list = bars_by_ticker.get(ticker)
                 if not bar_list:
                     continue
@@ -287,23 +329,44 @@ def _run_rotation_on_bars(
                 if entry <= 0:
                     continue
                 hard_stop = round(entry * (1 - config.hard_stop_pct / 100), 2)
-                sma_stop = sma(bar_list, idx, config.sma_stop_days)
-                shares = config.position_count
-                pos = RotationPosition(
-                    ticker=ticker,
-                    entry_date=session_str,
-                    entry_price=round(entry, 2),
-                    hard_stop=hard_stop,
-                    sma_stop=round(sma_stop, 2) if sma_stop else None,
-                    shares=shares,
-                    last_close=entry,
-                    peak_date=session_str,
-                    peak_price=entry,
-                )
-                positions.append(pos)
-                open_by_ticker[ticker] = pos
-                # Pay the entry from equity so the curve reflects the real deployment.
-                equity -= entry * shares
+                entry_candidates.append((ticker, entry, hard_stop, bar_list, None))
+
+            if new_leaders and entry_candidates:
+                if config.sizing_mode == "atrp":
+                    weights = risk_parity_weights(
+                        entry_candidates,
+                        equity,
+                        config.sizing,
+                    )
+                else:
+                    weights = {}
+
+                for ticker, entry, hard_stop, bar_list, _ in entry_candidates:
+                    if config.sizing_mode == "atrp":
+                        w = weights.get(ticker, 0.0)
+                        shares = int(equity * w / entry) if entry > 0 and w > 0 else 0
+                    else:
+                        shares = config.position_count
+
+                    if shares <= 0:
+                        continue
+
+                    sma_stop = sma(bar_list, idx, config.sma_stop_days)
+                    pos = RotationPosition(
+                        ticker=ticker,
+                        entry_date=session_str,
+                        entry_price=round(entry, 2),
+                        hard_stop=hard_stop,
+                        sma_stop=round(sma_stop, 2) if sma_stop else None,
+                        shares=shares,
+                        last_close=entry,
+                        peak_date=session_str,
+                        peak_price=entry,
+                    )
+                    positions.append(pos)
+                    open_by_ticker[ticker] = pos
+                    # Pay the entry from equity so the curve reflects the real deployment.
+                    equity -= entry * shares
 
         # 3) Mark the book: unrealized P&L on open names plus cash.
         unrealized = sum(
@@ -461,7 +524,9 @@ def _momentum_payload(
             "smaStopDays": config.sma_stop_days,
             "momentumLookbacksMonths": [3, 6],
             "rebalanceFrequency": "monthly",
-            "positionSizing": "equal-weight (1 share per leader)",
+            "positionSizing": "atrp-volatility-adjusted" if config.sizing_mode == "atrp" else "equal-weight (1 share per leader)",
+            "sectorCatalystFilter": config.sector_filter,
+            "sectorBiasWeight": config.sector_bias_weight,
         },
         "sessionRange": {
             "from": first.isoformat() if first else None,

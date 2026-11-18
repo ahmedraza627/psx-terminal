@@ -33,6 +33,7 @@ if str(BACKEND_DIR) not in sys.path:  # allow direct CLI execution
 from src.core.models import DailyBar  # noqa: E402
 from src.ingestion.sqlite_adapter import load_validated_bars  # noqa: E402
 from src.quant.engine import LiquidityQuantEngine  # noqa: E402
+from src.quant.risk_sizing import SizingConfig, position_shares, risk_parity_weights  # noqa: E402
 
 PROJECT_ROOT = BACKEND_DIR.parent
 DATA_DIR = PROJECT_ROOT / "frontend" / "public" / "data"
@@ -61,6 +62,13 @@ class StrategyConfig:
     min_vol_z: float = 1.0
     atr_stop_mult: float = 2.0
     trend_reference_bars: int = 1
+    # Sizing mode: 'equal' = fixed % of equity per position (existing behaviour);
+    # 'atrp' = volatility-adjusted risk-parity shares from the shared sizing policy.
+    sizing_mode: str = "equal"
+    # External index tape for beta sizing; when None, beta is treated as neutral (1.0).
+    index_ticker: Optional[str] = None
+    # Shared volatility-adjusted sizing policy (used when sizing_mode == 'atrp').
+    sizing: SizingConfig = None
     # Confluence hooks: off by default, so the published baseline is unchanged.
     require_weekly_confluence: bool = False
     weekly_ma_weeks: int = 10
@@ -169,6 +177,9 @@ class StrategyBacktester:
 
     def __init__(self, config: Optional[StrategyConfig] = None):
         self.cfg = config or StrategyConfig()
+        # Resolve a default sizing policy if the config turned on ATR risk parity.
+        if self.cfg.sizing is None and self.cfg.sizing_mode == "atrp":
+            object.__setattr__(self.cfg, "sizing", SizingConfig())
 
     def _settle(self, pos: Position, bar: DailyBar, price: float, outcome: str) -> None:
         pos.outcome = outcome
@@ -265,8 +276,36 @@ class StrategyBacktester:
                     reason=signal.reason,
                     last_close=entry,
                 )
-                positions.append(pos)
-                open_by_ticker[ticker] = pos
+
+                # Volatility-adjusted sizing when the config asks for it.
+                if cfg.sizing_mode == "atrp":
+                    bar_list_full = bars_by_ticker[ticker]
+                    index_bars = _index_bars_for(bars_by_ticker, cfg.index_ticker) if cfg.index_ticker else None
+                    weighted_shares = position_shares(
+                        entry,
+                        stop,
+                        bar_list_full[: position + 1],
+                        equity,
+                        cfg.sizing,
+                        index_bars=index_bars,
+                    )
+                    pos = Position(
+                        ticker=ticker,
+                        signal_date=session_str,
+                        entry=entry,
+                        stop=stop,
+                        target=round(entry * (1 + cfg.target_pct / 100), 2),
+                        notional=weighted_shares * entry,
+                        confidence=signal.confidence_score,
+                        reason=signal.reason + " | ATR-risk-sized",
+                        last_close=entry,
+                    )
+                    if weighted_shares > 0:
+                        positions.append(pos)
+                        open_by_ticker[ticker] = pos
+                else:
+                    positions.append(pos)
+                    open_by_ticker[ticker] = pos
 
             peak = max(peak, equity)
             curve.append({
@@ -376,6 +415,8 @@ class StrategyBacktester:
                 "weeklyMaWeeks": cfg.weekly_ma_weeks,
                 "requirePocConfluence": cfg.require_poc_confluence,
                 "pocBandPct": cfg.poc_band_pct,
+                "positionSizing": cfg.sizing_mode,
+                "indexTicker": cfg.index_ticker,
             },
             "sessionRange": {
                 "from": first.isoformat() if first else None,
@@ -407,6 +448,16 @@ def write_backtest_report(payload: dict, out_path: Path = DEFAULT_OUTPUT) -> Pat
 def output_for_years(years: float) -> Path:
     """The lab reads a fixed pair of files, so the horizon picks the destination."""
     return DEFAULT_OUTPUT_5Y if years >= 3 else DEFAULT_OUTPUT
+
+
+def _index_bars_for(bars_by_ticker: Dict[str, List[DailyBar]], index_ticker: str) -> Optional[List[DailyBar]]:
+    """Retrieve the index tape used for beta sizing.
+
+    When the requested index ticker is not present, returns None so beta is treated
+    as neutral (1.0) rather than crashing the sizing path.
+    """
+    bars = bars_by_ticker.get(index_ticker.upper())
+    return bars if bars else None
 
 
 def main() -> int:
