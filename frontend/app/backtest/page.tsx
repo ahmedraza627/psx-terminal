@@ -21,8 +21,27 @@ type Trade = {
 
 type CurvePoint = { date: string; equity: number; drawdownPct: number };
 
+type YearRow = {
+  year: number;
+  returnPct: number;
+  sessions: number;
+  signals: number;
+  maxDrawdownPct: number;
+  startingEquity: number;
+  endingEquity: number;
+};
+
+type DrawdownEpisode = {
+  peakDate: string;
+  troughDate: string;
+  depthPct: number;
+  recoveryDate: string | null;
+  sessions: number | null;
+};
+
 type Payload = {
   generatedAt?: string;
+  horizonYears?: number;
   strategy?: {
     name: string;
     lookbackDays: number;
@@ -37,7 +56,7 @@ type Payload = {
     minVolZ: number;
     atrStopMult: number;
   };
-  sessionRange?: { from: string | null; to: string | null; sessions: number };
+  sessionRange?: { from: string | null; to: string | null; sessions: number; years?: number; tickers?: number };
   metrics?: {
     totalSignals: number;
     wins: number;
@@ -47,17 +66,30 @@ type Payload = {
     profitFactor: number | null;
     maxDrawdownPct: number;
     totalReturnPct: number;
+    cagrPct?: number;
     avgPnlPct: number;
     avgBarsHeld: number;
     bestTradePct: number;
     worstTradePct: number;
     grossProfitPct: number;
     grossLossPct: number;
+    startingCapital?: number;
     endingEquity: number;
+    tradesPerYear?: number;
   };
+  yearlyReturns?: YearRow[];
+  drawdownEpisodes?: DrawdownEpisode[];
+  maxDrawdown?: DrawdownEpisode | null;
   equityCurve?: CurvePoint[];
   trades?: Trade[];
 };
+
+const HORIZONS = [
+  { id: "1Y", label: "1-Year Lab", file: "/data/backtest_metrics.json" },
+  { id: "5Y", label: "5-Year Macro Stress Test", file: "/data/backtest_5y_metrics.json" },
+] as const;
+
+type Horizon = (typeof HORIZONS)[number]["id"];
 
 const money = (value: number | null | undefined) =>
   value === null || value === undefined ? "—" : value.toFixed(2);
@@ -87,6 +119,38 @@ function Metric({
       <span className="block text-[10px] font-semibold uppercase tracking-wider text-slate-400">{label}</span>
       <span className={`mt-1 block font-mono text-xl font-black sm:text-2xl ${tone}`}>{value}</span>
       <span className="mt-0.5 block text-[10px] text-slate-500">{hint}</span>
+    </div>
+  );
+}
+
+function HorizonToggle({
+  value,
+  onChange,
+}: {
+  value: Horizon;
+  onChange: (next: Horizon) => void;
+}) {
+  return (
+    <div
+      role="group"
+      aria-label="Backtest horizon"
+      className="inline-flex w-full rounded-lg border border-slate-200 bg-white p-0.5 shadow-sm sm:w-auto"
+    >
+      {HORIZONS.map((option) => (
+        <button
+          key={option.id}
+          type="button"
+          onClick={() => onChange(option.id)}
+          aria-pressed={value === option.id}
+          className={`flex-1 whitespace-nowrap rounded-md px-3 py-1.5 text-[11px] font-semibold transition-colors sm:flex-none ${
+            value === option.id
+              ? "bg-slate-900 text-white"
+              : "text-slate-600 hover:bg-slate-50"
+          }`}
+        >
+          {option.label}
+        </button>
+      ))}
     </div>
   );
 }
@@ -176,23 +240,96 @@ function EquityChart({
   );
 }
 
+function CycleTable({ rows }: { rows: YearRow[] }) {
+  return (
+    <div className="overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
+      <table className="w-full min-w-[380px] text-left font-mono text-xs">
+        <thead className="border-b border-slate-200 text-[10px] uppercase tracking-wide text-slate-500">
+          <tr>
+            <th className="py-2 pr-3 font-semibold">Year</th>
+            <th className="px-3 py-2 text-right font-semibold">Return</th>
+            <th className="px-3 py-2 text-right font-semibold">Signals</th>
+            <th className="py-2 pl-3 text-right font-semibold">Max DD</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100">
+          {rows.map((row) => (
+            <tr key={row.year}>
+              <td className="py-2 pr-3 font-semibold text-slate-900">{row.year}</td>
+              <td className={`px-3 py-2 text-right font-bold ${row.returnPct >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                {signed(row.returnPct)}
+              </td>
+              <td className="px-3 py-2 text-right text-slate-600">{row.signals}</td>
+              <td className="py-2 pl-3 text-right text-rose-600">-{row.maxDrawdownPct.toFixed(1)}%</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function DrawdownList({ episodes }: { episodes: DrawdownEpisode[] }) {
+  return (
+    <ul className="divide-y divide-slate-100">
+      {episodes.map((episode) => (
+        <li key={`${episode.peakDate}-${episode.troughDate}`} className="py-2 first:pt-0 last:pb-0">
+          <div className="flex items-baseline justify-between gap-3">
+            <span className="font-mono text-sm font-bold text-rose-600">{episode.depthPct.toFixed(1)}%</span>
+            <span className="font-mono text-[10px] text-slate-500">
+              {episode.peakDate} → {episode.troughDate}
+            </span>
+          </div>
+          <p className="mt-0.5 text-[10px] text-slate-500">
+            {episode.recoveryDate
+              ? `Recovered ${episode.recoveryDate}${episode.sessions ? ` · ${episode.sessions} sessions underwater` : ""}`
+              : "Still underwater at the end of the tape"}
+          </p>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export default function BacktestPage() {
-  const [data, setData] = useState<Payload | null>(null);
+  const [horizon, setHorizon] = useState<Horizon>("1Y");
+  const [payloads, setPayloads] = useState<Record<Horizon, Payload | null>>({ "1Y": null, "5Y": null });
   const [loaded, setLoaded] = useState(false);
   const [query, setQuery] = useState("");
   const [outcome, setOutcome] = useState<"ALL" | "WINS" | "LOSSES" | "OPEN">("ALL");
 
   useEffect(() => {
-    fetch("/data/backtest_metrics.json")
-      .then((res) => res.json())
-      .then((payload: Payload) => setData(payload))
-      .catch((err) => console.error("Error loading backtest:", err))
+    Promise.allSettled(
+      HORIZONS.map((option) =>
+        fetch(option.file).then((res) => (res.ok ? (res.json() as Promise<Payload>) : null)),
+      ),
+    )
+      .then((results) => {
+        const [one, five] = results;
+        setPayloads({
+          "1Y": one.status === "fulfilled" ? one.value : null,
+          "5Y": five.status === "fulfilled" ? five.value : null,
+        });
+        results.forEach((result, index) => {
+          if (result.status === "rejected") {
+            console.error(`Error loading ${HORIZONS[index].label}:`, result.reason);
+          }
+        });
+      })
       .finally(() => setLoaded(true));
   }, []);
 
+  // Filters are horizon-specific; a stale search would silently hide new rows.
+  useEffect(() => {
+    setQuery("");
+    setOutcome("ALL");
+  }, [horizon]);
+
+  const data = payloads[horizon];
   const metrics = data?.metrics;
   const curve = data?.equityCurve ?? [];
   const trades = data?.trades ?? [];
+  const macro = horizon === "5Y";
 
   const rows = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -215,64 +352,86 @@ export default function BacktestPage() {
         ? "∞"
         : "—"
       : metrics.profitFactor.toFixed(2);
+  const years = data?.horizonYears ?? data?.sessionRange?.years ?? 1;
+  const baseline = metrics?.startingCapital ?? curve[0]?.equity ?? 100000;
 
   return (
     <div className="space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0">
-          <h1 className="text-xl font-bold tracking-tight text-slate-900">1Y Backtest Lab</h1>
+          <h1 className="text-xl font-bold tracking-tight text-slate-900">
+            {macro ? "5Y Macro Stress Test" : "1Y Backtest Lab"}
+          </h1>
           <p className="text-xs text-slate-500">
-            {data?.strategy?.name ?? "Liquidity sweep"} replayed session by session against the stored tape
+            {data?.strategy?.name ?? "Liquidity sweep"} replayed session by session
             {data?.sessionRange?.from && data?.sessionRange?.to
-              ? ` — ${data.sessionRange.from} to ${data.sessionRange.to} (${data.sessionRange.sessions} sessions).`
+              ? ` — ${data.sessionRange.from} to ${data.sessionRange.to} (${data.sessionRange.sessions} sessions${
+                  data.sessionRange.tickers ? ` · ${data.sessionRange.tickers} names` : ""
+                }).`
               : "."}
           </p>
         </div>
-        <div className="flex flex-wrap gap-1.5">
-          <span className="rounded border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-slate-600">
-            Above SMA{data?.strategy?.trendMaDays ?? 50}
+        <HorizonToggle value={horizon} onChange={setHorizon} />
+      </div>
+
+      <div className="flex flex-wrap gap-1.5">
+        {[
+          `Above SMA${data?.strategy?.trendMaDays ?? 50}`,
+          `RVOL ≥ ${data?.strategy?.minRvol ?? 1.5}x · Z ≥ ${data?.strategy?.minVolZ ?? 1}`,
+          `ATR × ${data?.strategy?.atrStopMult ?? 2} stop`,
+          `Target +${data?.strategy?.targetPct ?? 12}%`,
+          `${data?.strategy?.holdHorizonSessions ?? 30}s max hold`,
+        ].map((chip) => (
+          <span
+            key={chip}
+            className="rounded border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-slate-600"
+          >
+            {chip}
           </span>
-          <span className="rounded border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-slate-600">
-            RVOL ≥ {data?.strategy?.minRvol ?? 1.5}x · Z ≥ {data?.strategy?.minVolZ ?? 1}
-          </span>
-          <span className="rounded border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-slate-600">
-            ATR × {data?.strategy?.atrStopMult ?? 2} stop
-          </span>
-          <span className="rounded border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-slate-600">
-            Target +{data?.strategy?.targetPct ?? 12}%
-          </span>
-          <span className="rounded border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-slate-600">
-            {data?.strategy?.holdHorizonSessions ?? 30}s max hold
-          </span>
-        </div>
+        ))}
       </div>
 
       {!loaded && (
         <div className="rounded-xl border border-slate-200 bg-white p-6 text-center text-xs text-slate-400 shadow-sm">
-          Replaying the stored year…
+          Replaying the stored tape…
         </div>
       )}
 
       {loaded && !data && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-          No backtest file yet — run <code className="font-mono">python backend/src/quant/backtest.py</code>.
+          {macro ? (
+            <>
+              No 5-year report yet — run{" "}
+              <code className="font-mono">python backend/src/quant/backtest.py --years 5</code>.
+            </>
+          ) : (
+            <>
+              No backtest file yet — run <code className="font-mono">python backend/src/quant/backtest.py</code>.
+            </>
+          )}
         </div>
       )}
 
       {metrics && (
         <>
-          <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-6">
             <Metric
-              label="1Y Win Rate"
+              label="Win Rate"
               value={`${metrics.winRatePct.toFixed(1)}%`}
               hint={`${metrics.wins}W / ${metrics.losses}L resolved`}
               tone="text-emerald-600"
             />
             <Metric
-              label="Total P&L"
+              label="Total Return"
               value={signed(metrics.totalReturnPct)}
               hint={`PKR ${money(metrics.endingEquity)} book`}
               tone={positive ? "text-emerald-600" : "text-rose-600"}
+            />
+            <Metric
+              label="CAGR"
+              value={`${(metrics.cagrPct ?? 0).toFixed(2)}%`}
+              hint={`${years.toFixed(1)}y annualised`}
+              tone={(metrics.cagrPct ?? 0) >= 0 ? "text-emerald-600" : "text-rose-600"}
             />
             <Metric
               label="Profit Factor"
@@ -283,8 +442,18 @@ export default function BacktestPage() {
             <Metric
               label="Max Drawdown"
               value={`-${metrics.maxDrawdownPct.toFixed(1)}%`}
-              hint="Peak-to-trough on equity"
+              hint={
+                macro && data?.maxDrawdown
+                  ? `Trough ${data.maxDrawdown.troughDate}`
+                  : "Peak-to-trough on equity"
+              }
               tone="text-rose-600"
+            />
+            <Metric
+              label="Signals"
+              value={String(metrics.totalSignals)}
+              hint={`${metrics.tradesPerYear ?? 0}/yr · ${metrics.avgBarsHeld.toFixed(0)}d avg hold`}
+              tone="text-slate-900"
             />
           </div>
 
@@ -293,10 +462,10 @@ export default function BacktestPage() {
               <div>
                 <h2 className="text-base font-bold text-slate-900">Equity Curve</h2>
                 <p className="text-[11px] text-slate-500">
-                  ${`${data?.strategy?.positionPct ?? 10}%`} of live equity per signal · dashed line is starting capital
+                  {data?.strategy?.positionPct ?? 10}% of live equity per signal · dashed line is starting capital
                 </p>
               </div>
-              <div className="flex gap-3 font-mono text-[11px]">
+              <div className="flex flex-wrap gap-3 font-mono text-[11px]">
                 <span className="text-slate-500">
                   Avg/trade <span className={metrics.avgPnlPct >= 0 ? "text-emerald-600" : "text-rose-600"}>{signed(metrics.avgPnlPct)}</span>
                 </span>
@@ -310,16 +479,36 @@ export default function BacktestPage() {
             </div>
             <div className="mt-4 pb-6">
               {curve.length > 1 ? (
-                <EquityChart
-                  points={curve}
-                  baseline={curve[0]?.equity ?? 100000}
-                  positive={positive}
-                />
+                <EquityChart points={curve} baseline={baseline} positive={positive} />
               ) : (
                 <p className="py-10 text-center text-xs text-slate-400">Not enough sessions for a curve yet.</p>
               )}
             </div>
           </section>
+
+          {macro && (data?.yearlyReturns?.length || data?.drawdownEpisodes?.length) ? (
+            <div className="grid gap-4 lg:grid-cols-2">
+              <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+                <h2 className="text-base font-bold text-slate-900">Market Cycles</h2>
+                <p className="mb-3 text-[11px] text-slate-500">Calendar-year return, signal count and worst drawdown</p>
+                {data?.yearlyReturns?.length ? (
+                  <CycleTable rows={data.yearlyReturns} />
+                ) : (
+                  <p className="py-6 text-center text-xs text-slate-400">No completed calendar years yet.</p>
+                )}
+              </section>
+
+              <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+                <h2 className="text-base font-bold text-slate-900">Drawdown Episodes</h2>
+                <p className="mb-3 text-[11px] text-slate-500">Peak-to-trough underwater stretches, deepest first</p>
+                {data?.drawdownEpisodes?.length ? (
+                  <DrawdownList episodes={data.drawdownEpisodes} />
+                ) : (
+                  <p className="py-6 text-center text-xs text-slate-400">No drawdown recorded.</p>
+                )}
+              </section>
+            </div>
+          ) : null}
         </>
       )}
 

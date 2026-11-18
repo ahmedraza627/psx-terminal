@@ -19,7 +19,7 @@ from src.core.config import get_db_path  # noqa: E402
 from src.ingestion.live_fetcher import LiveEODFetcher  # noqa: E402
 from src.ingestion.sqlite_adapter import load_validated_bars  # noqa: E402
 from src.ingestion.wal_adapter import WALIngestionManager  # noqa: E402
-from src.quant.backtest import run_backtest, write_backtest_report  # noqa: E402
+from src.quant.backtest import StrategyConfig, run_backtest, write_backtest_report  # noqa: E402
 from src.quant.engine import LiquidityQuantEngine  # noqa: E402
 
 DATA_DIR = PROJECT_ROOT / "frontend" / "public" / "data"
@@ -29,6 +29,8 @@ TREND_MA_DAYS = 50
 MIN_RVOL = 1.5
 MIN_VOL_Z = 1.0
 ATR_STOP_MULT = 2.0
+LAB_SESSIONS = 250
+MACRO_SESSIONS = 1260  # ~5 years: bull run, 2023 correction and sideways chop
 
 
 def ingest(db_path: Path, session: date | None) -> tuple[date | None, int, int, str]:
@@ -123,7 +125,7 @@ def run_daily_sync(session: date | None = None, offline: bool = False) -> int:
 
     # Replay the stored year so the backtest lab tracks the same tape as the desk.
     try:
-        report = run_backtest(str(db_path))
+        report = run_backtest(str(db_path), StrategyConfig(max_sessions=LAB_SESSIONS))
         write_backtest_report(report, DATA_DIR / "backtest_metrics.json")
         metrics = report["metrics"]
         print(f"[INFO] backtest: {metrics['totalSignals']} signals over "
@@ -131,6 +133,17 @@ def run_daily_sync(session: date | None = None, offline: bool = False) -> int:
               f"({metrics['winRatePct']}% win, {metrics['totalReturnPct']}% return)")
     except Exception as exc:  # a backtest gap must never block today's signals
         print(f"[WARN] backtest skipped: {exc}")
+
+    # Same rules over the full multi-year cycle, for the macro stress-test tab.
+    try:
+        macro = run_backtest(str(db_path), StrategyConfig(max_sessions=MACRO_SESSIONS))
+        write_backtest_report(macro, DATA_DIR / "backtest_5y_metrics.json")
+        m = macro["metrics"]
+        print(f"[INFO] macro backtest: {m['totalSignals']} signals over "
+              f"{macro['sessionRange']['years']}y ({m['winRatePct']}% win, "
+              f"CAGR {m['cagrPct']}%, max DD {m['maxDrawdownPct']}%)")
+    except Exception as exc:
+        print(f"[WARN] macro backtest skipped: {exc}")
 
     (DATA_DIR / "sync_status.json").write_text(json.dumps({
         "lastSynced": datetime.now(timezone.utc).isoformat(timespec="seconds"),
