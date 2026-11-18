@@ -39,9 +39,14 @@ type DrawdownEpisode = {
   sessions: number | null;
 };
 
-type Payload = {
+type BasePayload = {
   generatedAt?: string;
   horizonYears?: number;
+  sessionRange?: { from: string | null; to: string | null; sessions: number; years?: number; tickers?: number };
+  equityCurve?: CurvePoint[];
+};
+
+type SweepPayload = BasePayload & {
   strategy?: {
     name: string;
     lookbackDays?: number;
@@ -55,14 +60,7 @@ type Payload = {
     minRvol?: number;
     minVolZ?: number;
     atrStopMult?: number;
-    topN?: number;
-    hardStopPct?: number;
-    smaStopDays?: number;
-    momentumLookbacksMonths?: number[];
-    rebalanceFrequency?: string;
-    positionSizing?: string;
   };
-  sessionRange?: { from: string | null; to: string | null; sessions: number; years?: number; tickers?: number };
   metrics?: {
     totalSignals: number;
     wins: number;
@@ -82,20 +80,140 @@ type Payload = {
     startingCapital?: number;
     endingEquity: number;
     tradesPerYear?: number;
+  };
+  yearlyReturns?: YearRow[];
+  drawdownEpisodes?: DrawdownEpisode[];
+  maxDrawdown?: DrawdownEpisode | null;
+  trades?: Trade[];
+};
+
+type MomentumPayload = BasePayload & {
+  strategy?: {
+    name: string;
+    topN?: number;
+    hardStopPct?: number;
+    smaStopDays?: number;
+    momentumLookbacksMonths?: number[];
+    rebalanceFrequency?: string;
+    positionSizing?: string;
+  };
+  metrics?: {
+    totalSignals: number;
+    wins: number;
+    losses: number;
+    inPlay: number;
+    winRatePct: number;
+    profitFactor: number | null;
+    maxDrawdownPct: number;
+    totalReturnPct: number;
+    cagrPct?: number;
+    avgPnlPct: number;
+    avgBarsHeld: number;
+    bestTradePct: number;
+    worstTradePct: number;
+    grossProfitPct: number;
+    grossLossPct: number;
+    startingCapital?: number;
+    endingEquity: number;
     rebalanceMonths?: number;
   };
   yearlyReturns?: YearRow[];
   drawdownEpisodes?: DrawdownEpisode[];
   maxDrawdown?: DrawdownEpisode | null;
-  equityCurve?: CurvePoint[];
   trades?: Trade[];
   rebalanceSchedule?: { date: string; leaders: string[] }[];
   worstDrawdowns?: { ticker: string; peakDate: string; troughDate: string; depthPct: number; recovered: boolean }[];
 };
 
+type StressTestWindow = {
+  window: string;
+  from: string;
+  to: string;
+  sessions: number;
+  oosFrom: string;
+  oosTo: string;
+  oosSessions: number;
+  oosYears: number;
+  regime: string;
+  sweep: {
+    signals: number;
+    wins: number;
+    losses: number;
+    winRatePct: number;
+    totalReturnPct: number;
+    cagrPct: number;
+    maxDrawdownPct: number;
+    profitFactor: number | null;
+  };
+  momentum: {
+    positions: number;
+    wins: number;
+    losses: number;
+    winRatePct: number;
+    totalReturnPct: number;
+    cagrPct: number;
+    maxDrawdownPct: number;
+    profitFactor: number | null;
+  };
+  statArb: {
+    pairs: number;
+    signals: number;
+    entrySignals: number;
+    exitSignals: number;
+  };
+};
+
+type StressTestAggregate = {
+  sweep: {
+    totalSignals: number;
+    wins: number;
+    losses: number;
+    winRatePct: number;
+    avgWinRatePct: number;
+    avgDrawdownPct: number;
+    worstWindowDrawdownPct: number;
+    windowsAbove3DD: number;
+    windowsAbove10DD: number;
+  };
+  momentum: {
+    totalPositions: number;
+    wins: number;
+    losses: number;
+    winRatePct: number;
+    avgWinRatePct: number;
+    avgDrawdownPct: number;
+    worstWindowDrawdownPct: number;
+    windowsAbove3DD: number;
+    windowsAbove10DD: number;
+  };
+  regimeSwitching: Array<{ regime: string; windows: number }>;
+};
+
+type StressTestPayload = BasePayload & {
+  meta?: {
+    name: string;
+    horizonYears: number;
+    windowYears: number;
+    stepYears: number;
+    windowCount: number;
+    withKelly: boolean;
+    withVar: boolean;
+    sizingMode: string;
+    topN: number;
+    statArbEnabled: boolean;
+    sweepFiltersOn: boolean;
+  };
+  windowLabels?: string[];
+  windows?: StressTestWindow[];
+  aggregates?: StressTestAggregate;
+};
+
+type Payload = SweepPayload | MomentumPayload | StressTestPayload;
+
 const HORIZONS = [
   { id: "1Y", label: "1-Year Lab", file: "/data/backtest_metrics.json" },
   { id: "5Y", label: "5-Year Macro Stress Test", file: "/data/backtest_5y_metrics.json" },
+  { id: "15Y", label: "15-Year Meta-Brain Stress Test", file: "/data/stress_test_15y_metrics.json" },
 ] as const;
 
 type Horizon = (typeof HORIZONS)[number]["id"];
@@ -107,6 +225,7 @@ const STRATEGIES = [
     files: {
       "1Y": "/data/backtest_metrics.json",
       "5Y": "/data/backtest_5y_metrics.json",
+      "15Y": "/data/stress_test_15y_metrics.json",
     },
   },
   {
@@ -115,6 +234,7 @@ const STRATEGIES = [
     files: {
       "1Y": "/data/backtest_metrics.json",
       "5Y": "/data/momentum_5y_metrics.json",
+      "15Y": "/data/stress_test_15y_metrics.json",
     },
   },
 ] as const;
@@ -353,6 +473,191 @@ function DrawdownList({ episodes }: { episodes: DrawdownEpisode[] }) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Stress-test inspector (walk-forward windows + regime switching)
+// ---------------------------------------------------------------------------
+
+function WindowTable({ windows }: { windows: Array<StressTestWindow> }) {
+  return (
+    <div className="overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
+      <table className="w-full min-w-[480px] text-left font-mono text-xs">
+        <thead className="border-b border-slate-200 text-[10px] uppercase tracking-wide text-slate-500">
+          <tr>
+            <th className="py-2 pr-2 font-semibold">Window</th>
+            <th className="px-2 py-2 text-right font-semibold">OOS Sessions</th>
+            <th className="px-2 py-2 text-right font-semibold">Sweep Win Rate</th>
+            <th className="px-2 py-2 text-right font-semibold">Sweep DD</th>
+            <th className="px-2 py-2 text-right font-semibold">Momentum Win Rate</th>
+            <th className="px-2 py-2 text-right font-semibold">Momentum DD</th>
+            <th className="px-2 py-2 text-right font-semibold">stat-arb Pairs</th>
+            <th className="px-2 py-2 text-right font-semibold">Regime</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100">
+          {(windows ?? []).map((w) => (
+            <tr key={w.window}>
+              <td className="py-2 pr-2 font-semibold text-slate-900">{w.window}</td>
+              <td className="px-2 py-2 text-right text-slate-600">{w.oosSessions}</td>
+              <td className={`px-2 py-2 text-right font-bold ${w.sweep.winRatePct >= 45 ? "text-emerald-600" : w.sweep.winRatePct >= 35 ? "text-slate-900" : "text-rose-600"}`}>
+                {w.sweep.winRatePct.toFixed(1)}%
+              </td>
+              <td className="px-2 py-2 text-right text-rose-600">-{w.sweep.maxDrawdownPct.toFixed(1)}%</td>
+              <td className={`px-2 py-2 text-right font-bold ${w.momentum.winRatePct >= 30 ? "text-emerald-600" : w.momentum.winRatePct >= 22 ? "text-slate-900" : "text-rose-600"}`}>
+                {w.momentum.winRatePct.toFixed(1)}%
+              </td>
+              <td className="px-2 py-2 text-right text-rose-600">-{w.momentum.maxDrawdownPct.toFixed(1)}%</td>
+              <td className="px-2 py-2 text-right text-slate-600">{w.statArb.pairs}</td>
+              <td className="px-2 py-2 text-right">
+                <span className={`inline-block rounded-full border px-2 py-0.5 text-[10px] font-bold ${w.regime === "FAVORABLE" ? "border-emerald-300 bg-emerald-50 text-emerald-700" : w.regime === "STRESS" ? "border-rose-300 bg-rose-50 text-rose-700" : w.regime === "UNFAVORABLE" ? "border-rose-300 bg-rose-50 text-rose-700" : "border-slate-300 bg-slate-50 text-slate-600"}`}>
+                  {w.regime}
+                </span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function RegimeSwitchingChart({ rows }: { rows: Array<{ regime: string; windows: number }> }) {
+  const total = rows.reduce((s, r) => s + r.windows, 0) || 1;
+  const colorFor = (regime: string) => {
+    if (regime === "FAVORABLE") return "#059669";
+    if (regime === "STRESS") return "#e11d48";
+    if (regime === "UNFAVORABLE") return "#f59e0b";
+    return "#64748b";
+  };
+  return (
+    <div className="flex items-center gap-3">
+      {rows.map((row) => (
+        <div key={row.regime} className="flex-1 flex flex-col items-center">
+          <span className="text-[10px] font-semibold text-slate-500">{row.windows}</span>
+          <div
+            className="mt-1 h-6 rounded-md"
+            style={{ width: `${(row.windows / total) * 100}%`, backgroundColor: colorFor(row.regime) }}
+          />
+          <span className="mt-1 text-[10px] font-semibold text-slate-700">{row.regime}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function StressTestView({ data }: { data: StressTestPayload }) {
+  const agg = data.aggregates;
+  const meta = data.meta;
+  const windows: StressTestWindow[] = data.windows ?? [];
+  const isSweep = data.sessionRange?.tickers ? true : true;
+
+  return (
+    <>
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-6">
+        <Metric
+          label="Windows"
+          value={String(meta?.windowCount ?? windows.length)}
+          hint="walk-forward out-of-sample windows"
+          tone="text-slate-900"
+        />
+        <Metric
+          label="Sweep Win Rate"
+          value={`${agg?.sweep.winRatePct.toFixed(1)}%`}
+          hint={`${agg?.sweep.wins}W / ${agg?.sweep.losses}L · avg ${agg?.sweep.avgWinRatePct.toFixed(1)}%`}
+          tone={agg && agg.sweep.winRatePct >= 45 ? "text-emerald-600" : "text-rose-600"}
+        />
+        <Metric
+          label="Sweep Worst DD"
+          value={`-${agg?.sweep.worstWindowDrawdownPct.toFixed(1)}%`}
+          hint={`${agg?.sweep.windowsAbove10DD} window(s) > 10% DD`}
+          tone="text-rose-600"
+        />
+        <Metric
+          label="Momentum Win Rate"
+          value={`${agg?.momentum.winRatePct.toFixed(1)}%`}
+          hint={`${agg?.momentum.wins}W / ${agg?.momentum.losses}L · avg ${agg?.momentum.avgWinRatePct.toFixed(1)}%`}
+          tone={agg && agg.momentum.winRatePct >= 30 ? "text-emerald-600" : "text-rose-600"}
+        />
+        <Metric
+          label="Momentum Worst DD"
+          value={`-${agg?.momentum.worstWindowDrawdownPct.toFixed(1)}%`}
+          hint={`${agg?.momentum.windowsAbove10DD} window(s) > 10% DD`}
+          tone="text-rose-600"
+        />
+        <Metric
+          label="stat-arb Pairs"
+          value={String(windows.reduce((s, w) => s + w.statArb.pairs, 0))}
+          hint={`${windows.reduce((s, w) => s + w.statArb.signals, 0)} spread signals across all windows`}
+          tone="text-slate-900"
+        />
+      </div>
+
+      <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 className="text-base font-bold text-slate-900">Walk-Forward Windows</h2>
+            <p className="text-[11px] text-slate-500">
+              Each window is fit in-sample, then evaluated on the next OOS tail; regime is labelled from the window's drawdown + win-rate profile.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-3 font-mono text-[11px]">
+            <span className="text-slate-500">
+              Sizing <span className="text-slate-700">{meta?.sizingMode ?? "atrp"}</span>
+            </span>
+            <span className="text-slate-500">
+              Kelly <span className="text-slate-700">{meta?.withKelly ? "on" : "off"}</span>
+            </span>
+            <span className="text-slate-500">
+              VaR <span className="text-slate-700">{meta?.withVar ? "on" : "off"}</span>
+            </span>
+            <span className="text-slate-500">
+              stat-arb <span className="text-slate-700">{meta?.statArbEnabled ? "on" : "off"}</span>
+            </span>
+          </div>
+        </div>
+
+        {windows.length > 0 ? (
+          <div className="mt-4 grid gap-4 lg:grid-cols-2">
+            <div>
+              <h3 className="text-sm font-bold text-slate-700 mb-2">Per-Window Detail</h3>
+              <WindowTable windows={windows} />
+            </div>
+
+            <div>
+              <h3 className="text-sm font-bold text-slate-700 mb-2">Regime Switching</h3>
+              <RegimeSwitchingChart rows={agg?.regimeSwitching ?? []} />
+              <ul className="mt-3 divide-y divide-slate-100">
+                {(agg?.regimeSwitching ?? []).map((row) => (
+                  <li key={row.regime} className="py-1.5 text-xs text-slate-600">
+                    <span className="font-semibold">{row.regime}</span>: {row.windows} window{row.windows === 1 ? "" : "s"}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        ) : (
+          <p className="py-6 text-center text-xs text-slate-400">No walk-forward windows yet.</p>
+        )}
+      </section>
+
+      {data.equityCurve && data.equityCurve.length > 1 ? (
+        <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h2 className="text-base font-bold text-slate-900">Representative Equity Curve</h2>
+              <p className="text-[11px] text-slate-500">
+                First walk-forward window's book, as a representative shape of the desk through the tape.
+              </p>
+            </div>
+          </div>
+          <div className="mt-4 pb-6">
+            <EquityChart points={data.equityCurve} baseline={100000} positive={(data.aggregates?.sweep.totalSignals ?? 0) > 0} />
+          </div>
+        </section>
+      ) : null}
+    </>
+  );
+}
+
 export default function BacktestPage() {
   const [horizon, setHorizon] = useState<Horizon>("1Y");
   const [strategy, setStrategy] = useState<Strategy>("sweep");
@@ -396,15 +701,26 @@ export default function BacktestPage() {
   }, [horizon]);
 
   const data = payloads[horizon];
-  const metrics = data?.metrics;
+  const isStress = data && ('meta' in data);
+  const nonStressData = (!isStress && data) ? data as SweepPayload | MomentumPayload : null;
+  const metrics = nonStressData?.metrics;
   const curve = data?.equityCurve ?? [];
-  const trades = data?.trades ?? [];
+  const trades = nonStressData?.trades ?? [];
   const macro = horizon === "5Y";
   const isMomentum = strategy === "momentum";
+  const strategyData = nonStressData?.strategy;
+  const strategyTopN = isMomentum ? (strategyData as MomentumPayload["strategy"] | undefined)?.topN : undefined;
+  const strategyTrendMaDays = (!isMomentum) ? (strategyData as SweepPayload["strategy"] | undefined)?.trendMaDays : undefined;
+  const strategyMinRvol = (!isMomentum) ? (strategyData as SweepPayload["strategy"] | undefined)?.minRvol : undefined;
+  const strategyMinVolZ = (!isMomentum) ? (strategyData as SweepPayload["strategy"] | undefined)?.minVolZ : undefined;
+  const strategyAtrStopMult = (!isMomentum) ? (strategyData as SweepPayload["strategy"] | undefined)?.atrStopMult : undefined;
+  const strategyTargetPct = (!isMomentum) ? (strategyData as SweepPayload["strategy"] | undefined)?.targetPct : undefined;
+  const strategyHoldHorizonSessions = (!isMomentum) ? (strategyData as SweepPayload["strategy"] | undefined)?.holdHorizonSessions : undefined;
+  const strategyPositionPct = (!isMomentum) ? (strategyData as SweepPayload["strategy"] | undefined)?.positionPct : undefined;
 
   const rows = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    return trades.filter((trade) => {
+    return (trades as Trade[]).filter((trade) => {
       if (outcome === "WINS" && !(trade.outcome !== "IN PLAY" && trade.pnlPct > 0)) return false;
       if (outcome === "LOSSES" && !(trade.outcome !== "IN PLAY" && trade.pnlPct <= 0)) return false;
       if (outcome === "OPEN" && trade.outcome !== "IN PLAY") return false;
@@ -431,10 +747,13 @@ export default function BacktestPage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0">
           <h1 className="text-xl font-bold tracking-tight text-slate-900">
-            {macro ? "5Y Macro Stress Test" : "1Y Backtest Lab"}
+            {horizon === "1Y" ? "1Y Backtest Lab" : horizon === "5Y" ? "5Y Macro Stress Test" : "15Y Meta-Brain Stress Test"}
           </h1>
           <p className="text-xs text-slate-500">
-            {data?.strategy?.name ?? "Strategy"} replayed session by session
+            {(horizon === "15Y" && data && ("meta" in data) && (data as StressTestPayload).meta?.name)
+              ? (data as StressTestPayload).meta!.name
+              : (data && ("strategy" in data) ? (data as SweepPayload | MomentumPayload).strategy?.name : "Strategy")}
+            {" "}replayed session by session
             {data?.sessionRange?.from && data?.sessionRange?.to
               ? ` — ${data.sessionRange.from} to ${data.sessionRange.to} (${data.sessionRange.sessions} sessions${
                   data.sessionRange.tickers ? ` · ${data.sessionRange.tickers} names` : ""
@@ -451,7 +770,7 @@ export default function BacktestPage() {
       <div className="flex flex-wrap gap-1.5">
         {isMomentum ? (
           [
-            `Top ${data?.strategy?.topN ?? 10} momentum leaders`,
+            `Top ${strategyTopN ?? 10} momentum leaders`,
             `3M + 6M ROC composite score`,
             `Monthly rebalance (month-end)`,
             `7% hard stop · 50d SMA break exit`,
@@ -466,11 +785,11 @@ export default function BacktestPage() {
           ))
         ) : (
           [
-            `Above SMA${data?.strategy?.trendMaDays ?? 50}`,
-            `RVOL ≥ ${data?.strategy?.minRvol ?? 1.5}x · Z ≥ ${data?.strategy?.minVolZ ?? 1}`,
-            `ATR × ${data?.strategy?.atrStopMult ?? 2} stop`,
-            `Target +${data?.strategy?.targetPct ?? 12}%`,
-            `${data?.strategy?.holdHorizonSessions ?? 30}s max hold`,
+            `Above SMA${strategyTrendMaDays ?? 50}`,
+            `RVOL ≥ ${strategyMinRvol ?? 1.5}x · Z ≥ ${strategyMinVolZ ?? 1}`,
+            `ATR × ${strategyAtrStopMult ?? 2} stop`,
+            `Target +${strategyTargetPct ?? 12}%`,
+            `${strategyHoldHorizonSessions ?? 30}s max hold`,
           ].map((chip) => (
             <span
               key={chip}
@@ -490,7 +809,12 @@ export default function BacktestPage() {
 
       {loaded && !data && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-          {isMomentum ? (
+          {horizon === "15Y" ? (
+            <>
+              No 15-year Meta-Brain stress test yet — run{" "}
+              <code className="font-mono">python backend/src/quant/stress_test.py</code>.
+            </>
+          ) : isMomentum ? (
             <>
               No momentum rotation report yet — run{" "}
               <code className="font-mono">python backend/src/quant/momentum_rotation.py</code>.
@@ -508,7 +832,11 @@ export default function BacktestPage() {
         </div>
       )}
 
-      {metrics && (
+      {horizon === "15Y" && data && (
+        <StressTestView data={data as StressTestPayload} />
+      )}
+
+      {metrics && horizon !== "15Y" && (
         <>
           <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-6">
             <Metric
@@ -539,8 +867,7 @@ export default function BacktestPage() {
               label="Max Drawdown"
               value={`-${metrics.maxDrawdownPct.toFixed(1)}%`}
               hint={
-                macro && data?.maxDrawdown
-                  ? `Trough ${data.maxDrawdown.troughDate}`
+                macro && !isStress && data && ('maxDrawdown' in data) ? `Trough ${(data as SweepPayload | MomentumPayload).maxDrawdown?.troughDate ?? ""}`
                   : "Peak-to-trough on equity"
               }
               tone="text-rose-600"
@@ -548,7 +875,7 @@ export default function BacktestPage() {
             <Metric
               label="Signals"
               value={String(metrics.totalSignals)}
-              hint={`${metrics.tradesPerYear ?? 0}/yr · ${metrics.avgBarsHeld.toFixed(0)}d avg hold`}
+              hint={`${!isStress && ('tradesPerYear' in metrics) ? metrics.tradesPerYear ?? 0 : 0}/yr · ${metrics.avgBarsHeld.toFixed(0)}d avg hold`}
               tone="text-slate-900"
             />
           </div>
@@ -558,7 +885,7 @@ export default function BacktestPage() {
               <div>
                 <h2 className="text-base font-bold text-slate-900">Equity Curve</h2>
                 <p className="text-[11px] text-slate-500">
-                  {data?.strategy?.positionPct ?? 10}% of live equity per signal · dashed line is starting capital
+                  ${strategyPositionPct ?? 10}% of live equity per signal · dashed line is starting capital
                 </p>
               </div>
               <div className="flex flex-wrap gap-3 font-mono text-[11px]">
@@ -582,7 +909,7 @@ export default function BacktestPage() {
             </div>
           </section>
 
-          {macro && (data?.yearlyReturns?.length || data?.drawdownEpisodes?.length) ? (
+          {macro && !isStress && ((data && ('yearlyReturns' in data) && (data as SweepPayload | MomentumPayload).yearlyReturns?.length) || (data && ('drawdownEpisodes' in data) && (data as SweepPayload | MomentumPayload).drawdownEpisodes?.length)) ? (
             <div className="grid gap-4 lg:grid-cols-2">
               <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
                 <h2 className="text-base font-bold text-slate-900">Market Cycles</h2>
@@ -681,43 +1008,46 @@ export default function BacktestPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {rows.map((trade) => (
-                <tr key={`${trade.id}-${trade.ticker}-${trade.signalDate}`} className="hover:bg-slate-50">
-                  <td className="whitespace-nowrap px-3 py-3 text-[11px] text-slate-500 sm:px-4">{trade.signalDate}</td>
-                  <td className="whitespace-nowrap px-3 py-3 text-sm font-bold text-slate-900 sm:px-4">{trade.ticker}</td>
-                  <td className="whitespace-nowrap px-3 py-3 text-right font-semibold text-slate-700 sm:px-4">
-                    {money(trade.entryPrice)}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-3 text-right font-semibold text-rose-600 sm:px-4">
-                    {money(trade.stopLoss)}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-3 text-right font-semibold text-emerald-600 sm:px-4">
-                    {money(trade.targetPrice)}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-3 text-right font-semibold text-slate-700 sm:px-4">
-                    {money(trade.exitPrice)}
-                  </td>
-                  <td
-                    className={`whitespace-nowrap px-3 py-3 text-right font-bold sm:px-4 ${
-                      trade.pnlPct >= 0 ? "text-emerald-600" : "text-rose-600"
-                    }`}
-                  >
-                    {trade.pnlPct >= 0 ? "+" : ""}
-                    {trade.pnlPct.toFixed(1)}%
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-3 text-center text-[11px] text-slate-500 sm:px-4">
-                    {trade.barsHeld}d
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-3 text-center sm:px-4">
-                    <span className={`inline-block rounded-full border px-2.5 py-1 text-[10px] font-bold ${outcomeTone(trade.outcome)}`}>
-                      {trade.outcome}
-                    </span>
-                  </td>
-                  <td className="max-w-xs truncate px-3 py-3 font-sans text-[11px] text-slate-500 sm:px-4" title={trade.reason}>
-                    {trade.reason}
-                  </td>
-                </tr>
-              ))}
+              {rows.map((trade) => {
+                  const t = trade as Trade;
+                  return (
+                    <tr key={`${t.id}-${t.ticker}-${t.signalDate}`} className="hover:bg-slate-50">
+                      <td className="whitespace-nowrap px-3 py-3 text-[11px] text-slate-500 sm:px-4">{t.signalDate}</td>
+                      <td className="whitespace-nowrap px-3 py-3 text-sm font-bold text-slate-900 sm:px-4">{t.ticker}</td>
+                      <td className="whitespace-nowrap px-3 py-3 text-right font-semibold text-slate-700 sm:px-4">
+                        {money(t.entryPrice)}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-3 text-right font-semibold text-rose-600 sm:px-4">
+                        {money(t.stopLoss)}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-3 text-right font-semibold text-emerald-600 sm:px-4">
+                        {money(t.targetPrice)}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-3 text-right font-semibold text-slate-700 sm:px-4">
+                        {money(t.exitPrice)}
+                      </td>
+                      <td
+                        className={`whitespace-nowrap px-3 py-3 text-right font-bold sm:px-4 ${
+                          t.pnlPct >= 0 ? "text-emerald-600" : "text-rose-600"
+                        }`}
+                      >
+                        {t.pnlPct >= 0 ? "+" : ""}
+                        {t.pnlPct.toFixed(1)}%
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-3 text-center text-[11px] text-slate-500 sm:px-4">
+                        {t.barsHeld}d
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-3 text-center sm:px-4">
+                        <span className={`inline-block rounded-full border px-2.5 py-1 text-[10px] font-bold ${outcomeTone(t.outcome)}`}>
+                          {t.outcome}
+                        </span>
+                      </td>
+                      <td className="max-w-xs truncate px-3 py-3 font-sans text-[11px] text-slate-500 sm:px-4" title={t.reason}>
+                        {t.reason}
+                      </td>
+                    </tr>
+                  );
+                })}
               {loaded && rows.length === 0 && (
                 <tr>
                   <td colSpan={10} className="px-4 py-8 text-center font-sans text-xs text-slate-400">
