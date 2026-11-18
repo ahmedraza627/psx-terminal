@@ -9,11 +9,13 @@ from statistics import median
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from quant_modules import (calc_dfx_carry, calc_director_footprint,  # noqa: E402
                           calc_mansfield_rs, calc_vpvr_sweep)
+from v5_ledger import log_signals  # noqa: E402
 BASE_DIR = Path(__file__).resolve().parent.parent.parent  # project root
 DB_PATH = BASE_DIR / "data" / "portfolio.db"
 OUTPUT_PATH = Path(os.getenv("SYNC_OUTPUT_PATH",
                              str(BASE_DIR / "frontend" / "public" / "data" / "latest.json")))
 LOCAL_Z_DIR = Path(os.getenv("PSX_Z_DIR", r"D:\downloads"))
+HISTORY_PATH = OUTPUT_PATH.with_name("history.json")  # V5 audit ledger
 TAPE_URL = "https://dps.psx.com.pk/download/mkt_summary/{}.Z"
 INDICES_URL = "https://dps.psx.com.pk/indices"
 FILINGS_URL = "https://dps.psx.com.pk/company/{}"
@@ -26,19 +28,18 @@ INSERT = ("INSERT OR REPLACE INTO {} (trade_date, ticker, open_price, high_price
           "(:trade_date, :ticker, :open_price, :high_price, :low_price, :close_price, :volume)")
 LOG = logging.getLogger("process_daily_tape")
 def fetch(url: str) -> str:
-    request = urllib.request.Request(url, headers={"User-Agent": UA})
-    return urllib.request.urlopen(request, timeout=60).read().decode("utf-8", "replace")
+    request = urllib.request.Request(url, headers={"User-Agent": UA}); return urllib.request.urlopen(
+        request, timeout=60).read().decode("utf-8", "replace")
 def one(cur: sqlite3.Cursor, sql: str, params=()):
     row = cur.execute(sql, params).fetchone(); return row[0] if row else None
 def ensure_tables(conn: sqlite3.Connection) -> None:
     cur = conn.cursor()
     for name in ("psx_daily_eod", "psx_futures_eod"):
         cols = [row[1] for row in cur.execute(f"PRAGMA table_info({name})")]
-        if cols and "open_price" not in cols:
-            cur.execute(f"DROP TABLE {name}")
+        if cols and "open_price" not in cols: cur.execute(f"DROP TABLE {name}")
         cur.execute(EOD_SCHEMA.format(name))
-    cur.execute("CREATE TABLE IF NOT EXISTS psx_disclosures (trade_date TEXT NOT NULL, ticker TEXT NOT NULL, "
-                "headline TEXT, disclosure_type TEXT, PRIMARY KEY (trade_date, ticker, headline))")
+    cur.execute("CREATE TABLE IF NOT EXISTS psx_disclosures (trade_date TEXT NOT NULL, ticker TEXT NOT NULL, headline TEXT, "
+                "disclosure_type TEXT, PRIMARY KEY (trade_date, ticker, headline))")
     conn.commit()
 def parse_tape(path: Path) -> list[dict]:
     """ZIP/gzip/LZW/plain tape: date|ticker|time|name|open|high|low|close|volume|prev."""
@@ -168,12 +169,12 @@ def main() -> dict:
     scrape_disclosures(conn, sorted({row["ticker"] for row in sweeps + leaders + traps}))
     for item in sweeps:
         item["directorFootprint"] = calc_director_footprint(cur, item["ticker"], item["close"], item["poc"])["directorFootprint"]
+    watch = [] if sweeps else [lead for lead in leaders if lead["mansfieldRs"] >= 8.0]
+    audited = log_signals(conn, cur, session, sweeps + watch, traps, HISTORY_PATH)
     payload = {"sessionDate": session_date.isoformat(), "kse100": index_snapshot(), "sbpRate": SBP_RATE_PCT,
                "liquiditySweeps": sweeps, "rsLeaders": leaders, "carryTraps": traps}
-    OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    OUTPUT_PATH.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-    LOG.info("wrote %s", OUTPUT_PATH)
+    OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True); OUTPUT_PATH.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    LOG.info("wrote %s and %d audited ledger rows", OUTPUT_PATH, audited)
     return payload
-
 if __name__ == "__main__":
     main()

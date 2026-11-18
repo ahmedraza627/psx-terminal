@@ -1,63 +1,102 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 
-interface AuditEntry {
+type LedgerEntry = {
   date: string;
   ticker: string;
-  type: string;
-  timeframe: string;
-  entryRef: number;
-  invalidation: number;
-  target: number;
-  latestClose: number;
+  call: "BUY" | "AVOID";
+  label: string;
+  entry: number | null;
+  stop: number | null;
+  target: number | null;
+  latestClose: number | null;
   pnlPct: number;
   status: string;
   notes: string;
+};
+
+type HistoryFile = { sessionDate?: string; entries?: LedgerEntry[] };
+
+const money = (value: number | null) =>
+  value === null || value === undefined ? "–" : value.toFixed(2);
+
+const statusTone = (status: string) => {
+  if (status === "TARGET HIT" || status === "AVOID WORKED") {
+    return "border-emerald-300 bg-emerald-50 text-emerald-700";
+  }
+  if (status === "STOPPED OUT" || status === "AVOID FAILED") {
+    return "border-rose-300 bg-rose-50 text-rose-700";
+  }
+  return "border-slate-200 bg-slate-50 text-slate-600";
+};
+
+function Card({ label, value, hint, tone }: { label: string; value: string; hint: string; tone: string }) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <span className="block text-[10px] font-semibold uppercase tracking-wider text-slate-400">{label}</span>
+      <span className={`mt-1 block font-mono text-2xl font-black ${tone}`}>{value}</span>
+      <span className="mt-0.5 block text-[10px] text-slate-500">{hint}</span>
+    </div>
+  );
 }
 
 export default function HistoryPage() {
-  const [history, setHistory] = useState<AuditEntry[]>([]);
-  const [filter, setFilter] = useState<string>("ALL");
+  const [entries, setEntries] = useState<LedgerEntry[]>([]);
+  const [sessionDate, setSessionDate] = useState<string>("");
+  const [filter, setFilter] = useState<"ALL" | "BUY" | "AVOID">("ALL");
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     fetch("/data/history.json")
       .then((res) => res.json())
-      .then((d) => setHistory(d))
-      .catch((err) => console.error("Error loading history:", err));
+      .then((data: HistoryFile | LedgerEntry[]) => {
+        if (Array.isArray(data)) {
+          setEntries(data);
+        } else {
+          setEntries(data.entries ?? []);
+          setSessionDate(data.sessionDate ?? "");
+        }
+      })
+      .catch((err) => console.error("Error loading history:", err))
+      .finally(() => setLoaded(true));
   }, []);
 
-  const totalCalls = history.length;
-  const resolved = history.filter((h) => h.status === "TARGET HIT" || h.status === "STOPPED OUT");
-  const targetHits = history.filter((h) => h.status === "TARGET HIT").length;
-  const hitRate = resolved.length > 0 ? ((targetHits / resolved.length) * 100).toFixed(1) : "0.0";
-  const capitalPreserved = history.filter((h) => h.type === "AVOID" && (h.status === "CAPITAL PRESERVED" || h.status === "IN PLAY")).length;
-  const totalAvoids = history.filter((h) => h.type === "AVOID").length;
-  const preservedPct = totalAvoids > 0 ? ((capitalPreserved / totalAvoids) * 100).toFixed(0) : "100";
-
-  const filteredHistory = filter === "ALL" ? history : history.filter((h) => h.type === filter);
+  const buys = entries.filter((entry) => entry.call === "BUY");
+  const avoids = entries.filter((entry) => entry.call === "AVOID");
+  const resolvedBuys = buys.filter(
+    (entry) => entry.status === "TARGET HIT" || entry.status === "STOPPED OUT",
+  );
+  const winners = resolvedBuys.filter((entry) => entry.status === "TARGET HIT").length;
+  const hitRate = resolvedBuys.length ? ((winners / resolvedBuys.length) * 100).toFixed(1) : "–";
+  const avoidsWorked = avoids.filter((entry) => entry.status === "AVOID WORKED").length;
+  const avoidRate = avoids.length ? ((avoidsWorked / avoids.length) * 100).toFixed(0) : "–";
+  const closed = entries.filter((entry) => entry.status !== "IN PLAY");
+  const avgPnl = closed.length
+    ? (closed.reduce((sum, entry) => sum + entry.pnlPct, 0) / closed.length).toFixed(2)
+    : "–";
+  const rows = filter === "ALL" ? entries : entries.filter((entry) => entry.call === filter);
 
   return (
-    <div className="p-4 sm:p-6 pb-20 space-y-6 max-w-7xl mx-auto w-full">
-      {/* HEADER */}
-      <div className="border-b border-slate-200 pb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+    <div className="space-y-5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-lg sm:text-xl font-bold tracking-tight text-slate-900">
-            Historical Performance & Audit Ledger
-          </h1>
+          <h1 className="text-xl font-bold tracking-tight text-slate-900">Historical Performance</h1>
           <p className="text-xs text-slate-500">
-            Auto-rolling institutional ledger audited live against active PSX closing tape.
+            Every buy and avoid the desk issued, marked against the latest closing tape.
+            {sessionDate ? ` Audited through ${sessionDate}.` : ""}
           </p>
         </div>
-        <div className="flex items-center gap-1.5 font-mono text-xs">
-          {["ALL", "BUY", "AVOID"].map((tab) => (
+        <div className="flex items-center gap-1.5">
+          {(["ALL", "BUY", "AVOID"] as const).map((tab) => (
             <button
               key={tab}
+              type="button"
               onClick={() => setFilter(tab)}
-              className={`px-3 py-1 rounded-md text-xs font-semibold transition-all ${
+              className={`rounded-md border px-3 py-1 text-xs font-semibold transition-colors ${
                 filter === tab
-                  ? "bg-slate-900 text-white"
-                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  ? "border-slate-900 bg-slate-900 text-white"
+                  : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
               }`}
             >
               {tab}
@@ -66,98 +105,108 @@ export default function HistoryPage() {
         </div>
       </div>
 
-      {/* STAT CARDS */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 font-mono">
-        <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-sm">
-          <span className="text-[10px] uppercase text-slate-400 block font-sans">Total Setups Audited</span>
-          <span className="text-2xl font-black text-slate-900 block mt-1">{totalCalls} Calls</span>
-          <span className="text-[10px] text-slate-500 block mt-0.5">Auto-rolling ledger</span>
-        </div>
-
-        <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-sm">
-          <span className="text-[10px] uppercase text-slate-400 block font-sans">Target Hit Rate</span>
-          <span className="text-2xl font-black text-emerald-600 block mt-1">{hitRate}%</span>
-          <span className="text-[10px] text-slate-500 block mt-0.5">Resolved ({targetHits}W / {resolved.length - targetHits}L)</span>
-        </div>
-
-        <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-sm">
-          <span className="text-[10px] uppercase text-slate-400 block font-sans">Capital Preserved</span>
-          <span className="text-2xl font-black text-amber-600 block mt-1">{preservedPct}%</span>
-          <span className="text-[10px] text-slate-500 block mt-0.5">Avoid warnings executed</span>
-        </div>
-
-        <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-sm">
-          <span className="text-[10px] uppercase text-slate-400 block font-sans">Data Integrity</span>
-          <span className="text-2xl font-black text-blue-600 block mt-1">LIVE</span>
-          <span className="text-[10px] text-slate-500 block mt-0.5">Exchange tape verified</span>
-        </div>
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+        <Card
+          label="Signals Logged"
+          value={String(entries.length)}
+          hint="Auto-appended each session"
+          tone="text-slate-900"
+        />
+        <Card
+          label="Buy Hit Rate"
+          value={hitRate === "–" ? "–" : `${hitRate}%`}
+          hint={`${winners}W / ${resolvedBuys.length - winners}L resolved`}
+          tone="text-emerald-600"
+        />
+        <Card
+          label="Avoid Success"
+          value={avoidRate === "–" ? "–" : `${avoidRate}%`}
+          hint={`${avoidsWorked} of ${avoids.length} traps worked`}
+          tone="text-amber-600"
+        />
+        <Card
+          label="Avg P&L (closed)"
+          value={avgPnl === "–" ? "–" : `${avgPnl}%`}
+          hint="Live against entry reference"
+          tone="text-blue-600"
+        />
       </div>
 
-      {/* TABLE */}
-      <div className="border border-slate-200 rounded-xl bg-white shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs font-mono">
-            <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 text-[10px] uppercase">
+      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div className="table-scroll">
+          <table className="w-full text-left font-mono text-xs">
+            <thead className="border-b border-slate-200 bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500">
               <tr>
-                <th className="py-3 px-4">Date</th>
-                <th className="py-3 px-4">Ticker</th>
-                <th className="py-3 px-4">Type</th>
-                <th className="py-3 px-4 text-right">Entry Ref</th>
-                <th className="py-3 px-4 text-right">Stop</th>
-                <th className="py-3 px-4 text-right">Target</th>
-                <th className="py-3 px-4 text-right">Live Close</th>
-                <th className="py-3 px-4 text-right">Unrealized P&L</th>
-                <th className="py-3 px-4 text-center">Audit Status</th>
-                <th className="py-3 px-4">Rationale</th>
+                <th className="px-4 py-3">Date</th>
+                <th className="px-4 py-3">Ticker</th>
+                <th className="px-4 py-3">Call</th>
+                <th className="px-4 py-3 text-right">Entry</th>
+                <th className="px-4 py-3 text-right">Stop</th>
+                <th className="px-4 py-3 text-right">Target</th>
+                <th className="px-4 py-3 text-right">Live Close</th>
+                <th className="px-4 py-3 text-right">P&L</th>
+                <th className="px-4 py-3 text-center">Status</th>
+                <th className="px-4 py-3 font-sans">Basis</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredHistory.map((item, idx) => (
-                <tr key={`${item.date}-${item.ticker}-${idx}`} className="hover:bg-slate-50/70 transition-colors">
-                  <td className="py-3 px-4 text-slate-500 text-[11px] whitespace-nowrap">{item.date}</td>
-                  <td className="py-3 px-4 font-bold text-slate-900 text-sm whitespace-nowrap">{item.ticker}</td>
-                  <td className="py-3 px-4 whitespace-nowrap">
+              {rows.map((entry, index) => (
+                <tr key={`${entry.date}-${entry.ticker}-${entry.call}-${index}`} className="hover:bg-slate-50">
+                  <td className="whitespace-nowrap px-4 py-3 text-[11px] text-slate-500">{entry.date}</td>
+                  <td className="whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-900">{entry.ticker}</td>
+                  <td className="whitespace-nowrap px-4 py-3">
                     <span
-                      className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                        item.type === "BUY"
-                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                          : "bg-rose-50 text-rose-700 border border-rose-200"
+                      className={`rounded border px-2 py-0.5 text-[10px] font-bold ${
+                        entry.call === "BUY"
+                          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                          : "border-rose-200 bg-rose-50 text-rose-700"
                       }`}
                     >
-                      {item.type}
+                      {entry.call}
                     </span>
                   </td>
-                  <td className="py-3 px-4 text-right text-slate-700 font-semibold whitespace-nowrap">PKR {item.entryRef.toFixed(2)}</td>
-                  <td className="py-3 px-4 text-right text-rose-600 font-semibold whitespace-nowrap">PKR {item.invalidation.toFixed(2)}</td>
-                  <td className="py-3 px-4 text-right text-emerald-600 font-semibold whitespace-nowrap">PKR {item.target.toFixed(2)}</td>
-                  <td className="py-3 px-4 text-right font-bold text-slate-900 whitespace-nowrap">PKR {item.latestClose.toFixed(2)}</td>
+                  <td className="whitespace-nowrap px-4 py-3 text-right font-semibold text-slate-700">
+                    {money(entry.entry)}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-3 text-right font-semibold text-rose-600">
+                    {money(entry.stop)}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-3 text-right font-semibold text-emerald-600">
+                    {money(entry.target)}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-3 text-right font-bold text-slate-900">
+                    {money(entry.latestClose)}
+                  </td>
                   <td
-                    className={`py-3 px-4 text-right font-bold whitespace-nowrap ${
-                      item.pnlPct >= 0 ? "text-emerald-600" : "text-rose-600"
+                    className={`whitespace-nowrap px-4 py-3 text-right font-bold ${
+                      entry.pnlPct >= 0 ? "text-emerald-600" : "text-rose-600"
                     }`}
                   >
-                    {item.pnlPct >= 0 ? `+${item.pnlPct.toFixed(1)}%` : `${item.pnlPct.toFixed(1)}%`}
+                    {entry.pnlPct >= 0 ? "+" : ""}
+                    {entry.pnlPct.toFixed(1)}%
                   </td>
-                  <td className="py-3 px-4 text-center whitespace-nowrap">
+                  <td className="whitespace-nowrap px-4 py-3 text-center">
                     <span
-                      className={`px-2.5 py-1 rounded-full text-[10px] font-bold inline-block ${
-                        item.status === "TARGET HIT"
-                          ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
-                          : item.status === "STOPPED OUT"
-                          ? "bg-rose-100 text-rose-800 border border-rose-300"
-                          : item.status === "CAPITAL PRESERVED"
-                          ? "bg-amber-100 text-amber-800 border border-amber-300"
-                          : "bg-blue-50 text-blue-700 border border-blue-200"
-                      }`}
+                      className={`inline-block rounded-full border px-2.5 py-1 text-[10px] font-bold ${statusTone(entry.status)}`}
                     >
-                      {item.status}
+                      {entry.status}
                     </span>
                   </td>
-                  <td className="py-3 px-4 text-slate-600 font-sans text-[11px] max-w-xs truncate" title={item.notes}>
-                    {item.notes}
+                  <td
+                    className="max-w-xs truncate px-4 py-3 font-sans text-[11px] text-slate-500"
+                    title={entry.notes}
+                  >
+                    {entry.notes}
                   </td>
                 </tr>
               ))}
+              {loaded && rows.length === 0 && (
+                <tr>
+                  <td colSpan={10} className="px-4 py-8 text-center font-sans text-xs text-slate-400">
+                    No audited signals yet — the ledger fills each time the close is processed.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

@@ -1,8 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
-/** PSX Institutional Signal Desk — reads public/data/latest.json at request time. */
-
+/** Today's actionable PSX desk: what to buy, what to stay out of. */
 export const dynamic = "force-dynamic";
 
 type Sweep = {
@@ -50,162 +49,176 @@ function readLatest(): Latest | null {
     try {
       return JSON.parse(fs.readFileSync(file, "utf-8")) as Latest;
     } catch {
-      // try the next location
+      // try the next candidate
     }
   }
   return null;
 }
 
-const num = (value: number | null | undefined, digits = 2) =>
+const money = (value: number | null | undefined) =>
+  value === null || value === undefined || Number.isNaN(value)
+    ? "—"
+    : value.toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+const pct = (value: number | null | undefined, digits = 2) =>
   value === null || value === undefined || Number.isNaN(value) ? "—" : value.toFixed(digits);
 
-const pkr = (value: number | null | undefined) =>
-  value === null || value === undefined ? "—" : value.toLocaleString("en-PK", { maximumFractionDigits: 2 });
+const RS_WATCH_FLOOR = 8.0; // only elite relative strength qualifies when no sweep fired
+const CARRY_FLOOR = 18.0; // % annualised carry that beats the 11% policy rate by enough
 
-function Empty({ message }: { message: string }) {
-  return <div className="px-4 py-6 text-center text-xs text-slate-400">{message}</div>;
+function Tag({children}: {children: React.ReactNode}) {
+  return (
+    <span className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">
+      {children}
+    </span>
+  );
 }
 
-export default function SignalDeskPage() {
+function Stat({label, value, tone}: {label: string; value: string; tone?: string}) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+      <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">{label}</div>
+      <div className={`mt-0.5 font-mono text-base font-bold ${tone ?? "text-slate-900"}`}>{value}</div>
+    </div>
+  );
+}
+
+export default function DailyDeskPage() {
   const latest = readLatest();
   const sweeps = latest?.liquiditySweeps ?? [];
-  const leaders = latest?.rsLeaders ?? [];
-  const traps = latest?.carryTraps ?? [];
+  const traps = (latest?.carryTraps ?? []).filter(
+    (trap) => (trap.annualizedCarryPct ?? 0) > CARRY_FLOOR && (trap.mansfieldRs ?? 0) < 0,
+  );
+  const watch = sweeps.length
+    ? []
+    : (latest?.rsLeaders ?? []).filter((lead) => (lead.mansfieldRs ?? 0) >= RS_WATCH_FLOOR);
   const sbpRate = latest?.sbpRate ?? 11;
   const kse = latest?.kse100;
   const kseUp = (kse?.changePct ?? 0) >= 0;
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
+    <div className="space-y-5">
+      {/* Session strip */}
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h1 className="text-xl font-bold tracking-tight text-slate-900">
-            PSX Institutional Signal Desk
-          </h1>
+          <h1 className="text-xl font-bold tracking-tight text-slate-900">Today&apos;s Trade Desk</h1>
           <p className="text-xs text-slate-500">
-            Session {latest?.sessionDate ?? "unavailable"} · Liquid universe: close ≥ PKR 12,
-            turnover ≥ PKR 20M
+            Buys and avoids are computed at the close — no settings, no charts, just the call.
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-right shadow-sm">
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-              KSE-100
-            </div>
-            <div className="font-mono text-sm font-bold text-slate-800">{pkr(kse?.close)}</div>
-          </div>
-          <div
-            className={`rounded-lg border px-3 py-1.5 font-mono text-sm font-bold shadow-sm ${
-              kseUp
-                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                : "border-rose-200 bg-rose-50 text-rose-700"
-            }`}
-          >
-            {(kse?.changePct ?? 0) >= 0 ? "+" : ""}
-            {num(kse?.changePct)}%
-          </div>
+        <div className="grid grid-cols-3 gap-2 sm:gap-3">
+          <Stat label="Session" value={latest?.sessionDate ?? "—"} />
+          <Stat
+            label="KSE-100"
+            value={`${money(kse?.close)}  ${(kse?.changePct ?? 0) >= 0 ? "+" : ""}${pct(kse?.changePct)}%`}
+            tone={kseUp ? "text-emerald-700" : "text-rose-700"}
+          />
+          <Stat label="SBP Policy Rate" value={`${pct(sbpRate, 1)}%`} tone="text-slate-900" />
         </div>
       </div>
 
       {!latest && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-          No latest.json found. Run <code className="font-mono">python backend/scripts/process_daily_tape.py</code>{" "}
-          to generate the signal file.
+          No signal file yet — run <code className="font-mono">python backend/scripts/process_daily_tape.py</code>.
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-        <section className="rounded-xl border border-blue-200 bg-blue-50/30 p-5 shadow-sm">
-          <header className="border-b border-blue-100 pb-3">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-blue-700">
-              Liquidity Sweep Longs
-            </span>
-            <h2 className="text-base font-bold text-blue-900">Stop-hunt reclaim above POC</h2>
-            <p className="text-[11px] text-blue-700/70">
-              Low sweeps prior 3-session low, close reclaims POC, Vol Z ≥ 1.5
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        {/* LEFT — BUY / ACCUMULATE */}
+        <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <header className="border-b border-slate-200 pb-3">
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="text-base font-bold text-slate-900">Buy / Accumulate Setups</h2>
+              <span className="rounded border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+                SPOT MARKET
+              </span>
+            </div>
+            <p className="mt-0.5 text-[11px] text-slate-500">
+              Enter near the volume point of control, hard stop inside 7%, target +12%.
             </p>
           </header>
-          {sweeps.length === 0 ? (
-            <Empty message="No sweep reclaims passed the filter this session." />
-          ) : (
-            <ul className="divide-y divide-blue-100">
-              {sweeps.map((item) => (
-                <li key={item.ticker} className="py-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-sm font-bold text-slate-900">{item.ticker}</span>
-                        <span
-                          className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${
-                            item.directorFootprint
-                              ? "border border-violet-200 bg-violet-50 text-violet-700"
-                              : "border border-slate-200 bg-slate-50 text-slate-400"
-                          }`}
-                        >
-                          {item.directorFootprint ? "DIRECTOR" : "NO FILING"}
-                        </span>
-                      </div>
-                      <p className="mt-0.5 text-[11px] text-slate-500">
-                        POC {num(item.poc)} · Vol Z {num(item.volZScore)} · Mansfield RS{" "}
-                        <span className="font-semibold text-emerald-700">+{num(item.mansfieldRs)}%</span>
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-mono text-sm font-bold text-slate-800">{num(item.close)}</div>
-                      <div className="text-[10px] uppercase tracking-wide text-slate-400">close</div>
-                    </div>
-                  </div>
-                  <div className="mt-2 grid grid-cols-2 gap-2 text-[11px]">
-                    <div className="rounded bg-white px-2 py-1 shadow-sm">
-                      <span className="text-rose-600 font-semibold">7% stop</span>
-                      <span className="ml-1 font-mono text-slate-700">{num(item.stopLoss)}</span>
-                    </div>
-                    <div className="rounded bg-white px-2 py-1 shadow-sm">
-                      <span className="text-emerald-600 font-semibold">target</span>
-                      <span className="ml-1 font-mono text-slate-700">{num(item.target)}</span>
-                    </div>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
 
-        <section className="rounded-xl border border-emerald-200 bg-emerald-50/30 p-5 shadow-sm">
-          <header className="border-b border-emerald-100 pb-3">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-emerald-700">
-              Institutional RS Leaders
-            </span>
-            <h2 className="text-base font-bold text-emerald-900">Relative strength vs KSE-100</h2>
-            <p className="text-[11px] text-emerald-700/70">
-              Positive Mansfield RS with Vol Z ≥ 1.0 — accumulation footprints
+          {sweeps.length === 0 && watch.length === 0 ? (
+            <p className="px-1 py-6 text-center text-xs text-slate-400">
+              No qualified long setup this session — stay in cash.
             </p>
-          </header>
-          {leaders.length === 0 ? (
-            <Empty message="No stock is outperforming the index on expanding volume." />
           ) : (
-            <ul className="divide-y divide-emerald-100">
-              {leaders.map((item) => {
-                const width = Math.min(Math.max(item.mansfieldRs, 0), 40);
+            <ul className="divide-y divide-slate-200">
+              {sweeps.map((item) => {
+                const stop = Math.max(item.stopLoss, item.close * 0.93);
                 return (
                   <li key={item.ticker} className="py-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-mono text-sm font-bold text-slate-900">{item.ticker}</span>
-                      <span className="font-mono text-xs text-slate-500">{num(item.close)}</span>
-                    </div>
-                    <div className="mt-1.5 flex items-center gap-2">
-                      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-emerald-100">
-                        <div
-                          className="h-full rounded-full bg-emerald-500"
-                          style={{ width: `${(width / 40) * 100}%` }}
-                        />
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-sm font-bold text-slate-900">{item.ticker}</span>
+                        <span className="rounded border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[10px] font-bold text-blue-700">
+                          LIQUIDITY SWEEP BUY
+                        </span>
                       </div>
-                      <span className="w-16 text-right font-mono text-xs font-semibold text-emerald-700">
-                        +{num(item.mansfieldRs)}%
-                      </span>
+                      <span className="font-mono text-sm font-bold text-slate-800">{money(item.close)}</span>
                     </div>
-                    <p className="mt-1 text-[11px] text-slate-500">
-                      Vol Z {num(item.volZScore)} · POC {num(item.poc)}
+
+                    <div className="mt-2 grid grid-cols-3 gap-2 text-[11px]">
+                      <div className="rounded border border-slate-200 bg-slate-50 px-2 py-1">
+                        <div className="text-[9px] uppercase tracking-wide text-slate-400">Entry Zone</div>
+                        <div className="font-mono font-bold text-slate-800">{money(item.poc)}</div>
+                      </div>
+                      <div className="rounded border border-rose-200 bg-rose-50 px-2 py-1">
+                        <div className="text-[9px] uppercase tracking-wide text-rose-500">Hard Stop</div>
+                        <div className="font-mono font-bold text-rose-700">{money(stop)}</div>
+                      </div>
+                      <div className="rounded border border-emerald-200 bg-emerald-50 px-2 py-1">
+                        <div className="text-[9px] uppercase tracking-wide text-emerald-600">Target +12%</div>
+                        <div className="font-mono font-bold text-emerald-700">{money(item.target)}</div>
+                      </div>
+                    </div>
+
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      <Tag>POC {pct(item.poc)}</Tag>
+                      <Tag>Vol Z {pct(item.volZScore)}</Tag>
+                      <Tag>Mansfield RS +{pct(item.mansfieldRs)}%</Tag>
+                      <Tag>{item.directorFootprint ? "Director footprint" : "No director filing"}</Tag>
+                    </div>
+                  </li>
+                );
+              })}
+
+              {watch.map((item) => {
+                const entry = item.poc || item.close;
+                return (
+                  <li key={item.ticker} className="py-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-sm font-bold text-slate-900">{item.ticker}</span>
+                        <span className="rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold text-amber-700">
+                          RS ACCUMULATION WATCH
+                        </span>
+                      </div>
+                      <span className="font-mono text-sm font-bold text-slate-800">{money(item.close)}</span>
+                    </div>
+
+                    <div className="mt-2 grid grid-cols-3 gap-2 text-[11px]">
+                      <div className="rounded border border-slate-200 bg-slate-50 px-2 py-1">
+                        <div className="text-[9px] uppercase tracking-wide text-slate-400">Entry Zone</div>
+                        <div className="font-mono font-bold text-slate-800">{money(entry)}</div>
+                      </div>
+                      <div className="rounded border border-rose-200 bg-rose-50 px-2 py-1">
+                        <div className="text-[9px] uppercase tracking-wide text-rose-500">Hard Stop</div>
+                        <div className="font-mono font-bold text-rose-700">{money(item.close * 0.93)}</div>
+                      </div>
+                      <div className="rounded border border-emerald-200 bg-emerald-50 px-2 py-1">
+                        <div className="text-[9px] uppercase tracking-wide text-emerald-600">Target +12%</div>
+                        <div className="font-mono font-bold text-emerald-700">{money(item.close * 1.12)}</div>
+                      </div>
+                    </div>
+
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      <Tag>POC {pct(item.poc)}</Tag>
+                      <Tag>Vol Z {pct(item.volZScore)}</Tag>
+                      <Tag>Mansfield RS +{pct(item.mansfieldRs)}%</Tag>
+                    </div>
+                    <p className="mt-2 text-[10px] text-slate-400">
+                      No sweep fired today, so this is accumulation only — trim size, no chasing.
                     </p>
                   </li>
                 );
@@ -214,48 +227,57 @@ export default function SignalDeskPage() {
           )}
         </section>
 
-        <section className="rounded-xl border border-rose-200 bg-rose-50/30 p-5 shadow-sm">
-          <header className="border-b border-rose-100 pb-3">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-rose-700">
-              DFX Cost-of-Carry Traps
-            </span>
-            <h2 className="text-base font-bold text-rose-900">Spot avoid / futures short only</h2>
-            <p className="text-[11px] text-rose-700/70">
-              Annualised carry above 18% vs the {num(sbpRate, 1)}% SBP policy rate
+        {/* RIGHT — DO NOT BUY / SHORT TRAPS */}
+        <section className="rounded-xl border border-rose-200 bg-white p-5 shadow-sm">
+          <header className="border-b border-slate-200 pb-3">
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="text-base font-bold text-slate-900">Do Not Buy / DFX Short Traps</h2>
+              <span className="rounded border border-rose-200 bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-700">
+                FUTURES ONLY
+              </span>
+            </div>
+            <p className="mt-0.5 text-[11px] text-slate-500">
+              Carry above {CARRY_FLOOR.toFixed(0)}% against the {pct(sbpRate, 1)}% SBP rate, with broken relative
+              strength — never buy spot here.
             </p>
           </header>
+
           {traps.length === 0 ? (
-            <Empty message="No futures contract is carrying above the overheat threshold." />
+            <p className="px-1 py-6 text-center text-xs text-slate-400">
+              No contract is carrying hard enough to flag today.
+            </p>
           ) : (
-            <ul className="divide-y divide-rose-100">
+            <ul className="divide-y divide-slate-200">
               {traps.map((item) => {
-                const spread = (item.annualizedCarryPct ?? 0) - sbpRate;
+                const spread = item.annualizedCarryPct - sbpRate;
                 return (
                   <li key={item.ticker} className="py-3">
                     <div className="flex items-start justify-between gap-2">
-                      <div>
+                      <div className="flex items-center gap-2">
                         <span className="font-mono text-sm font-bold text-slate-900">{item.ticker}</span>
-                        <p className="mt-0.5 text-[11px] text-slate-500">
-                          spot {num(item.spotClose)} · fut {num(item.futClose)} · RS{" "}
-                          {num(item.mansfieldRs)}%
-                        </p>
+                        <span className="rounded border border-rose-200 bg-rose-50 px-1.5 py-0.5 text-[10px] font-bold text-rose-700">
+                          AVOID SPOT
+                        </span>
                       </div>
-                      <div className="text-right">
-                        <div className="font-mono text-sm font-bold text-rose-700">
-                          {num(item.annualizedCarryPct)}%
-                        </div>
-                        <div className="text-[10px] uppercase tracking-wide text-slate-400">
-                          annualised
-                        </div>
+                      <span className="font-mono text-sm font-bold text-rose-700">
+                        {pct(item.annualizedCarryPct)}%
+                      </span>
+                    </div>
+
+                    <div className="mt-2 grid grid-cols-2 gap-2 text-[11px]">
+                      <div className="rounded border border-slate-200 bg-slate-50 px-2 py-1">
+                        <div className="text-[9px] uppercase tracking-wide text-slate-400">Spot</div>
+                        <div className="font-mono font-bold text-slate-800">{money(item.spotClose)}</div>
+                      </div>
+                      <div className="rounded border border-slate-200 bg-slate-50 px-2 py-1">
+                        <div className="text-[9px] uppercase tracking-wide text-slate-400">Futures</div>
+                        <div className="font-mono font-bold text-slate-800">{money(item.futClose)}</div>
                       </div>
                     </div>
-                    <div className="mt-2 flex items-center justify-between gap-2 rounded bg-white px-2 py-1 text-[11px] shadow-sm">
-                      <span className="font-semibold text-rose-600">
-                        +{num(spread)}% over SBP {num(sbpRate, 1)}%
-                      </span>
-                      <span className="rounded bg-rose-600 px-1.5 py-0.5 text-[10px] font-bold text-white">
-                        SHORT FUT ONLY
-                      </span>
+
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                      <Tag>Carry +{pct(spread)}% over SBP {pct(sbpRate, 1)}%</Tag>
+                      <Tag>Mansfield RS {pct(item.mansfieldRs)}%</Tag>
                     </div>
                   </li>
                 );
