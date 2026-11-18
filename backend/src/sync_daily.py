@@ -21,6 +21,7 @@ from src.ingestion.sqlite_adapter import load_validated_bars  # noqa: E402
 from src.ingestion.wal_adapter import WALIngestionManager  # noqa: E402
 from src.quant.backtest import StrategyConfig, run_backtest, write_backtest_report  # noqa: E402
 from src.quant.engine import LiquidityQuantEngine  # noqa: E402
+from src.quant.momentum_rotation import MomentumConfig, run_momentum_rotation, write_momentum_report  # noqa: E402
 
 DATA_DIR = PROJECT_ROOT / "frontend" / "public" / "data"
 LOOKBACK_DAYS = 5
@@ -144,6 +145,18 @@ def run_daily_sync(session: date | None = None, offline: bool = False) -> int:
               f"CAGR {m['cagrPct']}%, max DD {m['maxDrawdownPct']}%)")
     except Exception as exc:
         print(f"[WARN] macro backtest skipped: {exc}")
+
+    # ETF-style momentum factor rotation (JSMFETF-style) over the same 5-year tape,
+    # for the strategy-comparison tab.
+    try:
+        rotation = run_momentum_rotation(str(db_path), MomentumConfig(top_n=10))
+        write_momentum_report(rotation, DATA_DIR / "momentum_5y_metrics.json")
+        rm = rotation["metrics"]
+        print(f"[INFO] momentum rotation: {rm['totalSignals']} positions over "
+              f"{rotation['sessionRange']['years']}y ({rm['winRatePct']}% win, "
+              f"CAGR {rm['cagrPct']}%, max DD {rm['maxDrawdownPct']}%)")
+    except Exception as exc:
+        print(f"[WARN] momentum rotation skipped: {exc}")
 
     (DATA_DIR / "sync_status.json").write_text(json.dumps({
         "lastSynced": datetime.now(timezone.utc).isoformat(timespec="seconds"),

@@ -44,17 +44,23 @@ type Payload = {
   horizonYears?: number;
   strategy?: {
     name: string;
-    lookbackDays: number;
-    targetPct: number;
-    maxStopPct: number;
-    holdHorizonSessions: number;
-    positionPct: number;
-    trendMaDays: number;
-    trendSlopeBars: number;
-    trendReferenceBars: number;
-    minRvol: number;
-    minVolZ: number;
-    atrStopMult: number;
+    lookbackDays?: number;
+    targetPct?: number;
+    maxStopPct?: number;
+    holdHorizonSessions?: number;
+    positionPct?: number;
+    trendMaDays?: number;
+    trendSlopeBars?: number;
+    trendReferenceBars?: number;
+    minRvol?: number;
+    minVolZ?: number;
+    atrStopMult?: number;
+    topN?: number;
+    hardStopPct?: number;
+    smaStopDays?: number;
+    momentumLookbacksMonths?: number[];
+    rebalanceFrequency?: string;
+    positionSizing?: string;
   };
   sessionRange?: { from: string | null; to: string | null; sessions: number; years?: number; tickers?: number };
   metrics?: {
@@ -76,12 +82,15 @@ type Payload = {
     startingCapital?: number;
     endingEquity: number;
     tradesPerYear?: number;
+    rebalanceMonths?: number;
   };
   yearlyReturns?: YearRow[];
   drawdownEpisodes?: DrawdownEpisode[];
   maxDrawdown?: DrawdownEpisode | null;
   equityCurve?: CurvePoint[];
   trades?: Trade[];
+  rebalanceSchedule?: { date: string; leaders: string[] }[];
+  worstDrawdowns?: { ticker: string; peakDate: string; troughDate: string; depthPct: number; recovered: boolean }[];
 };
 
 const HORIZONS = [
@@ -90,6 +99,27 @@ const HORIZONS = [
 ] as const;
 
 type Horizon = (typeof HORIZONS)[number]["id"];
+
+const STRATEGIES = [
+  {
+    id: "sweep",
+    label: "Liquidity Sweep Strategy",
+    files: {
+      "1Y": "/data/backtest_metrics.json",
+      "5Y": "/data/backtest_5y_metrics.json",
+    },
+  },
+  {
+    id: "momentum",
+    label: "ETF Momentum Rotation Strategy",
+    files: {
+      "1Y": "/data/backtest_metrics.json",
+      "5Y": "/data/momentum_5y_metrics.json",
+    },
+  },
+] as const;
+
+type Strategy = (typeof STRATEGIES)[number]["id"];
 
 const money = (value: number | null | undefined) =>
   value === null || value === undefined ? "—" : value.toFixed(2);
@@ -145,6 +175,38 @@ function HorizonToggle({
           className={`flex-1 whitespace-nowrap rounded-md px-3 py-1.5 text-[11px] font-semibold transition-colors sm:flex-none ${
             value === option.id
               ? "bg-slate-900 text-white"
+              : "text-slate-600 hover:bg-slate-50"
+          }`}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function StrategyToggle({
+  value,
+  onChange,
+}: {
+  value: Strategy;
+  onChange: (next: Strategy) => void;
+}) {
+  return (
+    <div
+      role="group"
+      aria-label="Backtest strategy"
+      className="inline-flex w-full rounded-lg border border-slate-200 bg-white p-0.5 shadow-sm sm:w-auto"
+    >
+      {STRATEGIES.map((option) => (
+        <button
+          key={option.id}
+          type="button"
+          onClick={() => onChange(option.id)}
+          aria-pressed={value === option.id}
+          className={`flex-1 whitespace-nowrap rounded-md px-3 py-1.5 text-[11px] font-semibold transition-colors sm:flex-none ${
+            value === option.id
+              ? "bg-amber-600 text-white"
               : "text-slate-600 hover:bg-slate-50"
           }`}
         >
@@ -293,31 +355,39 @@ function DrawdownList({ episodes }: { episodes: DrawdownEpisode[] }) {
 
 export default function BacktestPage() {
   const [horizon, setHorizon] = useState<Horizon>("1Y");
-  const [payloads, setPayloads] = useState<Record<Horizon, Payload | null>>({ "1Y": null, "5Y": null });
+  const [strategy, setStrategy] = useState<Strategy>("sweep");
+  const [payloads, setPayloads] = useState<Record<string, Payload | null>>({});
   const [loaded, setLoaded] = useState(false);
   const [query, setQuery] = useState("");
   const [outcome, setOutcome] = useState<"ALL" | "WINS" | "LOSSES" | "OPEN">("ALL");
 
   useEffect(() => {
+    const strategyConfig = STRATEGIES.find((s) => s.id === strategy);
+    if (!strategyConfig) return;
+
     Promise.allSettled(
       HORIZONS.map((option) =>
-        fetch(option.file).then((res) => (res.ok ? (res.json() as Promise<Payload>) : null)),
+        fetch(strategyConfig.files[option.id]).then((res) =>
+          res.ok ? (res.json() as Promise<Payload>) : null,
+        ),
       ),
     )
       .then((results) => {
-        const [one, five] = results;
-        setPayloads({
-          "1Y": one.status === "fulfilled" ? one.value : null,
-          "5Y": five.status === "fulfilled" ? five.value : null,
-        });
+        const byHorizon: Record<string, Payload | null> = {};
         results.forEach((result, index) => {
+          byHorizon[HORIZONS[index].id] =
+            result.status === "fulfilled" ? result.value : null;
           if (result.status === "rejected") {
-            console.error(`Error loading ${HORIZONS[index].label}:`, result.reason);
+            console.error(
+              `Error loading ${strategyConfig.label} (${HORIZONS[index].label}):`,
+              result.reason,
+            );
           }
         });
+        setPayloads(byHorizon);
       })
       .finally(() => setLoaded(true));
-  }, []);
+  }, [strategy]);
 
   // Filters are horizon-specific; a stale search would silently hide new rows.
   useEffect(() => {
@@ -330,6 +400,7 @@ export default function BacktestPage() {
   const curve = data?.equityCurve ?? [];
   const trades = data?.trades ?? [];
   const macro = horizon === "5Y";
+  const isMomentum = strategy === "momentum";
 
   const rows = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -363,7 +434,7 @@ export default function BacktestPage() {
             {macro ? "5Y Macro Stress Test" : "1Y Backtest Lab"}
           </h1>
           <p className="text-xs text-slate-500">
-            {data?.strategy?.name ?? "Liquidity sweep"} replayed session by session
+            {data?.strategy?.name ?? "Strategy"} replayed session by session
             {data?.sessionRange?.from && data?.sessionRange?.to
               ? ` — ${data.sessionRange.from} to ${data.sessionRange.to} (${data.sessionRange.sessions} sessions${
                   data.sessionRange.tickers ? ` · ${data.sessionRange.tickers} names` : ""
@@ -371,24 +442,44 @@ export default function BacktestPage() {
               : "."}
           </p>
         </div>
-        <HorizonToggle value={horizon} onChange={setHorizon} />
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <StrategyToggle value={strategy} onChange={setStrategy} />
+          <HorizonToggle value={horizon} onChange={setHorizon} />
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-1.5">
-        {[
-          `Above SMA${data?.strategy?.trendMaDays ?? 50}`,
-          `RVOL ≥ ${data?.strategy?.minRvol ?? 1.5}x · Z ≥ ${data?.strategy?.minVolZ ?? 1}`,
-          `ATR × ${data?.strategy?.atrStopMult ?? 2} stop`,
-          `Target +${data?.strategy?.targetPct ?? 12}%`,
-          `${data?.strategy?.holdHorizonSessions ?? 30}s max hold`,
-        ].map((chip) => (
-          <span
-            key={chip}
-            className="rounded border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-slate-600"
-          >
-            {chip}
-          </span>
-        ))}
+        {isMomentum ? (
+          [
+            `Top ${data?.strategy?.topN ?? 10} momentum leaders`,
+            `3M + 6M ROC composite score`,
+            `Monthly rebalance (month-end)`,
+            `7% hard stop · 50d SMA break exit`,
+            `Equal-weight basket`,
+          ].map((chip) => (
+            <span
+              key={chip}
+              className="rounded border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-slate-600"
+            >
+              {chip}
+            </span>
+          ))
+        ) : (
+          [
+            `Above SMA${data?.strategy?.trendMaDays ?? 50}`,
+            `RVOL ≥ ${data?.strategy?.minRvol ?? 1.5}x · Z ≥ ${data?.strategy?.minVolZ ?? 1}`,
+            `ATR × ${data?.strategy?.atrStopMult ?? 2} stop`,
+            `Target +${data?.strategy?.targetPct ?? 12}%`,
+            `${data?.strategy?.holdHorizonSessions ?? 30}s max hold`,
+          ].map((chip) => (
+            <span
+              key={chip}
+              className="rounded border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-slate-600"
+            >
+              {chip}
+            </span>
+          ))
+        )}
       </div>
 
       {!loaded && (
@@ -399,7 +490,12 @@ export default function BacktestPage() {
 
       {loaded && !data && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-          {macro ? (
+          {isMomentum ? (
+            <>
+              No momentum rotation report yet — run{" "}
+              <code className="font-mono">python backend/src/quant/momentum_rotation.py</code>.
+            </>
+          ) : macro ? (
             <>
               No 5-year report yet — run{" "}
               <code className="font-mono">python backend/src/quant/backtest.py --years 5</code>.
