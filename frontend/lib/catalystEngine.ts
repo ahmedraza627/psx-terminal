@@ -282,7 +282,7 @@ export async function buildTriangulation(
     } else if (buyConflux) {
       verdict = isPreMeeting ? "RUNNING_UP" : "CONFLUENCE";
       catalystVerdict = isPreMeeting ? "RUNNING_UP" : "NEUTRAL";
-      badgeTitle = `🔥 3-WAY CONFLUENCE: Mutual Funds (+) + Sponsor Accumulation${isPreMeeting ? " + Pre-Board Runup" : ""}`;
+      badgeTitle = ` 3-WAY CONFLUENCE: Mutual Funds (+) + Sponsor Accumulation${isPreMeeting ? " + Pre-Board Runup" : ""}`;
     } else {
       verdict = "NEUTRAL";
       catalystVerdict = "NEUTRAL";

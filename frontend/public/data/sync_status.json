@@ -1,0 +1,10 @@
+{
+  "lastSynced": "2026-11-18T13:10:20+00:00",
+  "sessionDate": "2026-11-18",
+  "status": "SUCCESS",
+  "source": "market_summary_tape",
+  "barsUpserted": 482,
+  "quarantined": 0,
+  "signals": 1,
+  "engineVersion": "v2.0-wal-live"
+}

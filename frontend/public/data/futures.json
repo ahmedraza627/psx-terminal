@@ -1,0 +1,96 @@
+{
+  "date": "2026-11-16",
+  "totalContractsAudited": 10,
+  "contracts": [
+    {
+      "ticker": "PSO",
+      "spot": 374.68,
+      "futures": 378.1,
+      "spreadPct": 0.91,
+      "openInterest": 14200,
+      "status": "LONG BUILDUP (FUNDS ACCUMULATING)",
+      "isBullish": true
+    },
+    {
+      "ticker": "PAEL",
+      "spot": 35.44,
+      "futures": 35.95,
+      "spreadPct": 1.44,
+      "openInterest": 28500,
+      "status": "LONG BUILDUP (HIGH LEVERAGE)",
+      "isBullish": true
+    },
+    {
+      "ticker": "SSGC",
+      "spot": 24.41,
+      "futures": 24.75,
+      "spreadPct": 1.39,
+      "openInterest": 19800,
+      "status": "LONG ACCUMULATION",
+      "isBullish": true
+    },
+    {
+      "ticker": "EFERT",
+      "spot": 210.88,
+      "futures": 212.4,
+      "spreadPct": 0.72,
+      "openInterest": 8400,
+      "status": "STABLE ARBITRAGE PREMIUM",
+      "isBullish": false
+    },
+    {
+      "ticker": "HBL",
+      "spot": 313.24,
+      "futures": 315.0,
+      "spreadPct": 0.56,
+      "openInterest": 6100,
+      "status": "SELECTIVE ROLLOVER",
+      "isBullish": false
+    },
+    {
+      "ticker": "MLCF",
+      "spot": 105.27,
+      "futures": 104.1,
+      "spreadPct": -1.11,
+      "openInterest": 22100,
+      "status": "SHORT BUILDUP (DISCOUNT / HEDGE)",
+      "isBullish": false
+    },
+    {
+      "ticker": "UBL",
+      "spot": 441.72,
+      "futures": 438.5,
+      "spreadPct": -0.73,
+      "openInterest": 5200,
+      "status": "LONG UNWINDING",
+      "isBullish": false
+    },
+    {
+      "ticker": "OGDC",
+      "spot": 316.09,
+      "futures": 314.8,
+      "spreadPct": -0.41,
+      "openInterest": 11300,
+      "status": "BASIS DISCOUNT (DISTRIBUTION)",
+      "isBullish": false
+    },
+    {
+      "ticker": "FCCL",
+      "spot": 62.09,
+      "futures": 61.2,
+      "spreadPct": -1.43,
+      "openInterest": 16400,
+      "status": "HEDGE LIQUIDATION",
+      "isBullish": false
+    },
+    {
+      "ticker": "PPL",
+      "spot": 225.35,
+      "futures": 223.9,
+      "spreadPct": -0.64,
+      "openInterest": 9800,
+      "status": "SHORT POSITIONING",
+      "isBullish": false
+    }
+  ]
+}

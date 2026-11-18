@@ -2,113 +2,18 @@
 @tailwind components;
 @tailwind utilities;
 
-@layer base {
-  html {
-    color-scheme: light;
-  }
-  body {
-    /* Institutional numeric alignment on every figure, all Inter */
-    font-variant-numeric: tabular-nums;
-    /* Kill mobile tap flash — chrome stays clean on touch */
-    -webkit-tap-highlight-color: transparent;
-  }
-  ::selection {
-    background: rgba(37, 99, 235, 0.15);
-  }
+body {
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  letter-spacing: -0.01em;
 }
 
-@layer utilities {
-  .whale-pulse {
-    animation: whale-pulse 2.6s ease-in-out infinite;
-  }
-  /* Thin scrollbars — soft slate, not browser chrome */
-  .scroll-thin {
-    scrollbar-width: thin;
-    scrollbar-color: #cbd5e1 transparent;
-  }
-  .scroll-thin::-webkit-scrollbar {
-    height: 6px;
-    width: 6px;
-  }
-  .scroll-thin::-webkit-scrollbar-thumb {
-    background: #cbd5e1;
-    border-radius: 3px;
-  }
-  .scroll-thin::-webkit-scrollbar-track {
-    background: transparent;
-  }
-
-  /* -----------------------------------------------------------------
-   * Mobile pixel-perfect utilities
-   *
-   * .table-scroll   touch-momentum horizontal panning for dense blotters;
-   *                 overscroll contained so swipes never trigger browser
-   *                 back/forward navigation mid-table-read.
-   * .sticky-left    (< 768px only) pins the first column (ticker/symbol/
-   *                 session) while the rest of the blotter pans. Desktop is
-   *                 untouched: the rules live inside the media query.
-   * ----------------------------------------------------------------- */
-  .table-scroll {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    overscroll-behavior-x: contain;
-  }
-  .pb-safe {
-    padding-bottom: env(safe-area-inset-bottom);
-  }
+/* Bold and sharp text rendering for clear visibility */
+h1, h2, h3, h4, .font-bold, .font-extrabold {
+  font-weight: 800 !important;
 }
 
-@media (max-width: 767px) {
-  /* Body-cell variant: sits above panning columns, white fill so cell
-     content never shows through the pinned strip. Slate shadow marks
-     the pin boundary. */
-  .sticky-left {
-    position: sticky;
-    left: 0;
-    z-index: 10;
-    background-color: #ffffff;
-    box-shadow: 1px 0 0 0 #e2e8f0;
-  }
-  /* Header-cell variant: one step above body pins so the corner cell wins
-     diagonal scrolls. Slate-50 fill for tinted table heads. */
-  .sticky-left-panel {
-    position: sticky;
-    left: 0;
-    z-index: 20;
-    background-color: #f8fafc;
-    box-shadow: 1px 0 0 0 #e2e8f0;
-  }
-  /* Header-cell variant for DataTable's tinted heads. */
-  .sticky-left-head {
-    position: sticky;
-    left: 0;
-    z-index: 20;
-    background-color: #f1f5f9;
-    box-shadow: 1px 0 0 0 #e2e8f0;
-  }
-}
-
-@keyframes whale-pulse {
-  0%,
-  100% {
-    background-color: rgba(16, 185, 129, 0.08);
-  }
-  50% {
-    background-color: rgba(16, 185, 129, 0.2);
-  }
-}
-
-@keyframes wire-in {
-  from {
-    opacity: 0;
-    transform: translateY(-2px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.wire-in {
-  animation: wire-in 0.18s ease-out;
+/* Custom selection matching theme */
+::selection {
+  background-color: #0f172a;
+  color: #34d399;
 }
