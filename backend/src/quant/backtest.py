@@ -31,14 +31,20 @@ DEFAULT_OUTPUT = PROJECT_ROOT / "frontend" / "public" / "data" / "backtest_metri
 
 @dataclass
 class StrategyConfig:
-    lookback_days: int = 15
+    lookback_days: int = 5
     min_avg_volume: int = 50_000
     target_pct: float = 12.0
-    max_stop_pct: float = 7.0
-    hold_horizon: int = 15
+    max_stop_pct: float = 15.0  # outer safety bound only; the stop itself is ATR-scaled
+    hold_horizon: int = 30
     max_sessions: int = 250
     starting_capital: float = 100_000.0
     position_pct: float = 10.0  # each position deploys 10% of live equity
+    trend_ma_days: int = 50
+    trend_slope_bars: int = 10
+    min_rvol: float = 1.5
+    min_vol_z: float = 1.0
+    atr_stop_mult: float = 2.0
+    trend_reference_bars: int = 1
 
 
 @dataclass
@@ -78,7 +84,16 @@ class StrategyBacktester:
 
     def run(self, bars_by_ticker: Dict[str, List[DailyBar]]) -> dict:
         cfg = self.cfg
-        engine = LiquidityQuantEngine(lookback_days=cfg.lookback_days, min_avg_volume=cfg.min_avg_volume)
+        engine = LiquidityQuantEngine(
+            lookback_days=cfg.lookback_days,
+            min_avg_volume=cfg.min_avg_volume,
+            atr_stop_mult=cfg.atr_stop_mult,
+            trend_ma_days=cfg.trend_ma_days,
+            trend_slope_bars=cfg.trend_slope_bars,
+            min_rvol=cfg.min_rvol,
+            min_vol_z=cfg.min_vol_z,
+            trend_reference_bars=cfg.trend_reference_bars,
+        )
 
         closes: Dict[str, Dict[date, DailyBar]] = {}
         index: Dict[date, List[tuple[str, int]]] = {}
@@ -215,13 +230,19 @@ class StrategyBacktester:
         return {
             "generatedAt": datetime.now(timezone.utc).isoformat(timespec="seconds"),
             "strategy": {
-                "name": "Liquidity Sweep Reclaim",
+                "name": "Liquidity Sweep Reclaim + Institutional Filters",
                 "lookbackDays": cfg.lookback_days,
                 "minAvgVolume": cfg.min_avg_volume,
                 "targetPct": cfg.target_pct,
                 "maxStopPct": cfg.max_stop_pct,
                 "holdHorizonSessions": cfg.hold_horizon,
                 "positionPct": cfg.position_pct,
+                "trendMaDays": cfg.trend_ma_days,
+                "trendSlopeBars": cfg.trend_slope_bars,
+                "trendReferenceBars": cfg.trend_reference_bars,
+                "minRvol": cfg.min_rvol,
+                "minVolZ": cfg.min_vol_z,
+                "atrStopMult": cfg.atr_stop_mult,
             },
             "sessionRange": {
                 "from": sessions[0].isoformat() if sessions else None,

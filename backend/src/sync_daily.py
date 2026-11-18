@@ -23,8 +23,12 @@ from src.quant.backtest import run_backtest, write_backtest_report  # noqa: E402
 from src.quant.engine import LiquidityQuantEngine  # noqa: E402
 
 DATA_DIR = PROJECT_ROOT / "frontend" / "public" / "data"
-LOOKBACK_DAYS = 15
+LOOKBACK_DAYS = 5
 MIN_AVG_VOLUME = 50_000
+TREND_MA_DAYS = 50
+MIN_RVOL = 1.5
+MIN_VOL_Z = 1.0
+ATR_STOP_MULT = 2.0
 
 
 def ingest(db_path: Path, session: date | None) -> tuple[date | None, int, int, str]:
@@ -44,7 +48,14 @@ def ingest(db_path: Path, session: date | None) -> tuple[date | None, int, int, 
 def scan(db_path: Path) -> tuple[list[dict], int, date | None]:
     """Run LiquidityQuantEngine over every validated bar in the store."""
     bars_by_ticker, rejected = load_validated_bars(str(db_path))
-    engine = LiquidityQuantEngine(lookback_days=LOOKBACK_DAYS, min_avg_volume=MIN_AVG_VOLUME)
+    engine = LiquidityQuantEngine(
+        lookback_days=LOOKBACK_DAYS,
+        min_avg_volume=MIN_AVG_VOLUME,
+        trend_ma_days=TREND_MA_DAYS,
+        min_rvol=MIN_RVOL,
+        min_vol_z=MIN_VOL_Z,
+        atr_stop_mult=ATR_STOP_MULT,
+    )
 
     signals, latest = [], None
     for bars in bars_by_ticker.values():
@@ -95,7 +106,14 @@ def run_daily_sync(session: date | None = None, offline: bool = False) -> int:
     (DATA_DIR / "signals.json").write_text(json.dumps({
         "sessionDate": session_day.isoformat() if session_day else None,
         "source": source,
-        "engine": {"lookbackDays": LOOKBACK_DAYS, "minAvgVolume": MIN_AVG_VOLUME},
+        "engine": {
+            "lookbackDays": LOOKBACK_DAYS,
+            "minAvgVolume": MIN_AVG_VOLUME,
+            "trendMaDays": TREND_MA_DAYS,
+            "minRvol": MIN_RVOL,
+            "minVolZ": MIN_VOL_Z,
+            "atrStopMult": ATR_STOP_MULT,
+        },
         "signals": signals,
     }, indent=2), encoding="utf-8")
 

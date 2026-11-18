@@ -30,6 +30,12 @@ type Payload = {
     maxStopPct: number;
     holdHorizonSessions: number;
     positionPct: number;
+    trendMaDays: number;
+    trendSlopeBars: number;
+    trendReferenceBars: number;
+    minRvol: number;
+    minVolZ: number;
+    atrStopMult: number;
   };
   sessionRange?: { from: string | null; to: string | null; sessions: number };
   metrics?: {
@@ -224,13 +230,19 @@ export default function BacktestPage() {
         </div>
         <div className="flex flex-wrap gap-1.5">
           <span className="rounded border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-slate-600">
+            Above SMA{data?.strategy?.trendMaDays ?? 50}
+          </span>
+          <span className="rounded border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-slate-600">
+            RVOL ≥ {data?.strategy?.minRvol ?? 1.5}x · Z ≥ {data?.strategy?.minVolZ ?? 1}
+          </span>
+          <span className="rounded border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-slate-600">
+            ATR × {data?.strategy?.atrStopMult ?? 2} stop
+          </span>
+          <span className="rounded border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-slate-600">
             Target +{data?.strategy?.targetPct ?? 12}%
           </span>
           <span className="rounded border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-slate-600">
-            Stop ≤ {data?.strategy?.maxStopPct ?? 7}%
-          </span>
-          <span className="rounded border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-slate-600">
-            {data?.strategy?.holdHorizonSessions ?? 15}s max hold
+            {data?.strategy?.holdHorizonSessions ?? 30}s max hold
           </span>
         </div>
       </div>

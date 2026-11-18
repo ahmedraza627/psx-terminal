@@ -12,7 +12,7 @@ def main():
     bars_by_ticker, rejected = load_validated_bars(str(db_path))
     t_load = time.perf_counter()
 
-    engine = LiquidityQuantEngine(lookback_days=15, min_avg_volume=50_000)
+    engine = LiquidityQuantEngine()
     signals = []
     for ticker, bars in bars_by_ticker.items():
         sig = engine.evaluate_ticker(bars)
