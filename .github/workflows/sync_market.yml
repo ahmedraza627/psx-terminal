@@ -1,10 +1,8 @@
 name: sync_market
 
+# Scheduled sync now lives in daily_sync.yml (single owner of the frontend JSON).
+# Kept for manual backfills only, so two crons never race on main.
 on:
-  # Daily cron: Mon-Fri 13:30 UTC / 18:30 PKT
-  schedule:
-    - cron: "30 13 * * 1-5"
-  # Manual dispatch
   workflow_dispatch:
 
 jobs:

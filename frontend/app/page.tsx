@@ -106,7 +106,7 @@ export default function DailyDeskPage() {
             Buys and avoids are computed at the close — no settings, no charts, just the call.
           </p>
         </div>
-        <div className="grid grid-cols-3 gap-2 sm:gap-3">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 sm:gap-3">
           <Stat label="Session" value={latest?.sessionDate ?? "—"} />
           <Stat
             label="KSE-100"
@@ -125,9 +125,9 @@ export default function DailyDeskPage() {
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {/* LEFT — BUY / ACCUMULATE */}
-        <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
           <header className="border-b border-slate-200 pb-3">
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-base font-bold text-slate-900">Buy / Accumulate Setups</h2>
               <span className="rounded border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
                 SPOT MARKET
@@ -228,9 +228,9 @@ export default function DailyDeskPage() {
         </section>
 
         {/* RIGHT — DO NOT BUY / SHORT TRAPS */}
-        <section className="rounded-xl border border-rose-200 bg-white p-5 shadow-sm">
+        <section className="rounded-xl border border-rose-200 bg-white p-4 shadow-sm sm:p-5">
           <header className="border-b border-slate-200 pb-3">
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-base font-bold text-slate-900">Do Not Buy / DFX Short Traps</h2>
               <span className="rounded border border-rose-200 bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-700">
                 FUTURES ONLY

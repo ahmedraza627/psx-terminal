@@ -1,4 +1,9 @@
-"""v5_ledger.py - persist every V5 desk call and audit it against the live tape."""
+"""v5_ledger.py - persist every V5 desk call and audit it against the live tape.
+
+`history.json` is the ledger of record: the SQLite table is a scratch store that
+is rebuilt from the tape on every run, so a fresh (CI) store re-seeds itself from
+the committed ledger instead of truncating it.
+"""
 from __future__ import annotations
 
 import json
@@ -9,7 +14,8 @@ from pathlib import Path
 SCHEMA = ("CREATE TABLE IF NOT EXISTS v5_signal_log (trade_date TEXT NOT NULL, ticker TEXT NOT NULL, "
           "call TEXT NOT NULL, label TEXT, entry REAL, stop REAL, target REAL, poc REAL, vol_z REAL, "
           "mansfield_rs REAL, carry_pct REAL, director INTEGER, PRIMARY KEY (trade_date, ticker, call))")
-INSERT = "INSERT OR REPLACE INTO v5_signal_log VALUES (?,?,?,?,?,?,?,?,?,?,?,?)"
+INSERT = ("INSERT OR REPLACE INTO v5_signal_log (trade_date, ticker, call, label, entry, stop, target, poc, "
+          "vol_z, mansfield_rs, carry_pct, director, notes) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)")
 
 
 def _close(cur: sqlite3.Cursor, session: str, ticker: str) -> float | None:
@@ -36,10 +42,41 @@ def _audit(call: str, entry: float | None, stop: float | None, target: float | N
     return pnl, ("AVOID WORKED" if live < entry else "AVOID FAILED")
 
 
+def _prepare(cur: sqlite3.Cursor) -> None:
+    cur.execute(SCHEMA)
+    try:  # full basis text survives a re-seed; older tables simply gain the column
+        cur.execute("ALTER TABLE v5_signal_log ADD COLUMN notes TEXT")
+    except sqlite3.OperationalError:
+        pass
+
+
+def _seed_from_ledger(cur: sqlite3.Cursor, out: Path) -> int:
+    """A fresh store (CI runner) must not wipe the audited history already in git."""
+    if cur.execute("SELECT COUNT(*) FROM v5_signal_log").fetchone()[0] or not out.is_file():
+        return 0
+    try:
+        entries = json.loads(out.read_text(encoding="utf-8")).get("entries") or []
+    except (OSError, ValueError, AttributeError):
+        return 0
+    seeded = 0
+    for entry in entries:
+        try:
+            day = datetime.strptime(entry["date"], "%d %b %Y").strftime("%d%b%Y")
+            ticker, call = entry["ticker"], entry["call"]
+        except (KeyError, ValueError):
+            continue
+        cur.execute(INSERT, (day, ticker, call, entry.get("label") or call, entry.get("entry"),
+                             entry.get("stop"), entry.get("target"), None, None, None, None, 0,
+                             entry.get("notes")))
+        seeded += 1
+    return seeded
+
+
 def log_signals(conn: sqlite3.Connection, cur: sqlite3.Cursor, session: str, buys: list[dict],
                 avoids: list[dict], out: Path) -> int:
     """Upsert today's calls, then rewrite history.json with live P&L for every past call."""
-    cur.execute(SCHEMA)
+    _prepare(cur)
+    seeded = _seed_from_ledger(cur, out)
     for item in buys:
         close = item["close"]
         cur.execute(INSERT, (session, item["ticker"], "BUY",
@@ -47,10 +84,10 @@ def log_signals(conn: sqlite3.Connection, cur: sqlite3.Cursor, session: str, buy
                                                    else "RS ACCUMULATION WATCH"),
                              item["poc"] or close, item.get("stopLoss") or round(close * 0.93, 2),
                              item.get("target") or round(close * 1.12, 2), item["poc"], item.get("volZScore"),
-                             item["mansfieldRs"], None, int(bool(item.get("directorFootprint")))))
+                             item["mansfieldRs"], None, int(bool(item.get("directorFootprint"))), None))
     for item in avoids:
         cur.execute(INSERT, (session, item["ticker"], "AVOID", "DFX CARRY TRAP", item["spotClose"], None, None,
-                             None, None, item["mansfieldRs"], item["annualizedCarryPct"], 0))
+                             None, None, item["mansfieldRs"], item["annualizedCarryPct"], 0, None))
     conn.commit()
 
     entries = []
@@ -75,9 +112,11 @@ def log_signals(conn: sqlite3.Connection, cur: sqlite3.Cursor, session: str, buy
                         "stop": round(row["stop"], 2) if row["stop"] else None,
                         "target": round(row["target"], 2) if row["target"] else None,
                         "latestClose": round(live, 2) if live else None, "pnlPct": round(pnl, 2),
-                        "status": status, "notes": " · ".join(tags)})
+                        "status": status, "notes": row["notes"] or " · ".join(tags)})
 
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps({"sessionDate": session, "generatedAt": datetime.now(timezone.utc).isoformat(),
                                "entries": entries}, indent=2), encoding="utf-8")
+    if seeded:
+        print(f"[INFO] ledger seeded from {out.name}: {seeded} historical calls restored")
     return len(entries)

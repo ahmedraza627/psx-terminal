@@ -8,7 +8,7 @@ const LINKS = [
   { href: "/history", label: "Historical Performance", hint: "Audited signal ledger" },
 ] as const;
 
-export default function DeskNav() {
+export default function DeskNav({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
 
   return (
@@ -19,6 +19,7 @@ export default function DeskNav() {
           <Link
             key={link.href}
             href={link.href}
+            onClick={onNavigate}
             aria-current={active ? "page" : undefined}
             className={`block rounded-lg border px-3 py-2 transition-colors ${
               active

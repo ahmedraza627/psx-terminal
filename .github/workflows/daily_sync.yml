@@ -1,0 +1,86 @@
+name: Daily Quant Sync
+
+# 11:00 UTC = 16:00 PKT, Monday to Friday. DPS publishes the certified EOD tape
+# shortly after the 16:30 PKT close; the fetcher walks back over holidays, so a
+# missed session self-heals on the next trading day.
+on:
+  schedule:
+    - cron: "0 11 * * 1-5"
+  workflow_dispatch:
+
+# One sync at a time: two runs pushing the same JSON would race on main.
+concurrency:
+  group: daily-quant-sync
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    name: Ingest EOD tape and republish desk data
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      PYTHONUNBUFFERED: "1"
+      # process_daily_tape.py defaults to a Windows path; point it at the runner.
+      PSX_Z_DIR: ${{ github.workspace }}/data/tape_cache
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+
+      # The quant engine needs a 15-session lookback, so the store must outlive a
+      # single runner. Cache carries it forward; the ledger JSON stays in git.
+      - name: Restore ingestion store
+        uses: actions/cache@v4
+        with:
+          path: |
+            backend/psx_history.db
+            data/portfolio.db
+          key: psx-db-${{ github.run_id }}
+          restore-keys: |
+            psx-db-
+
+      - name: Ingest live tape and refresh desk JSON
+        run: python backend/src/sync_daily.py
+
+      - name: Checkpoint SQLite WAL
+        run: |
+          python - <<'PY'
+          import sqlite3
+          from pathlib import Path
+
+          for db in (Path("backend/psx_history.db"), Path("data/portfolio.db")):
+              if not db.is_file():
+                  print(f"skip {db} (missing)")
+                  continue
+              with sqlite3.connect(db) as conn:
+                  print(db, conn.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone())
+          PY
+
+      # No [skip ci] here: Vercel honours it and would skip the production deploy.
+      - name: Commit and push refreshed data
+        run: |
+          git config user.name "PSX Automated Desk"
+          git config user.email "engine@psx-terminal.local"
+          git add -f frontend/public/data
+          if git diff --staged --quiet; then
+            echo "No data change this session."
+            exit 0
+          fi
+          git commit -m "chore(data): automated EOD sync for $(date -u +%Y-%m-%d)"
+          git push
