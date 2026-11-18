@@ -1,0 +1,2313 @@
+{
+  "generatedAt": "2026-11-18T13:55:21+00:00",
+  "strategy": {
+    "name": "Liquidity Sweep Reclaim",
+    "lookbackDays": 15,
+    "minAvgVolume": 50000,
+    "targetPct": 12.0,
+    "maxStopPct": 7.0,
+    "holdHorizonSessions": 15,
+    "positionPct": 10.0
+  },
+  "sessionRange": {
+    "from": "2025-11-27",
+    "to": "2026-11-18",
+    "sessions": 250
+  },
+  "metrics": {
+    "totalSignals": 64,
+    "wins": 18,
+    "losses": 43,
+    "inPlay": 3,
+    "winRatePct": 29.51,
+    "profitFactor": 0.78,
+    "maxDrawdownPct": 13.08,
+    "totalReturnPct": -4.41,
+    "avgPnlPct": -0.79,
+    "avgBarsHeld": 7.3,
+    "bestTradePct": 12.01,
+    "worstTradePct": -7.03,
+    "grossProfitPct": 173.33,
+    "grossLossPct": 221.33,
+    "startingCapital": 100000.0,
+    "endingEquity": 95585.86
+  },
+  "equityCurve": [
+    {
+      "date": "2025-11-27",
+      "equity": 100000.0,
+      "drawdownPct": 0.0
+    },
+    {
+      "date": "2025-11-28",
+      "equity": 100000.0,
+      "drawdownPct": 0.0
+    },
+    {
+      "date": "2025-12-01",
+      "equity": 100000.0,
+      "drawdownPct": 0.0
+    },
+    {
+      "date": "2025-12-02",
+      "equity": 100000.0,
+      "drawdownPct": 0.0
+    },
+    {
+      "date": "2025-12-03",
+      "equity": 100000.0,
+      "drawdownPct": 0.0
+    },
+    {
+      "date": "2025-12-04",
+      "equity": 100000.0,
+      "drawdownPct": 0.0
+    },
+    {
+      "date": "2025-12-05",
+      "equity": 100227.17,
+      "drawdownPct": 0.0
+    },
+    {
+      "date": "2025-12-08",
+      "equity": 100113.94,
+      "drawdownPct": -0.11
+    },
+    {
+      "date": "2025-12-09",
+      "equity": 99964.73,
+      "drawdownPct": -0.26
+    },
+    {
+      "date": "2025-12-10",
+      "equity": 100132.9,
+      "drawdownPct": -0.09
+    },
+    {
+      "date": "2025-12-11",
+      "equity": 100655.45,
+      "drawdownPct": 0.0
+    },
+    {
+      "date": "2025-12-12",
+      "equity": 100533.6,
+      "drawdownPct": -0.12
+    },
+    {
+      "date": "2025-12-15",
+      "equity": 100714.05,
+      "drawdownPct": 0.0
+    },
+    {
+      "date": "2025-12-16",
+      "equity": 101162.89,
+      "drawdownPct": 0.0
+    },
+    {
+      "date": "2025-12-17",
+      "equity": 101168.18,
+      "drawdownPct": 0.0
+    },
+    {
+      "date": "2025-12-18",
+      "equity": 101172.42,
+      "drawdownPct": 0.0
+    },
+    {
+      "date": "2025-12-19",
+      "equity": 101020.9,
+      "drawdownPct": -0.15
+    },
+    {
+      "date": "2025-12-22",
+      "equity": 101055.7,
+      "drawdownPct": -0.12
+    },
+    {
+      "date": "2025-12-23",
+      "equity": 101058.32,
+      "drawdownPct": -0.11
+    },
+    {
+      "date": "2025-12-24",
+      "equity": 101199.52,
+      "drawdownPct": 0.0
+    },
+    {
+      "date": "2025-12-26",
+      "equity": 101202.64,
+      "drawdownPct": 0.0
+    },
+    {
+      "date": "2025-12-29",
+      "equity": 101433.09,
+      "drawdownPct": 0.0
+    },
+    {
+      "date": "2025-12-30",
+      "equity": 101293.81,
+      "drawdownPct": -0.14
+    },
+    {
+      "date": "2025-12-31",
+      "equity": 101401.47,
+      "drawdownPct": -0.03
+    },
+    {
+      "date": "2026-01-01",
+      "equity": 101472.03,
+      "drawdownPct": 0.0
+    },
+    {
+      "date": "2026-01-02",
+      "equity": 102362.65,
+      "drawdownPct": 0.0
+    },
+    {
+      "date": "2026-01-05",
+      "equity": 102362.65,
+      "drawdownPct": 0.0
+    },
+    {
+      "date": "2026-01-06",
+      "equity": 102362.65,
+      "drawdownPct": 0.0
+    },
+    {
+      "date": "2026-01-07",
+      "equity": 102728.47,
+      "drawdownPct": 0.0
+    },
+    {
+      "date": "2026-01-08",
+      "equity": 102562.35,
+      "drawdownPct": -0.16
+    },
+    {
+      "date": "2026-01-09",
+      "equity": 102812.99,
+      "drawdownPct": 0.0
+    },
+    {
+      "date": "2026-01-12",
+      "equity": 103591.0,
+      "drawdownPct": 0.0
+    },
+    {
+      "date": "2026-01-13",
+      "equity": 103591.0,
+      "drawdownPct": 0.0
+    },
+    {
+      "date": "2026-01-14",
+      "equity": 103591.0,
+      "drawdownPct": 0.0
+    },
+    {
+      "date": "2026-01-15",
+      "equity": 103591.0,
+      "drawdownPct": 0.0
+    },
+    {
+      "date": "2026-01-16",
+      "equity": 103591.0,
+      "drawdownPct": 0.0
+    },
+    {
+      "date": "2026-01-19",
+      "equity": 103591.0,
+      "drawdownPct": 0.0
+    },
+    {
+      "date": "2026-01-20",
+      "equity": 103591.0,
+      "drawdownPct": 0.0
+    },
+    {
+      "date": "2026-01-21",
+      "equity": 103589.41,
+      "drawdownPct": -0.0
+    },
+    {
+      "date": "2026-01-22",
+      "equity": 103614.88,
+      "drawdownPct": 0.0
+    },
+    {
+      "date": "2026-01-23",
+      "equity": 103619.66,
+      "drawdownPct": 0.0
+    },
+    {
+      "date": "2026-01-26",
+      "equity": 103610.5,
+      "drawdownPct": -0.01
+    },
+    {
+      "date": "2026-01-27",
+      "equity": 103286.44,
+      "drawdownPct": -0.32
+    },
+    {
+      "date": "2026-01-28",
+      "equity": 103286.44,
+      "drawdownPct": -0.32
+    },
+    {
+      "date": "2026-01-29",
+      "equity": 103286.44,
+      "drawdownPct": -0.32
+    },
+    {
+      "date": "2026-01-30",
+      "equity": 103286.44,
+      "drawdownPct": -0.32
+    },
+    {
+      "date": "2026-02-02",
+      "equity": 103286.44,
+      "drawdownPct": -0.32
+    },
+    {
+      "date": "2026-02-03",
+      "equity": 103286.44,
+      "drawdownPct": -0.32
+    },
+    {
+      "date": "2026-02-04",
+      "equity": 103286.44,
+      "drawdownPct": -0.32
+    },
+    {
+      "date": "2026-02-06",
+      "equity": 103286.44,
+      "drawdownPct": -0.32
+    },
+    {
+      "date": "2026-02-09",
+      "equity": 103286.44,
+      "drawdownPct": -0.32
+    },
+    {
+      "date": "2026-02-10",
+      "equity": 103200.27,
+      "drawdownPct": -0.4
+    },
+    {
+      "date": "2026-02-11",
+      "equity": 103227.83,
+      "drawdownPct": -0.38
+    },
+    {
+      "date": "2026-02-12",
+      "equity": 102578.58,
+      "drawdownPct": -1.0
+    },
+    {
+      "date": "2026-02-13",
+      "equity": 102661.61,
+      "drawdownPct": -0.92
+    },
+    {
+      "date": "2026-02-16",
+      "equity": 101966.85,
+      "drawdownPct": -1.6
+    },
+    {
+      "date": "2026-02-17",
+      "equity": 101966.85,
+      "drawdownPct": -1.6
+    },
+    {
+      "date": "2026-02-18",
+      "equity": 104916.6,
+      "drawdownPct": 0.0
+    },
+    {
+      "date": "2026-02-19",
+      "equity": 102068.68,
+      "drawdownPct": -2.71
+    },
+    {
+      "date": "2026-02-20",
+      "equity": 102761.55,
+      "drawdownPct": -2.05
+    },
+    {
+      "date": "2026-02-23",
+      "equity": 101062.08,
+      "drawdownPct": -3.67
+    },
+    {
+      "date": "2026-02-24",
+      "equity": 100971.15,
+      "drawdownPct": -3.76
+    },
+    {
+      "date": "2026-02-25",
+      "equity": 101049.89,
+      "drawdownPct": -3.69
+    },
+    {
+      "date": "2026-02-26",
+      "equity": 101989.09,
+      "drawdownPct": -2.79
+    },
+    {
+      "date": "2026-02-27",
+      "equity": 101188.4,
+      "drawdownPct": -3.55
+    },
+    {
+      "date": "2026-03-02",
+      "equity": 96906.86,
+      "drawdownPct": -7.63
+    },
+    {
+      "date": "2026-03-03",
+      "equity": 96906.86,
+      "drawdownPct": -7.63
+    },
+    {
+      "date": "2026-03-04",
+      "equity": 96062.04,
+      "drawdownPct": -8.44
+    },
+    {
+      "date": "2026-03-05",
+      "equity": 99560.38,
+      "drawdownPct": -5.11
+    },
+    {
+      "date": "2026-03-06",
+      "equity": 95819.8,
+      "drawdownPct": -8.67
+    },
+    {
+      "date": "2026-03-09",
+      "equity": 91897.35,
+      "drawdownPct": -12.41
+    },
+    {
+      "date": "2026-03-10",
+      "equity": 93185.1,
+      "drawdownPct": -11.18
+    },
+    {
+      "date": "2026-03-11",
+      "equity": 92495.43,
+      "drawdownPct": -11.84
+    },
+    {
+      "date": "2026-03-12",
+      "equity": 92043.17,
+      "drawdownPct": -12.27
+    },
+    {
+      "date": "2026-03-13",
+      "equity": 92099.71,
+      "drawdownPct": -12.22
+    },
+    {
+      "date": "2026-03-16",
+      "equity": 91191.75,
+      "drawdownPct": -13.08
+    },
+    {
+      "date": "2026-03-17",
+      "equity": 91516.85,
+      "drawdownPct": -12.77
+    },
+    {
+      "date": "2026-03-18",
+      "equity": 92495.57,
+      "drawdownPct": -11.84
+    },
+    {
+      "date": "2026-03-19",
+      "equity": 92121.47,
+      "drawdownPct": -12.2
+    },
+    {
+      "date": "2026-03-20",
+      "equity": 92121.47,
+      "drawdownPct": -12.2
+    },
+    {
+      "date": "2026-03-23",
+      "equity": 92121.47,
+      "drawdownPct": -12.2
+    },
+    {
+      "date": "2026-03-24",
+      "equity": 92191.78,
+      "drawdownPct": -12.13
+    },
+    {
+      "date": "2026-03-25",
+      "equity": 92545.49,
+      "drawdownPct": -11.79
+    },
+    {
+      "date": "2026-03-26",
+      "equity": 92045.39,
+      "drawdownPct": -12.27
+    },
+    {
+      "date": "2026-03-27",
+      "equity": 91730.76,
+      "drawdownPct": -12.57
+    },
+    {
+      "date": "2026-03-30",
+      "equity": 91601.58,
+      "drawdownPct": -12.69
+    },
+    {
+      "date": "2026-03-31",
+      "equity": 91854.98,
+      "drawdownPct": -12.45
+    },
+    {
+      "date": "2026-04-01",
+      "equity": 93592.87,
+      "drawdownPct": -10.79
+    },
+    {
+      "date": "2026-04-02",
+      "equity": 92371.47,
+      "drawdownPct": -11.96
+    },
+    {
+      "date": "2026-04-03",
+      "equity": 91866.84,
+      "drawdownPct": -12.44
+    },
+    {
+      "date": "2026-04-06",
+      "equity": 92508.91,
+      "drawdownPct": -11.83
+    },
+    {
+      "date": "2026-04-07",
+      "equity": 92344.59,
+      "drawdownPct": -11.98
+    },
+    {
+      "date": "2026-04-08",
+      "equity": 97312.33,
+      "drawdownPct": -7.25
+    },
+    {
+      "date": "2026-04-09",
+      "equity": 98219.73,
+      "drawdownPct": -6.38
+    },
+    {
+      "date": "2026-04-10",
+      "equity": 98219.73,
+      "drawdownPct": -6.38
+    },
+    {
+      "date": "2026-04-13",
+      "equity": 98219.73,
+      "drawdownPct": -6.38
+    },
+    {
+      "date": "2026-04-14",
+      "equity": 98219.73,
+      "drawdownPct": -6.38
+    },
+    {
+      "date": "2026-04-15",
+      "equity": 98219.73,
+      "drawdownPct": -6.38
+    },
+    {
+      "date": "2026-04-16",
+      "equity": 98219.73,
+      "drawdownPct": -6.38
+    },
+    {
+      "date": "2026-04-17",
+      "equity": 98219.73,
+      "drawdownPct": -6.38
+    },
+    {
+      "date": "2026-04-20",
+      "equity": 98219.73,
+      "drawdownPct": -6.38
+    },
+    {
+      "date": "2026-04-21",
+      "equity": 98219.73,
+      "drawdownPct": -6.38
+    },
+    {
+      "date": "2026-04-22",
+      "equity": 98219.73,
+      "drawdownPct": -6.38
+    },
+    {
+      "date": "2026-04-23",
+      "equity": 98219.73,
+      "drawdownPct": -6.38
+    },
+    {
+      "date": "2026-04-24",
+      "equity": 98219.73,
+      "drawdownPct": -6.38
+    },
+    {
+      "date": "2026-04-27",
+      "equity": 98137.91,
+      "drawdownPct": -6.46
+    },
+    {
+      "date": "2026-04-28",
+      "equity": 98137.91,
+      "drawdownPct": -6.46
+    },
+    {
+      "date": "2026-04-29",
+      "equity": 98137.91,
+      "drawdownPct": -6.46
+    },
+    {
+      "date": "2026-04-30",
+      "equity": 97953.41,
+      "drawdownPct": -6.64
+    },
+    {
+      "date": "2026-05-04",
+      "equity": 98015.98,
+      "drawdownPct": -6.58
+    },
+    {
+      "date": "2026-05-05",
+      "equity": 97744.84,
+      "drawdownPct": -6.84
+    },
+    {
+      "date": "2026-05-06",
+      "equity": 98097.8,
+      "drawdownPct": -6.5
+    },
+    {
+      "date": "2026-05-07",
+      "equity": 97995.12,
+      "drawdownPct": -6.6
+    },
+    {
+      "date": "2026-05-08",
+      "equity": 97876.4,
+      "drawdownPct": -6.71
+    },
+    {
+      "date": "2026-05-11",
+      "equity": 97983.89,
+      "drawdownPct": -6.61
+    },
+    {
+      "date": "2026-05-12",
+      "equity": 97930.95,
+      "drawdownPct": -6.66
+    },
+    {
+      "date": "2026-05-13",
+      "equity": 97842.71,
+      "drawdownPct": -6.74
+    },
+    {
+      "date": "2026-05-14",
+      "equity": 97531.21,
+      "drawdownPct": -7.04
+    },
+    {
+      "date": "2026-05-15",
+      "equity": 97531.21,
+      "drawdownPct": -7.04
+    },
+    {
+      "date": "2026-05-18",
+      "equity": 97531.21,
+      "drawdownPct": -7.04
+    },
+    {
+      "date": "2026-05-19",
+      "equity": 97531.21,
+      "drawdownPct": -7.04
+    },
+    {
+      "date": "2026-05-20",
+      "equity": 97531.21,
+      "drawdownPct": -7.04
+    },
+    {
+      "date": "2026-05-21",
+      "equity": 97531.21,
+      "drawdownPct": -7.04
+    },
+    {
+      "date": "2026-05-22",
+      "equity": 97531.21,
+      "drawdownPct": -7.04
+    },
+    {
+      "date": "2026-05-25",
+      "equity": 97531.21,
+      "drawdownPct": -7.04
+    },
+    {
+      "date": "2026-05-26",
+      "equity": 97531.21,
+      "drawdownPct": -7.04
+    },
+    {
+      "date": "2026-05-27",
+      "equity": 97531.21,
+      "drawdownPct": -7.04
+    },
+    {
+      "date": "2026-05-28",
+      "equity": 97531.21,
+      "drawdownPct": -7.04
+    },
+    {
+      "date": "2026-05-29",
+      "equity": 97531.21,
+      "drawdownPct": -7.04
+    },
+    {
+      "date": "2026-06-01",
+      "equity": 97531.21,
+      "drawdownPct": -7.04
+    },
+    {
+      "date": "2026-06-02",
+      "equity": 97531.21,
+      "drawdownPct": -7.04
+    },
+    {
+      "date": "2026-06-03",
+      "equity": 97531.21,
+      "drawdownPct": -7.04
+    },
+    {
+      "date": "2026-06-04",
+      "equity": 97531.21,
+      "drawdownPct": -7.04
+    },
+    {
+      "date": "2026-06-05",
+      "equity": 97531.21,
+      "drawdownPct": -7.04
+    },
+    {
+      "date": "2026-06-08",
+      "equity": 97531.21,
+      "drawdownPct": -7.04
+    },
+    {
+      "date": "2026-06-09",
+      "equity": 97531.21,
+      "drawdownPct": -7.04
+    },
+    {
+      "date": "2026-06-10",
+      "equity": 97531.21,
+      "drawdownPct": -7.04
+    },
+    {
+      "date": "2026-06-11",
+      "equity": 97531.21,
+      "drawdownPct": -7.04
+    },
+    {
+      "date": "2026-06-12",
+      "equity": 97531.21,
+      "drawdownPct": -7.04
+    },
+    {
+      "date": "2026-06-15",
+      "equity": 97531.21,
+      "drawdownPct": -7.04
+    },
+    {
+      "date": "2026-06-16",
+      "equity": 97531.21,
+      "drawdownPct": -7.04
+    },
+    {
+      "date": "2026-06-17",
+      "equity": 97531.21,
+      "drawdownPct": -7.04
+    },
+    {
+      "date": "2026-06-18",
+      "equity": 97531.21,
+      "drawdownPct": -7.04
+    },
+    {
+      "date": "2026-06-19",
+      "equity": 97531.21,
+      "drawdownPct": -7.04
+    },
+    {
+      "date": "2026-06-22",
+      "equity": 97591.05,
+      "drawdownPct": -6.98
+    },
+    {
+      "date": "2026-06-23",
+      "equity": 97854.32,
+      "drawdownPct": -6.73
+    },
+    {
+      "date": "2026-06-24",
+      "equity": 98249.23,
+      "drawdownPct": -6.35
+    },
+    {
+      "date": "2026-06-25",
+      "equity": 98249.23,
+      "drawdownPct": -6.35
+    },
+    {
+      "date": "2026-06-26",
+      "equity": 98249.23,
+      "drawdownPct": -6.35
+    },
+    {
+      "date": "2026-06-29",
+      "equity": 98033.83,
+      "drawdownPct": -6.56
+    },
+    {
+      "date": "2026-06-30",
+      "equity": 97997.93,
+      "drawdownPct": -6.59
+    },
+    {
+      "date": "2026-07-01",
+      "equity": 97746.62,
+      "drawdownPct": -6.83
+    },
+    {
+      "date": "2026-07-02",
+      "equity": 97698.75,
+      "drawdownPct": -6.88
+    },
+    {
+      "date": "2026-07-03",
+      "equity": 97638.92,
+      "drawdownPct": -6.94
+    },
+    {
+      "date": "2026-07-06",
+      "equity": 97555.15,
+      "drawdownPct": -7.02
+    },
+    {
+      "date": "2026-07-07",
+      "equity": 97483.35,
+      "drawdownPct": -7.08
+    },
+    {
+      "date": "2026-07-08",
+      "equity": 97088.42,
+      "drawdownPct": -7.46
+    },
+    {
+      "date": "2026-07-09",
+      "equity": 97088.42,
+      "drawdownPct": -7.46
+    },
+    {
+      "date": "2026-07-10",
+      "equity": 97088.42,
+      "drawdownPct": -7.46
+    },
+    {
+      "date": "2026-07-13",
+      "equity": 97088.42,
+      "drawdownPct": -7.46
+    },
+    {
+      "date": "2026-07-14",
+      "equity": 97088.42,
+      "drawdownPct": -7.46
+    },
+    {
+      "date": "2026-07-15",
+      "equity": 97088.42,
+      "drawdownPct": -7.46
+    },
+    {
+      "date": "2026-07-16",
+      "equity": 97088.42,
+      "drawdownPct": -7.46
+    },
+    {
+      "date": "2026-07-17",
+      "equity": 97088.42,
+      "drawdownPct": -7.46
+    },
+    {
+      "date": "2026-07-20",
+      "equity": 97088.42,
+      "drawdownPct": -7.46
+    },
+    {
+      "date": "2026-07-21",
+      "equity": 96978.18,
+      "drawdownPct": -7.57
+    },
+    {
+      "date": "2026-07-22",
+      "equity": 96849.55,
+      "drawdownPct": -7.69
+    },
+    {
+      "date": "2026-07-23",
+      "equity": 96610.69,
+      "drawdownPct": -7.92
+    },
+    {
+      "date": "2026-07-24",
+      "equity": 96292.52,
+      "drawdownPct": -8.22
+    },
+    {
+      "date": "2026-07-27",
+      "equity": 96877.48,
+      "drawdownPct": -7.66
+    },
+    {
+      "date": "2026-07-28",
+      "equity": 96686.3,
+      "drawdownPct": -7.84
+    },
+    {
+      "date": "2026-07-29",
+      "equity": 96525.79,
+      "drawdownPct": -8.0
+    },
+    {
+      "date": "2026-07-30",
+      "equity": 96306.08,
+      "drawdownPct": -8.21
+    },
+    {
+      "date": "2026-07-31",
+      "equity": 96203.42,
+      "drawdownPct": -8.3
+    },
+    {
+      "date": "2026-08-03",
+      "equity": 96448.48,
+      "drawdownPct": -8.07
+    },
+    {
+      "date": "2026-08-04",
+      "equity": 96175.34,
+      "drawdownPct": -8.33
+    },
+    {
+      "date": "2026-08-05",
+      "equity": 96561.32,
+      "drawdownPct": -7.96
+    },
+    {
+      "date": "2026-08-06",
+      "equity": 96802.85,
+      "drawdownPct": -7.73
+    },
+    {
+      "date": "2026-08-07",
+      "equity": 96583.13,
+      "drawdownPct": -7.94
+    },
+    {
+      "date": "2026-08-10",
+      "equity": 96522.32,
+      "drawdownPct": -8.0
+    },
+    {
+      "date": "2026-08-11",
+      "equity": 96348.46,
+      "drawdownPct": -8.17
+    },
+    {
+      "date": "2026-08-12",
+      "equity": 96239.61,
+      "drawdownPct": -8.27
+    },
+    {
+      "date": "2026-08-13",
+      "equity": 96165.8,
+      "drawdownPct": -8.34
+    },
+    {
+      "date": "2026-08-14",
+      "equity": 96165.8,
+      "drawdownPct": -8.34
+    },
+    {
+      "date": "2026-08-17",
+      "equity": 96221.01,
+      "drawdownPct": -8.29
+    },
+    {
+      "date": "2026-08-18",
+      "equity": 96221.01,
+      "drawdownPct": -8.29
+    },
+    {
+      "date": "2026-08-19",
+      "equity": 96186.06,
+      "drawdownPct": -8.32
+    },
+    {
+      "date": "2026-08-20",
+      "equity": 96059.58,
+      "drawdownPct": -8.44
+    },
+    {
+      "date": "2026-08-21",
+      "equity": 96260.35,
+      "drawdownPct": -8.25
+    },
+    {
+      "date": "2026-08-24",
+      "equity": 96275.05,
+      "drawdownPct": -8.24
+    },
+    {
+      "date": "2026-08-25",
+      "equity": 96341.0,
+      "drawdownPct": -8.17
+    },
+    {
+      "date": "2026-08-26",
+      "equity": 96341.0,
+      "drawdownPct": -8.17
+    },
+    {
+      "date": "2026-08-27",
+      "equity": 96283.86,
+      "drawdownPct": -8.23
+    },
+    {
+      "date": "2026-08-28",
+      "equity": 96317.47,
+      "drawdownPct": -8.2
+    },
+    {
+      "date": "2026-08-31",
+      "equity": 95951.65,
+      "drawdownPct": -8.54
+    },
+    {
+      "date": "2026-09-01",
+      "equity": 95713.34,
+      "drawdownPct": -8.77
+    },
+    {
+      "date": "2026-09-02",
+      "equity": 95401.48,
+      "drawdownPct": -9.07
+    },
+    {
+      "date": "2026-09-03",
+      "equity": 95615.86,
+      "drawdownPct": -8.86
+    },
+    {
+      "date": "2026-09-04",
+      "equity": 95816.04,
+      "drawdownPct": -8.67
+    },
+    {
+      "date": "2026-09-07",
+      "equity": 95693.67,
+      "drawdownPct": -8.79
+    },
+    {
+      "date": "2026-09-08",
+      "equity": 95474.88,
+      "drawdownPct": -9.0
+    },
+    {
+      "date": "2026-09-09",
+      "equity": 95170.26,
+      "drawdownPct": -9.29
+    },
+    {
+      "date": "2026-09-10",
+      "equity": 94950.15,
+      "drawdownPct": -9.5
+    },
+    {
+      "date": "2026-09-11",
+      "equity": 94879.63,
+      "drawdownPct": -9.57
+    },
+    {
+      "date": "2026-09-14",
+      "equity": 93615.06,
+      "drawdownPct": -10.77
+    },
+    {
+      "date": "2026-09-15",
+      "equity": 94302.44,
+      "drawdownPct": -10.12
+    },
+    {
+      "date": "2026-09-16",
+      "equity": 93655.39,
+      "drawdownPct": -10.73
+    },
+    {
+      "date": "2026-09-17",
+      "equity": 94035.75,
+      "drawdownPct": -10.37
+    },
+    {
+      "date": "2026-09-18",
+      "equity": 94792.55,
+      "drawdownPct": -9.65
+    },
+    {
+      "date": "2026-09-21",
+      "equity": 95149.29,
+      "drawdownPct": -9.31
+    },
+    {
+      "date": "2026-09-22",
+      "equity": 95334.56,
+      "drawdownPct": -9.13
+    },
+    {
+      "date": "2026-09-23",
+      "equity": 96376.18,
+      "drawdownPct": -8.14
+    },
+    {
+      "date": "2026-09-24",
+      "equity": 95747.61,
+      "drawdownPct": -8.74
+    },
+    {
+      "date": "2026-09-25",
+      "equity": 95868.15,
+      "drawdownPct": -8.62
+    },
+    {
+      "date": "2026-09-28",
+      "equity": 95882.14,
+      "drawdownPct": -8.61
+    },
+    {
+      "date": "2026-09-29",
+      "equity": 95232.54,
+      "drawdownPct": -9.23
+    },
+    {
+      "date": "2026-09-30",
+      "equity": 95523.63,
+      "drawdownPct": -8.95
+    },
+    {
+      "date": "2026-10-01",
+      "equity": 94863.03,
+      "drawdownPct": -9.58
+    },
+    {
+      "date": "2026-10-02",
+      "equity": 94586.46,
+      "drawdownPct": -9.85
+    },
+    {
+      "date": "2026-10-05",
+      "equity": 94586.46,
+      "drawdownPct": -9.85
+    },
+    {
+      "date": "2026-10-06",
+      "equity": 94586.46,
+      "drawdownPct": -9.85
+    },
+    {
+      "date": "2026-10-07",
+      "equity": 94497.84,
+      "drawdownPct": -9.93
+    },
+    {
+      "date": "2026-10-08",
+      "equity": 94497.84,
+      "drawdownPct": -9.93
+    },
+    {
+      "date": "2026-10-09",
+      "equity": 94060.11,
+      "drawdownPct": -10.35
+    },
+    {
+      "date": "2026-10-12",
+      "equity": 93793.81,
+      "drawdownPct": -10.6
+    },
+    {
+      "date": "2026-10-13",
+      "equity": 93867.5,
+      "drawdownPct": -10.53
+    },
+    {
+      "date": "2026-10-14",
+      "equity": 93895.56,
+      "drawdownPct": -10.5
+    },
+    {
+      "date": "2026-10-15",
+      "equity": 94041.94,
+      "drawdownPct": -10.37
+    },
+    {
+      "date": "2026-10-16",
+      "equity": 94252.77,
+      "drawdownPct": -10.16
+    },
+    {
+      "date": "2026-10-19",
+      "equity": 94020.01,
+      "drawdownPct": -10.39
+    },
+    {
+      "date": "2026-10-20",
+      "equity": 93699.92,
+      "drawdownPct": -10.69
+    },
+    {
+      "date": "2026-10-21",
+      "equity": 94075.61,
+      "drawdownPct": -10.33
+    },
+    {
+      "date": "2026-10-22",
+      "equity": 93526.95,
+      "drawdownPct": -10.86
+    },
+    {
+      "date": "2026-10-23",
+      "equity": 92978.14,
+      "drawdownPct": -11.38
+    },
+    {
+      "date": "2026-10-26",
+      "equity": 92978.14,
+      "drawdownPct": -11.38
+    },
+    {
+      "date": "2026-10-27",
+      "equity": 93441.87,
+      "drawdownPct": -10.94
+    },
+    {
+      "date": "2026-10-28",
+      "equity": 93487.42,
+      "drawdownPct": -10.89
+    },
+    {
+      "date": "2026-10-29",
+      "equity": 93700.57,
+      "drawdownPct": -10.69
+    },
+    {
+      "date": "2026-10-30",
+      "equity": 93406.73,
+      "drawdownPct": -10.97
+    },
+    {
+      "date": "2026-11-02",
+      "equity": 93222.38,
+      "drawdownPct": -11.15
+    },
+    {
+      "date": "2026-11-03",
+      "equity": 93607.36,
+      "drawdownPct": -10.78
+    },
+    {
+      "date": "2026-11-04",
+      "equity": 94114.81,
+      "drawdownPct": -10.3
+    },
+    {
+      "date": "2026-11-05",
+      "equity": 94966.37,
+      "drawdownPct": -9.48
+    },
+    {
+      "date": "2026-11-06",
+      "equity": 95189.73,
+      "drawdownPct": -9.27
+    },
+    {
+      "date": "2026-11-10",
+      "equity": 95886.08,
+      "drawdownPct": -8.61
+    },
+    {
+      "date": "2026-11-11",
+      "equity": 95886.08,
+      "drawdownPct": -8.61
+    },
+    {
+      "date": "2026-11-12",
+      "equity": 95886.08,
+      "drawdownPct": -8.61
+    },
+    {
+      "date": "2026-11-13",
+      "equity": 95886.08,
+      "drawdownPct": -8.61
+    },
+    {
+      "date": "2026-11-16",
+      "equity": 96060.34,
+      "drawdownPct": -8.44
+    },
+    {
+      "date": "2026-11-18",
+      "equity": 95585.86,
+      "drawdownPct": -8.89
+    }
+  ],
+  "trades": [
+    {
+      "id": 1,
+      "ticker": "PRL",
+      "signalDate": "2026-11-18",
+      "exitDate": null,
+      "side": "BUY",
+      "entryPrice": 82.36,
+      "stopLoss": 76.59,
+      "targetPrice": 92.24,
+      "exitPrice": null,
+      "outcome": "IN PLAY",
+      "pnlPct": 0.0,
+      "barsHeld": 0,
+      "confidence": 0.68,
+      "reason": "Swept 15d low (77.0) | Vol 1.7x | ATR 4.47"
+    },
+    {
+      "id": 2,
+      "ticker": "INIL",
+      "signalDate": "2026-11-04",
+      "exitDate": null,
+      "side": "BUY",
+      "entryPrice": 145.36,
+      "stopLoss": 138.77,
+      "targetPrice": 162.8,
+      "exitPrice": null,
+      "outcome": "IN PLAY",
+      "pnlPct": 3.89,
+      "barsHeld": 4,
+      "confidence": 1.0,
+      "reason": "Swept 15d low (142.0) | Vol 5.8x | ATR 3.66"
+    },
+    {
+      "id": 3,
+      "ticker": "BAHL",
+      "signalDate": "2026-11-02",
+      "exitDate": "2026-11-10",
+      "side": "BUY",
+      "entryPrice": 150.99,
+      "stopLoss": 145.29,
+      "targetPrice": 169.11,
+      "exitPrice": 169.11,
+      "outcome": "TARGET HIT",
+      "pnlPct": 12.0,
+      "barsHeld": 5,
+      "confidence": 0.89,
+      "reason": "Swept 15d low (146.82) | Vol 2.2x | ATR 3.17"
+    },
+    {
+      "id": 4,
+      "ticker": "KOHC",
+      "signalDate": "2026-10-26",
+      "exitDate": "2026-11-04",
+      "side": "BUY",
+      "entryPrice": 80.36,
+      "stopLoss": 76.77,
+      "targetPrice": 90.0,
+      "exitPrice": 90.0,
+      "outcome": "TARGET HIT",
+      "pnlPct": 12.0,
+      "barsHeld": 7,
+      "confidence": 0.88,
+      "reason": "Swept 15d low (79.5) | Vol 2.2x | ATR 1.99"
+    },
+    {
+      "id": 5,
+      "ticker": "EPCL",
+      "signalDate": "2026-10-26",
+      "exitDate": null,
+      "side": "BUY",
+      "entryPrice": 31.48,
+      "stopLoss": 29.94,
+      "targetPrice": 35.26,
+      "exitPrice": null,
+      "outcome": "IN PLAY",
+      "pnlPct": 4.38,
+      "barsHeld": 13,
+      "confidence": 0.66,
+      "reason": "Swept 15d low (30.65) | Vol 1.6x | ATR 0.86"
+    },
+    {
+      "id": 6,
+      "ticker": "AIRLINK",
+      "signalDate": "2026-10-26",
+      "exitDate": "2026-11-02",
+      "side": "BUY",
+      "entryPrice": 114.78,
+      "stopLoss": 109.83,
+      "targetPrice": 128.55,
+      "exitPrice": 109.83,
+      "outcome": "STOPPED OUT",
+      "pnlPct": -4.31,
+      "barsHeld": 5,
+      "confidence": 0.62,
+      "reason": "Swept 15d low (111.11) | Vol 1.5x | ATR 2.75"
+    },
+    {
+      "id": 7,
+      "ticker": "PIOC",
+      "signalDate": "2026-10-14",
+      "exitDate": "2026-10-23",
+      "side": "BUY",
+      "entryPrice": 231.06,
+      "stopLoss": 222.75,
+      "targetPrice": 258.79,
+      "exitPrice": 222.75,
+      "outcome": "STOPPED OUT",
+      "pnlPct": -3.6,
+      "barsHeld": 7,
+      "confidence": 1.0,
+      "reason": "Swept 15d low (229.5) | Vol 4.0x | ATR 4.62"
+    },
+    {
+      "id": 8,
+      "ticker": "PAEL",
+      "signalDate": "2026-10-06",
+      "exitDate": "2026-10-23",
+      "side": "BUY",
+      "entryPrice": 33.98,
+      "stopLoss": 32.34,
+      "targetPrice": 38.06,
+      "exitPrice": 32.34,
+      "outcome": "STOPPED OUT",
+      "pnlPct": -4.83,
+      "barsHeld": 13,
+      "confidence": 0.64,
+      "reason": "Swept 15d low (32.9) | Vol 1.6x | ATR 0.91"
+    },
+    {
+      "id": 9,
+      "ticker": "NML",
+      "signalDate": "2026-10-06",
+      "exitDate": "2026-10-23",
+      "side": "BUY",
+      "entryPrice": 126.0,
+      "stopLoss": 119.56,
+      "targetPrice": 141.12,
+      "exitPrice": 119.56,
+      "outcome": "STOPPED OUT",
+      "pnlPct": -5.11,
+      "barsHeld": 13,
+      "confidence": 0.96,
+      "reason": "Swept 15d low (122.01) | Vol 2.4x | ATR 3.58"
+    },
+    {
+      "id": 10,
+      "ticker": "AGP",
+      "signalDate": "2026-10-06",
+      "exitDate": "2026-10-09",
+      "side": "BUY",
+      "entryPrice": 161.45,
+      "stopLoss": 155.81,
+      "targetPrice": 180.82,
+      "exitPrice": 155.81,
+      "outcome": "STOPPED OUT",
+      "pnlPct": -3.49,
+      "barsHeld": 3,
+      "confidence": 1.0,
+      "reason": "Swept 15d low (149.01) | Vol 3.6x | ATR 3.13"
+    },
+    {
+      "id": 11,
+      "ticker": "PRL",
+      "signalDate": "2026-09-11",
+      "exitDate": "2026-09-23",
+      "side": "BUY",
+      "entryPrice": 85.63,
+      "stopLoss": 79.64,
+      "targetPrice": 95.91,
+      "exitPrice": 95.91,
+      "outcome": "TARGET HIT",
+      "pnlPct": 12.01,
+      "barsHeld": 8,
+      "confidence": 0.75,
+      "reason": "Swept 15d low (79.25) | Vol 1.9x | ATR 7.52"
+    },
+    {
+      "id": 12,
+      "ticker": "MLCF",
+      "signalDate": "2026-09-11",
+      "exitDate": "2026-10-02",
+      "side": "BUY",
+      "entryPrice": 95.4,
+      "stopLoss": 90.17,
+      "targetPrice": 106.85,
+      "exitPrice": 90.17,
+      "outcome": "STOPPED OUT",
+      "pnlPct": -5.48,
+      "barsHeld": 15,
+      "confidence": 0.83,
+      "reason": "Swept 15d low (93.5) | Vol 2.1x | ATR 2.91"
+    },
+    {
+      "id": 13,
+      "ticker": "MEBL",
+      "signalDate": "2026-09-11",
+      "exitDate": "2026-10-02",
+      "side": "BUY",
+      "entryPrice": 554.09,
+      "stopLoss": 535.19,
+      "targetPrice": 620.58,
+      "exitPrice": 548.79,
+      "outcome": "TIME EXIT",
+      "pnlPct": -0.96,
+      "barsHeld": 15,
+      "confidence": 0.77,
+      "reason": "Swept 15d low (531.0) | Vol 1.9x | ATR 10.50"
+    },
+    {
+      "id": 14,
+      "ticker": "LUCK",
+      "signalDate": "2026-09-11",
+      "exitDate": "2026-09-17",
+      "side": "BUY",
+      "entryPrice": 416.68,
+      "stopLoss": 403.48,
+      "targetPrice": 466.68,
+      "exitPrice": 403.48,
+      "outcome": "STOPPED OUT",
+      "pnlPct": -3.17,
+      "barsHeld": 4,
+      "confidence": 0.79,
+      "reason": "Swept 15d low (404.99) | Vol 2.0x | ATR 7.33"
+    },
+    {
+      "id": 15,
+      "ticker": "KOHC",
+      "signalDate": "2026-09-11",
+      "exitDate": "2026-10-02",
+      "side": "BUY",
+      "entryPrice": 90.18,
+      "stopLoss": 86.51,
+      "targetPrice": 101.0,
+      "exitPrice": 86.51,
+      "outcome": "STOPPED OUT",
+      "pnlPct": -4.07,
+      "barsHeld": 15,
+      "confidence": 0.66,
+      "reason": "Swept 15d low (90.12) | Vol 1.6x | ATR 2.04"
+    },
+    {
+      "id": 16,
+      "ticker": "BAFL",
+      "signalDate": "2026-09-11",
+      "exitDate": "2026-10-02",
+      "side": "BUY",
+      "entryPrice": 55.19,
+      "stopLoss": 53.42,
+      "targetPrice": 61.81,
+      "exitPrice": 56.5,
+      "outcome": "TIME EXIT",
+      "pnlPct": 2.37,
+      "barsHeld": 15,
+      "confidence": 0.65,
+      "reason": "Swept 15d low (54.98) | Vol 1.6x | ATR 0.98"
+    },
+    {
+      "id": 17,
+      "ticker": "AIRLINK",
+      "signalDate": "2026-09-11",
+      "exitDate": "2026-10-01",
+      "side": "BUY",
+      "entryPrice": 125.79,
+      "stopLoss": 121.02,
+      "targetPrice": 140.88,
+      "exitPrice": 121.02,
+      "outcome": "STOPPED OUT",
+      "pnlPct": -3.79,
+      "barsHeld": 14,
+      "confidence": 0.8,
+      "reason": "Swept 15d low (124.25) | Vol 2.0x | ATR 2.65"
+    },
+    {
+      "id": 18,
+      "ticker": "MCB",
+      "signalDate": "2026-09-08",
+      "exitDate": "2026-09-11",
+      "side": "BUY",
+      "entryPrice": 398.84,
+      "stopLoss": 387.1,
+      "targetPrice": 446.7,
+      "exitPrice": 387.1,
+      "outcome": "STOPPED OUT",
+      "pnlPct": -2.94,
+      "barsHeld": 3,
+      "confidence": 1.0,
+      "reason": "Swept 15d low (392.0) | Vol 2.7x | ATR 6.52"
+    },
+    {
+      "id": 19,
+      "ticker": "NBP",
+      "signalDate": "2026-08-28",
+      "exitDate": "2026-09-09",
+      "side": "BUY",
+      "entryPrice": 188.95,
+      "stopLoss": 180.4,
+      "targetPrice": 211.62,
+      "exitPrice": 180.4,
+      "outcome": "STOPPED OUT",
+      "pnlPct": -4.53,
+      "barsHeld": 8,
+      "confidence": 0.77,
+      "reason": "Swept 15d low (187.0) | Vol 1.9x | ATR 4.75"
+    },
+    {
+      "id": 20,
+      "ticker": "BOP",
+      "signalDate": "2026-08-28",
+      "exitDate": "2026-09-10",
+      "side": "BUY",
+      "entryPrice": 34.97,
+      "stopLoss": 33.65,
+      "targetPrice": 39.17,
+      "exitPrice": 33.65,
+      "outcome": "STOPPED OUT",
+      "pnlPct": -3.77,
+      "barsHeld": 9,
+      "confidence": 1.0,
+      "reason": "Swept 15d low (32.45) | Vol 5.4x | ATR 0.74"
+    },
+    {
+      "id": 21,
+      "ticker": "BAHL",
+      "signalDate": "2026-08-25",
+      "exitDate": "2026-09-01",
+      "side": "BUY",
+      "entryPrice": 168.57,
+      "stopLoss": 161.72,
+      "targetPrice": 188.8,
+      "exitPrice": 161.72,
+      "outcome": "STOPPED OUT",
+      "pnlPct": -4.06,
+      "barsHeld": 5,
+      "confidence": 0.8,
+      "reason": "Swept 15d low (167.51) | Vol 2.0x | ATR 3.81"
+    },
+    {
+      "id": 22,
+      "ticker": "ACPL",
+      "signalDate": "2026-08-19",
+      "exitDate": "2026-09-09",
+      "side": "BUY",
+      "entryPrice": 229.0,
+      "stopLoss": 218.67,
+      "targetPrice": 256.48,
+      "exitPrice": 232.21,
+      "outcome": "TIME EXIT",
+      "pnlPct": 1.4,
+      "barsHeld": 15,
+      "confidence": 0.8,
+      "reason": "Swept 15d low (221.25) | Vol 2.0x | ATR 5.74"
+    },
+    {
+      "id": 23,
+      "ticker": "EFERT",
+      "signalDate": "2026-07-30",
+      "exitDate": "2026-08-20",
+      "side": "BUY",
+      "entryPrice": 190.14,
+      "stopLoss": 183.62,
+      "targetPrice": 212.96,
+      "exitPrice": 185.98,
+      "outcome": "TIME EXIT",
+      "pnlPct": -2.19,
+      "barsHeld": 15,
+      "confidence": 1.0,
+      "reason": "Swept 15d low (185.11) | Vol 4.2x | ATR 3.62"
+    },
+    {
+      "id": 24,
+      "ticker": "AIRLINK",
+      "signalDate": "2026-07-23",
+      "exitDate": "2026-08-13",
+      "side": "BUY",
+      "entryPrice": 135.43,
+      "stopLoss": 127.65,
+      "targetPrice": 151.68,
+      "exitPrice": 135.69,
+      "outcome": "TIME EXIT",
+      "pnlPct": 0.19,
+      "barsHeld": 15,
+      "confidence": 1.0,
+      "reason": "Swept 15d low (132.0) | Vol 3.0x | ATR 4.32"
+    },
+    {
+      "id": 25,
+      "ticker": "KOHC",
+      "signalDate": "2026-07-20",
+      "exitDate": "2026-07-24",
+      "side": "BUY",
+      "entryPrice": 95.11,
+      "stopLoss": 88.45,
+      "targetPrice": 106.52,
+      "exitPrice": 88.45,
+      "outcome": "STOPPED OUT",
+      "pnlPct": -7.0,
+      "barsHeld": 4,
+      "confidence": 0.61,
+      "reason": "Swept 15d low (94.0) | Vol 1.5x | ATR 4.22"
+    },
+    {
+      "id": 26,
+      "ticker": "KEL",
+      "signalDate": "2026-06-19",
+      "exitDate": "2026-07-08",
+      "side": "BUY",
+      "entryPrice": 8.15,
+      "stopLoss": 7.78,
+      "targetPrice": 9.13,
+      "exitPrice": 7.78,
+      "outcome": "STOPPED OUT",
+      "pnlPct": -4.54,
+      "barsHeld": 13,
+      "confidence": 0.68,
+      "reason": "Swept 15d low (7.75) | Vol 1.7x | ATR 0.20"
+    },
+    {
+      "id": 27,
+      "ticker": "BAFL",
+      "signalDate": "2026-04-24",
+      "exitDate": "2026-05-14",
+      "side": "BUY",
+      "entryPrice": 61.22,
+      "stopLoss": 56.93,
+      "targetPrice": 68.57,
+      "exitPrice": 56.93,
+      "outcome": "STOPPED OUT",
+      "pnlPct": -7.01,
+      "barsHeld": 13,
+      "confidence": 1.0,
+      "reason": "Swept 15d low (58.08) | Vol 2.7x | ATR 7.78"
+    },
+    {
+      "id": 28,
+      "ticker": "UBL",
+      "signalDate": "2026-04-07",
+      "exitDate": "2026-04-09",
+      "side": "BUY",
+      "entryPrice": 315.14,
+      "stopLoss": 293.08,
+      "targetPrice": 352.96,
+      "exitPrice": 352.96,
+      "outcome": "TARGET HIT",
+      "pnlPct": 12.0,
+      "barsHeld": 2,
+      "confidence": 0.75,
+      "reason": "Swept 15d low (294.1) | Vol 1.9x | ATR 16.91"
+    },
+    {
+      "id": 29,
+      "ticker": "KOHC",
+      "signalDate": "2026-04-06",
+      "exitDate": "2026-04-09",
+      "side": "BUY",
+      "entryPrice": 78.11,
+      "stopLoss": 72.64,
+      "targetPrice": 87.48,
+      "exitPrice": 87.48,
+      "outcome": "TARGET HIT",
+      "pnlPct": 12.0,
+      "barsHeld": 3,
+      "confidence": 1.0,
+      "reason": "Swept 15d low (75.0) | Vol 2.8x | ATR 4.63"
+    },
+    {
+      "id": 30,
+      "ticker": "AIRLINK",
+      "signalDate": "2026-03-31",
+      "exitDate": "2026-04-09",
+      "side": "BUY",
+      "entryPrice": 124.0,
+      "stopLoss": 115.32,
+      "targetPrice": 138.88,
+      "exitPrice": 138.88,
+      "outcome": "TARGET HIT",
+      "pnlPct": 12.0,
+      "barsHeld": 7,
+      "confidence": 0.85,
+      "reason": "Swept 15d low (120.55) | Vol 2.1x | ATR 5.16"
+    },
+    {
+      "id": 31,
+      "ticker": "SNGP",
+      "signalDate": "2026-03-30",
+      "exitDate": "2026-04-09",
+      "side": "BUY",
+      "entryPrice": 89.24,
+      "stopLoss": 82.99,
+      "targetPrice": 99.95,
+      "exitPrice": 99.95,
+      "outcome": "TARGET HIT",
+      "pnlPct": 12.0,
+      "barsHeld": 8,
+      "confidence": 1.0,
+      "reason": "Swept 15d low (86.3) | Vol 4.1x | ATR 4.04"
+    },
+    {
+      "id": 32,
+      "ticker": "PPL",
+      "signalDate": "2026-03-30",
+      "exitDate": "2026-04-08",
+      "side": "BUY",
+      "entryPrice": 196.68,
+      "stopLoss": 182.91,
+      "targetPrice": 220.28,
+      "exitPrice": 220.28,
+      "outcome": "TARGET HIT",
+      "pnlPct": 12.0,
+      "barsHeld": 7,
+      "confidence": 0.98,
+      "reason": "Swept 15d low (194.06) | Vol 2.5x | ATR 8.92"
+    },
+    {
+      "id": 33,
+      "ticker": "OGDC",
+      "signalDate": "2026-03-30",
+      "exitDate": "2026-04-08",
+      "side": "BUY",
+      "entryPrice": 263.5,
+      "stopLoss": 245.05,
+      "targetPrice": 295.12,
+      "exitPrice": 295.12,
+      "outcome": "TARGET HIT",
+      "pnlPct": 12.0,
+      "barsHeld": 7,
+      "confidence": 0.63,
+      "reason": "Swept 15d low (253.26) | Vol 1.6x | ATR 11.01"
+    },
+    {
+      "id": 34,
+      "ticker": "PIOC",
+      "signalDate": "2026-03-10",
+      "exitDate": "2026-03-30",
+      "side": "BUY",
+      "entryPrice": 230.03,
+      "stopLoss": 213.93,
+      "targetPrice": 257.63,
+      "exitPrice": 213.93,
+      "outcome": "STOPPED OUT",
+      "pnlPct": -7.0,
+      "barsHeld": 14,
+      "confidence": 0.7,
+      "reason": "Swept 15d low (216.07) | Vol 1.7x | ATR 20.37"
+    },
+    {
+      "id": 35,
+      "ticker": "MTL",
+      "signalDate": "2026-03-09",
+      "exitDate": "2026-03-30",
+      "side": "BUY",
+      "entryPrice": 498.13,
+      "stopLoss": 463.45,
+      "targetPrice": 557.91,
+      "exitPrice": 497.88,
+      "outcome": "TIME EXIT",
+      "pnlPct": -0.05,
+      "barsHeld": 15,
+      "confidence": 1.0,
+      "reason": "Swept 15d low (475.01) | Vol 3.9x | ATR 19.27"
+    },
+    {
+      "id": 36,
+      "ticker": "UNITY",
+      "signalDate": "2026-03-04",
+      "exitDate": "2026-03-09",
+      "side": "BUY",
+      "entryPrice": 9.53,
+      "stopLoss": 8.86,
+      "targetPrice": 10.67,
+      "exitPrice": 8.86,
+      "outcome": "STOPPED OUT",
+      "pnlPct": -7.03,
+      "barsHeld": 3,
+      "confidence": 1.0,
+      "reason": "Swept 15d low (8.6) | Vol 8.5x | ATR 1.19"
+    },
+    {
+      "id": 37,
+      "ticker": "PAEL",
+      "signalDate": "2026-03-04",
+      "exitDate": "2026-03-09",
+      "side": "BUY",
+      "entryPrice": 39.98,
+      "stopLoss": 37.18,
+      "targetPrice": 44.78,
+      "exitPrice": 37.18,
+      "outcome": "STOPPED OUT",
+      "pnlPct": -7.0,
+      "barsHeld": 3,
+      "confidence": 0.79,
+      "reason": "Swept 15d low (38.92) | Vol 2.0x | ATR 3.44"
+    },
+    {
+      "id": 38,
+      "ticker": "UBL",
+      "signalDate": "2026-03-03",
+      "exitDate": "2026-03-09",
+      "side": "BUY",
+      "entryPrice": 418.68,
+      "stopLoss": 389.37,
+      "targetPrice": 468.92,
+      "exitPrice": 389.37,
+      "outcome": "STOPPED OUT",
+      "pnlPct": -7.0,
+      "barsHeld": 4,
+      "confidence": 0.78,
+      "reason": "Swept 15d low (395.82) | Vol 2.0x | ATR 23.25"
+    },
+    {
+      "id": 39,
+      "ticker": "PSO",
+      "signalDate": "2026-03-03",
+      "exitDate": "2026-03-24",
+      "side": "BUY",
+      "entryPrice": 358.96,
+      "stopLoss": 333.83,
+      "targetPrice": 402.04,
+      "exitPrice": 363.85,
+      "outcome": "TIME EXIT",
+      "pnlPct": 1.36,
+      "barsHeld": 15,
+      "confidence": 0.81,
+      "reason": "Swept 15d low (350.06) | Vol 2.0x | ATR 21.15"
+    },
+    {
+      "id": 40,
+      "ticker": "MEBL",
+      "signalDate": "2026-03-03",
+      "exitDate": "2026-03-24",
+      "side": "BUY",
+      "entryPrice": 439.0,
+      "stopLoss": 408.27,
+      "targetPrice": 491.68,
+      "exitPrice": 437.17,
+      "outcome": "TIME EXIT",
+      "pnlPct": -0.42,
+      "barsHeld": 15,
+      "confidence": 0.87,
+      "reason": "Swept 15d low (414.46) | Vol 2.2x | ATR 21.04"
+    },
+    {
+      "id": 41,
+      "ticker": "ILP",
+      "signalDate": "2026-03-03",
+      "exitDate": "2026-03-09",
+      "side": "BUY",
+      "entryPrice": 77.92,
+      "stopLoss": 72.47,
+      "targetPrice": 87.27,
+      "exitPrice": 72.47,
+      "outcome": "STOPPED OUT",
+      "pnlPct": -6.99,
+      "barsHeld": 4,
+      "confidence": 0.6,
+      "reason": "Swept 15d low (76.84) | Vol 1.5x | ATR 4.45"
+    },
+    {
+      "id": 42,
+      "ticker": "FCCL",
+      "signalDate": "2026-03-03",
+      "exitDate": "2026-03-06",
+      "side": "BUY",
+      "entryPrice": 46.8,
+      "stopLoss": 43.52,
+      "targetPrice": 52.42,
+      "exitPrice": 43.52,
+      "outcome": "STOPPED OUT",
+      "pnlPct": -7.01,
+      "barsHeld": 3,
+      "confidence": 1.0,
+      "reason": "Swept 15d low (46.78) | Vol 4.5x | ATR 2.69"
+    },
+    {
+      "id": 43,
+      "ticker": "DGKC",
+      "signalDate": "2026-03-03",
+      "exitDate": "2026-03-09",
+      "side": "BUY",
+      "entryPrice": 192.19,
+      "stopLoss": 178.74,
+      "targetPrice": 215.25,
+      "exitPrice": 178.74,
+      "outcome": "STOPPED OUT",
+      "pnlPct": -7.0,
+      "barsHeld": 4,
+      "confidence": 0.62,
+      "reason": "Swept 15d low (184.67) | Vol 1.5x | ATR 10.36"
+    },
+    {
+      "id": 44,
+      "ticker": "BAHL",
+      "signalDate": "2026-03-03",
+      "exitDate": "2026-03-09",
+      "side": "BUY",
+      "entryPrice": 157.16,
+      "stopLoss": 146.16,
+      "targetPrice": 176.02,
+      "exitPrice": 146.16,
+      "outcome": "STOPPED OUT",
+      "pnlPct": -7.0,
+      "barsHeld": 4,
+      "confidence": 1.0,
+      "reason": "Swept 15d low (150.28) | Vol 3.6x | ATR 8.38"
+    },
+    {
+      "id": 45,
+      "ticker": "SSGC",
+      "signalDate": "2026-02-26",
+      "exitDate": "2026-02-27",
+      "side": "BUY",
+      "entryPrice": 26.07,
+      "stopLoss": 24.25,
+      "targetPrice": 29.2,
+      "exitPrice": 24.25,
+      "outcome": "STOPPED OUT",
+      "pnlPct": -6.98,
+      "barsHeld": 1,
+      "confidence": 1.0,
+      "reason": "Swept 15d low (26.0) | Vol 2.6x | ATR 1.78"
+    },
+    {
+      "id": 46,
+      "ticker": "SEARL",
+      "signalDate": "2026-02-26",
+      "exitDate": "2026-03-02",
+      "side": "BUY",
+      "entryPrice": 94.57,
+      "stopLoss": 87.95,
+      "targetPrice": 105.92,
+      "exitPrice": 87.95,
+      "outcome": "STOPPED OUT",
+      "pnlPct": -7.0,
+      "barsHeld": 2,
+      "confidence": 0.93,
+      "reason": "Swept 15d low (91.0) | Vol 2.3x | ATR 5.95"
+    },
+    {
+      "id": 47,
+      "ticker": "MLCF",
+      "signalDate": "2026-02-26",
+      "exitDate": "2026-03-02",
+      "side": "BUY",
+      "entryPrice": 96.67,
+      "stopLoss": 89.9,
+      "targetPrice": 108.27,
+      "exitPrice": 89.9,
+      "outcome": "STOPPED OUT",
+      "pnlPct": -7.0,
+      "barsHeld": 2,
+      "confidence": 1.0,
+      "reason": "Swept 15d low (92.5) | Vol 2.5x | ATR 6.56"
+    },
+    {
+      "id": 48,
+      "ticker": "MARI",
+      "signalDate": "2026-02-26",
+      "exitDate": "2026-03-02",
+      "side": "BUY",
+      "entryPrice": 612.94,
+      "stopLoss": 580.58,
+      "targetPrice": 686.49,
+      "exitPrice": 580.58,
+      "outcome": "STOPPED OUT",
+      "pnlPct": -5.28,
+      "barsHeld": 2,
+      "confidence": 0.92,
+      "reason": "Swept 15d low (604.0) | Vol 2.3x | ATR 17.98"
+    },
+    {
+      "id": 49,
+      "ticker": "KOHC",
+      "signalDate": "2026-02-26",
+      "exitDate": "2026-03-02",
+      "side": "BUY",
+      "entryPrice": 96.85,
+      "stopLoss": 90.07,
+      "targetPrice": 108.47,
+      "exitPrice": 90.07,
+      "outcome": "STOPPED OUT",
+      "pnlPct": -7.0,
+      "barsHeld": 2,
+      "confidence": 1.0,
+      "reason": "Swept 15d low (92.02) | Vol 2.7x | ATR 4.87"
+    },
+    {
+      "id": 50,
+      "ticker": "CHCC",
+      "signalDate": "2026-02-26",
+      "exitDate": "2026-03-02",
+      "side": "BUY",
+      "entryPrice": 295.58,
+      "stopLoss": 274.89,
+      "targetPrice": 331.05,
+      "exitPrice": 274.89,
+      "outcome": "STOPPED OUT",
+      "pnlPct": -7.0,
+      "barsHeld": 2,
+      "confidence": 1.0,
+      "reason": "Swept 15d low (281.0) | Vol 3.5x | ATR 12.61"
+    },
+    {
+      "id": 51,
+      "ticker": "PAEL",
+      "signalDate": "2026-02-24",
+      "exitDate": "2026-03-02",
+      "side": "BUY",
+      "entryPrice": 48.9,
+      "stopLoss": 45.48,
+      "targetPrice": 54.77,
+      "exitPrice": 45.48,
+      "outcome": "STOPPED OUT",
+      "pnlPct": -6.99,
+      "barsHeld": 4,
+      "confidence": 1.0,
+      "reason": "Swept 15d low (46.51) | Vol 2.5x | ATR 2.56"
+    },
+    {
+      "id": 52,
+      "ticker": "MCB",
+      "signalDate": "2026-02-24",
+      "exitDate": "2026-03-02",
+      "side": "BUY",
+      "entryPrice": 390.23,
+      "stopLoss": 363.57,
+      "targetPrice": 437.06,
+      "exitPrice": 363.57,
+      "outcome": "STOPPED OUT",
+      "pnlPct": -6.83,
+      "barsHeld": 4,
+      "confidence": 0.73,
+      "reason": "Swept 15d low (384.0) | Vol 1.8x | ATR 14.81"
+    },
+    {
+      "id": 53,
+      "ticker": "SNGP",
+      "signalDate": "2026-02-17",
+      "exitDate": "2026-02-24",
+      "side": "BUY",
+      "entryPrice": 99.97,
+      "stopLoss": 93.62,
+      "targetPrice": 111.97,
+      "exitPrice": 93.62,
+      "outcome": "STOPPED OUT",
+      "pnlPct": -6.35,
+      "barsHeld": 5,
+      "confidence": 1.0,
+      "reason": "Swept 15d low (97.32) | Vol 7.6x | ATR 3.53"
+    },
+    {
+      "id": 54,
+      "ticker": "KOHC",
+      "signalDate": "2026-02-17",
+      "exitDate": "2026-02-23",
+      "side": "BUY",
+      "entryPrice": 103.02,
+      "stopLoss": 96.51,
+      "targetPrice": 115.38,
+      "exitPrice": 96.51,
+      "outcome": "STOPPED OUT",
+      "pnlPct": -6.32,
+      "barsHeld": 4,
+      "confidence": 1.0,
+      "reason": "Swept 15d low (98.58) | Vol 3.0x | ATR 3.62"
+    },
+    {
+      "id": 55,
+      "ticker": "INIL",
+      "signalDate": "2026-02-17",
+      "exitDate": "2026-02-20",
+      "side": "BUY",
+      "entryPrice": 170.48,
+      "stopLoss": 161.03,
+      "targetPrice": 190.94,
+      "exitPrice": 190.94,
+      "outcome": "TARGET HIT",
+      "pnlPct": 12.0,
+      "barsHeld": 3,
+      "confidence": 0.91,
+      "reason": "Swept 15d low (164.0) | Vol 2.3x | ATR 5.25"
+    },
+    {
+      "id": 56,
+      "ticker": "BOP",
+      "signalDate": "2026-02-17",
+      "exitDate": "2026-02-20",
+      "side": "BUY",
+      "entryPrice": 34.12,
+      "stopLoss": 31.73,
+      "targetPrice": 38.21,
+      "exitPrice": 31.73,
+      "outcome": "STOPPED OUT",
+      "pnlPct": -7.0,
+      "barsHeld": 3,
+      "confidence": 0.88,
+      "reason": "Swept 15d low (32.72) | Vol 2.2x | ATR 1.89"
+    },
+    {
+      "id": 57,
+      "ticker": "AKBL",
+      "signalDate": "2026-02-17",
+      "exitDate": "2026-02-27",
+      "side": "BUY",
+      "entryPrice": 93.08,
+      "stopLoss": 86.56,
+      "targetPrice": 104.25,
+      "exitPrice": 104.25,
+      "outcome": "TARGET HIT",
+      "pnlPct": 12.0,
+      "barsHeld": 8,
+      "confidence": 0.77,
+      "reason": "Swept 15d low (90.0) | Vol 1.9x | ATR 6.34"
+    },
+    {
+      "id": 58,
+      "ticker": "AICL",
+      "signalDate": "2026-02-11",
+      "exitDate": "2026-02-16",
+      "side": "BUY",
+      "entryPrice": 105.43,
+      "stopLoss": 98.05,
+      "targetPrice": 118.08,
+      "exitPrice": 98.05,
+      "outcome": "STOPPED OUT",
+      "pnlPct": -7.0,
+      "barsHeld": 3,
+      "confidence": 0.68,
+      "reason": "Swept 15d low (101.0) | Vol 1.7x | ATR 5.33"
+    },
+    {
+      "id": 59,
+      "ticker": "NBP",
+      "signalDate": "2026-02-09",
+      "exitDate": "2026-02-16",
+      "side": "BUY",
+      "entryPrice": 266.11,
+      "stopLoss": 250.74,
+      "targetPrice": 298.04,
+      "exitPrice": 250.74,
+      "outcome": "STOPPED OUT",
+      "pnlPct": -5.78,
+      "barsHeld": 5,
+      "confidence": 1.0,
+      "reason": "Swept 15d low (257.78) | Vol 3.4x | ATR 8.54"
+    },
+    {
+      "id": 60,
+      "ticker": "HCAR",
+      "signalDate": "2026-01-20",
+      "exitDate": "2026-01-27",
+      "side": "BUY",
+      "entryPrice": 260.25,
+      "stopLoss": 252.59,
+      "targetPrice": 291.48,
+      "exitPrice": 252.59,
+      "outcome": "STOPPED OUT",
+      "pnlPct": -2.94,
+      "barsHeld": 5,
+      "confidence": 0.8,
+      "reason": "Swept 15d low (257.95) | Vol 2.0x | ATR 4.26"
+    },
+    {
+      "id": 61,
+      "ticker": "NML",
+      "signalDate": "2026-01-06",
+      "exitDate": "2026-01-12",
+      "side": "BUY",
+      "entryPrice": 176.84,
+      "stopLoss": 167.04,
+      "targetPrice": 198.06,
+      "exitPrice": 198.06,
+      "outcome": "TARGET HIT",
+      "pnlPct": 12.0,
+      "barsHeld": 4,
+      "confidence": 0.64,
+      "reason": "Swept 15d low (174.0) | Vol 1.6x | ATR 5.44"
+    },
+    {
+      "id": 62,
+      "ticker": "EFERT",
+      "signalDate": "2025-12-18",
+      "exitDate": "2026-01-02",
+      "side": "BUY",
+      "entryPrice": 220.83,
+      "stopLoss": 214.32,
+      "targetPrice": 247.33,
+      "exitPrice": 247.33,
+      "outcome": "TARGET HIT",
+      "pnlPct": 12.0,
+      "barsHeld": 10,
+      "confidence": 0.89,
+      "reason": "Swept 15d low (215.0) | Vol 2.2x | ATR 3.62"
+    },
+    {
+      "id": 63,
+      "ticker": "AICL",
+      "signalDate": "2025-12-09",
+      "exitDate": "2025-12-16",
+      "side": "BUY",
+      "entryPrice": 75.64,
+      "stopLoss": 71.21,
+      "targetPrice": 84.72,
+      "exitPrice": 84.72,
+      "outcome": "TARGET HIT",
+      "pnlPct": 12.0,
+      "barsHeld": 5,
+      "confidence": 0.71,
+      "reason": "Swept 15d low (75.26) | Vol 1.8x | ATR 2.46"
+    },
+    {
+      "id": 64,
+      "ticker": "ACPL",
+      "signalDate": "2025-12-04",
+      "exitDate": "2025-12-26",
+      "side": "BUY",
+      "entryPrice": 283.49,
+      "stopLoss": 273.3,
+      "targetPrice": 317.51,
+      "exitPrice": 282.04,
+      "outcome": "TIME EXIT",
+      "pnlPct": -0.51,
+      "barsHeld": 15,
+      "confidence": 1.0,
+      "reason": "Swept 15d low (276.54) | Vol 2.9x | ATR 5.66"
+    }
+  ]
+}

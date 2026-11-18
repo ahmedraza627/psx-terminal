@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 const LINKS = [
   { href: "/", label: "Daily Recommendations", hint: "What to trade today" },
   { href: "/history", label: "Historical Performance", hint: "Audited signal ledger" },
+  { href: "/backtest", label: "1Y Backtest Lab", hint: "Simulated equity curve" },
 ] as const;
 
 export default function DeskNav({ onNavigate }: { onNavigate?: () => void }) {

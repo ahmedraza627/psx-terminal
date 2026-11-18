@@ -19,6 +19,7 @@ from src.core.config import get_db_path  # noqa: E402
 from src.ingestion.live_fetcher import LiveEODFetcher  # noqa: E402
 from src.ingestion.sqlite_adapter import load_validated_bars  # noqa: E402
 from src.ingestion.wal_adapter import WALIngestionManager  # noqa: E402
+from src.quant.backtest import run_backtest, write_backtest_report  # noqa: E402
 from src.quant.engine import LiquidityQuantEngine  # noqa: E402
 
 DATA_DIR = PROJECT_ROOT / "frontend" / "public" / "data"
@@ -99,6 +100,18 @@ def run_daily_sync(session: date | None = None, offline: bool = False) -> int:
     }, indent=2), encoding="utf-8")
 
     desk = refresh_desk_files()
+
+    # Replay the stored year so the backtest lab tracks the same tape as the desk.
+    try:
+        report = run_backtest(str(db_path))
+        write_backtest_report(report, DATA_DIR / "backtest_metrics.json")
+        metrics = report["metrics"]
+        print(f"[INFO] backtest: {metrics['totalSignals']} signals over "
+              f"{report['sessionRange']['sessions']} sessions "
+              f"({metrics['winRatePct']}% win, {metrics['totalReturnPct']}% return)")
+    except Exception as exc:  # a backtest gap must never block today's signals
+        print(f"[WARN] backtest skipped: {exc}")
+
     (DATA_DIR / "sync_status.json").write_text(json.dumps({
         "lastSynced": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "sessionDate": session_day.isoformat() if session_day else None,
