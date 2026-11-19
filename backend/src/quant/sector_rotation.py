@@ -27,38 +27,72 @@ MONTHS_PER_YEAR = 12
 # ---------------------------------------------------------------------------
 
 # Conservative, conservative-by-source PSX sector mapping for the tracked
-# core universe. Names absent from the map default to "OTHER" so a new ticker
-# never silently gets assigned to a sector it does not belong to.
+# universe. Names absent from the map default to "OTHER" so a new ticker never
+# silently gets assigned to a sector it does not belong to.
+#
+# The map covers the deep-backfill universe (core liquid names plus the wider
+# active PSX equity list in scripts/deep_backfill.py). Sector labels here drive
+# sector rotation, stat-arb pairing and the seasonality matrix, so a ticker that
+# is added to the universe should be added here in the same change.
 DEFAULT_SECTOR_MAP: Dict[str, str] = {
     # Banking
     "UBL": "Banking", "MCB": "Banking", "MEBL": "Banking", "HBL": "Banking",
     "BAHL": "Banking", "BAFL": "Banking", "NBP": "Banking", "BOP": "Banking",
-    "AKBL": "Banking", "FABL": "Banking",
+    "AKBL": "Banking", "FABL": "Banking", "BIPL": "Banking", "SNBL": "Banking",
+    "JSBL": "Banking", "SILK": "Banking", "SMBL": "Banking", "BOK": "Banking",
+    "SCBPL": "Banking", "HMB": "Banking",
     # Cement
     "MLCF": "Cement", "LUCK": "Cement", "DGKC": "Cement", "FCCL": "Cement",
     "PIOC": "Cement", "CHCC": "Cement", "ACPL": "Cement", "BWCL": "Cement",
-    "KOHC": "Cement",
+    "KOHC": "Cement", "GTYR": "Cement", "TREET": "Cement", "DCL": "Cement",
+    "JVDC": "Cement", "GWLC": "Cement",
     # Oil, gas & E&P
     "OGDC": "Energy", "PPL": "Energy", "MARI": "Energy", "POL": "Energy",
     "PSO": "Energy", "SHEL": "Energy", "SNGP": "Energy", "SSGC": "Energy",
-    "HASCOL": "Energy",
+    "HASCOL": "Energy", "APL": "Energy", "PIBTL": "Energy", "WTL": "Energy",
     # Fertiliser
     "FFC": "Fertilizer", "ENGRO": "Fertilizer", "EFERT": "Fertilizer",
     "FATIMA": "Fertilizer", "FFBL": "Fertilizer",
     # Technology
     "SYS": "Tech", "TRG": "Tech", "AIRLINK": "Tech", "AVN": "Tech",
-    "NETSOL": "Tech", "OCTOPUS": "Tech",
+    "NETSOL": "Tech", "OCTOPUS": "Tech", "PTC": "Tech",
     # Refineries
     "PRL": "Refining", "NRL": "Refining", "ATRL": "Refining", "CNERGY": "Refining",
+    "BYCO": "Refining",
     # Power
-    "HUBC": "Power", "KAPCO": "Power", "KEL": "Power",
-    # Chemicals / agro / manufacturing / pharma
-    "EPCL": "Chemicals", "LOTCHEM": "Chemicals", "AGP": "Chemicals",
-    "SEARL": "Textiles", "ABOT": "Food", "ILP": "Food",
-    "NML": "Steel", "PAEL": "Pharma", "UNITY": "Engineering",
-    "INIL": "Cabling", "ISL": "Cabling", "MTL": "Cabling",
-    "INDU": "Manufacturing", "HCAR": "Auto", "PSMC": "Auto",
-    "THALL": "Steel", "GTYR": "Cement", "TREET": "Cement", "AICL": "Cement",
+    "HUBC": "Power", "KAPCO": "Power", "KEL": "Power", "NCPL": "Power",
+    "NPL": "Power", "EPQL": "Power", "SPWL": "Power",
+    # Chemicals
+    "EPCL": "Chemicals", "LOTCHEM": "Chemicals", "ICI": "Chemicals",
+    # Pharma
+    "SEARL": "Pharma", "AGP": "Pharma", "ABOT": "Pharma", "GLAXO": "Pharma",
+    "HINOON": "Pharma", "SAPL": "Pharma", "CPHL": "Pharma", "AGIL": "Pharma",
+    "MACTER": "Pharma", "FEROZ": "Pharma",
+    # Textiles (spinning, weaving, composite)
+    "NML": "Textiles", "ILP": "Textiles", "GATM": "Textiles", "NCL": "Textiles",
+    "KTML": "Textiles", "GADT": "Textiles", "BNWM": "Textiles", "CFL": "Textiles",
+    "IBFL": "Textiles", "SPPT": "Textiles",
+    # Food & personal care
+    "UNITY": "Food", "FFL": "Food", "NESTLE": "Food", "FCEPL": "Food",
+    # Sugar & allied
+    "JDWS": "Sugar", "MRNS": "Sugar", "ALNRS": "Sugar", "SKRS": "Sugar",
+    "SML": "Sugar", "TSML": "Sugar", "HABSM": "Sugar", "NONS": "Sugar",
+    # Modaraba
+    "MODAM": "Modaraba", "FEM": "Modaraba", "FHAM": "Modaraba",
+    "ORM": "Modaraba", "PMI": "Modaraba", "SMM": "Modaraba",
+    # Steel & engineering
+    "THALL": "Steel", "ISL": "Steel", "ASTL": "Steel", "MUGHAL": "Steel",
+    "PAEL": "Engineering", "MTL": "Engineering", "INIL": "Engineering",
+    "INDU": "Manufacturing",
+    # Auto
+    "HCAR": "Auto", "PSMC": "Auto", "ATLH": "Auto", "GHNL": "Auto",
+    # Insurance
+    "AICL": "Insurance", "ATIL": "Insurance", "IGIHL": "Insurance",
+    "JLICL": "Insurance", "NICL": "Insurance",
+    # Glass, paper, transport, tobacco, leather
+    "TGL": "Glass", "GHGL": "Glass", "PKGP": "Paper", "CHBL": "Paper",
+    "PNSC": "Transport", "PIAA": "Transport", "PAKT": "Tobacco",
+    "SRVI": "Leather",
 }
 
 

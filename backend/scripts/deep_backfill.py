@@ -20,6 +20,12 @@ Architecture notes
 Run it
 ------
 python backend/scripts/deep_backfill.py [--db PATH] [--years 15] [--force] [--workers 4]
+    [--single-span] [--universe core|extended|discovered|all] [--tickers ...]
+
+--universe defaults to "all": the core 65 names, the wider static active PSX
+list, and any symbols discovered live from the PSX data portal. A ticker that
+the upstream endpoint does not carry (404) or that returns no valid OHLC is
+recorded as failed and skipped, so a wide universe never breaks a run.
 
 Suggested cadence
 -----------------
@@ -34,6 +40,7 @@ import argparse
 import json
 import logging
 import os
+import re
 import sqlite3
 import sys
 import time
@@ -71,6 +78,54 @@ log = logging.getLogger("deep_backfill")
 # Core universe mirrors ingestion/universe.py so the deep backfill and the
 # live desk agree on what "the book" actually is.
 TARGET_TICKERS = CORE_TICKERS
+
+# Wider active PSX equity list. These are the liquid / regularly quoted names
+# beyond the core 65 that Yahoo's .KA endpoint generally carries history for:
+# sugar, textiles, modarabas, insurance, pharma and the second-tier banks,
+# cements and energy names that the core book never held.
+EXTENDED_TICKERS: List[str] = [
+    # Banking
+    "BIPL", "SNBL", "JSBL", "SILK", "SMBL", "BOK", "SCBPL", "HMB",
+    # Cement
+    "DCL", "JVDC", "GWLC",
+    # Oil, gas & E&P / OMC
+    "APL", "PIBTL", "WTL", "BYCO",
+    # Power
+    "NCPL", "NPL", "EPQL", "SPWL",
+    # Chemicals
+    "ICI",
+    # Pharma
+    "GLAXO", "HINOON", "SAPL", "CPHL", "AGIL", "MACTER", "FEROZ",
+    # Textiles
+    "GATM", "NCL", "KTML", "GADT", "BNWM", "CFL", "IBFL", "SPPT",
+    # Food & personal care
+    "FFL", "NESTLE", "FCEPL",
+    # Sugar
+    "JDWS", "MRNS", "ALNRS", "SKRS", "SML", "TSML", "HABSM", "NONS",
+    # Modaraba
+    "MODAM", "FEM", "FHAM", "ORM", "PMI", "SMM",
+    # Steel, engineering & manufacturing
+    "ASTL", "MUGHAL",
+    # Auto
+    "ATLH", "GHNL",
+    # Insurance
+    "ATIL", "IGIHL", "JLICL", "NICL",
+    # Glass, paper, transport, tobacco, leather
+    "TGL", "GHGL", "PKGP", "CHBL", "PNSC", "PIAA", "PAKT", "SRVI",
+    # Technology
+    "PTC",
+]
+
+# Live symbol discovery. PSX's data portal is the same source the daily market
+# sync uses, so a discovered symbol is an actively quoted PSX name by
+# construction. Discovery is best-effort: the static extended list above is the
+# fallback when the portal is unreachable (offline runs, rate limits, outages).
+DPS_MARKET_WATCH_URL = "https://dps.psx.com.pk/market-watch"
+DISCOVERY_TIMEOUT_SECONDS = 15.0
+_SYMBOL_RE = re.compile(r"^[A-Z][A-Z0-9]{1,9}$")
+# Debt instruments, funds and rights/ETF lines share the symbol table but have
+# no usable equity OHLC series, so they are dropped during discovery.
+_NON_EQUITY_MARKERS = ("ETF", "TFC", "SUKUK", "FUND", "PREF", "RIGHT", "BOND")
 
 SESSIONS_PER_YEAR = 252
 MONTHS_PER_YEAR = 12
@@ -367,6 +422,67 @@ def stored_span_for_ticker(db_path: str, ticker: str) -> Tuple[Optional[date], O
         return None, None, 0
 
 
+def discover_psx_universe(timeout: float = DISCOVERY_TIMEOUT_SECONDS) -> List[str]:
+    """Best-effort live symbol discovery from the PSX data portal.
+
+    Returns the actively quoted equity symbols found on the market-watch page,
+    or an empty list when the portal cannot be reached. Callers fall back to the
+    static extended universe, so a network problem never fails a backfill.
+    """
+    try:
+        req = Request(DPS_MARKET_WATCH_URL, headers={"User-Agent": USER_AGENT})
+        with urlopen(req, timeout=timeout) as resp:
+            html = resp.read().decode("utf-8", "replace")
+    except (HTTPError, URLError, TimeoutError, OSError) as e:
+        log.warning("PSX symbol discovery unavailable (%s); using static universe", e)
+        return []
+
+    symbols = {
+        m.group(1).upper()
+        for m in re.finditer(r'data-srip="([A-Za-z][A-Za-z0-9]{0,9})"', html)
+    }
+    if not symbols:
+        # Older portal layouts carry the symbol as the anchored row text.
+        symbols = {
+            m.group(1).upper()
+            for m in re.finditer(r'class="tbl__symbol"[^>]*>\s*([A-Za-z][A-Za-z0-9]{0,9})\s*<', html)
+        }
+
+    equities = {
+        s for s in symbols
+        if _SYMBOL_RE.match(s) and not any(marker in s for marker in _NON_EQUITY_MARKERS)
+    }
+    if equities:
+        log.info("PSX symbol discovery: %d equity symbols", len(equities))
+    else:
+        log.warning("PSX symbol discovery returned no symbols; using static universe")
+    return sorted(equities)
+
+
+def build_universe(mode: str = "all") -> List[str]:
+    """Resolve the backfill universe for a discovery mode.
+
+    core       - the original 65-name liquid book
+    extended   - core + the wider static active PSX list
+    discovered - core + live PSX symbols (static extended list on failure)
+    all        - core + static extended + live discovered (default)
+    """
+    core = list(CORE_TICKERS)
+    extended = list(EXTENDED_TICKERS)
+    if mode == "core":
+        return core
+    if mode == "extended":
+        return list(dict.fromkeys(core + extended))
+
+    discovered = discover_psx_universe() if mode in ("discovered", "all") else []
+    if mode == "discovered":
+        if not discovered:
+            log.warning("discovery failed; falling back to the static extended universe")
+            return list(dict.fromkeys(core + extended))
+        return list(dict.fromkeys(core + discovered))
+    return list(dict.fromkeys(core + extended + discovered))
+
+
 def needs_fetch(
     db_path: str,
     ticker: str,
@@ -574,7 +690,17 @@ def main() -> int:
         "--tickers",
         nargs="+",
         default=None,
-        help="restrict to a sub-universe (default: core universe)",
+        help="restrict to an explicit sub-universe (overrides --universe)",
+    )
+    parser.add_argument(
+        "--universe",
+        type=str,
+        default="all",
+        choices=["core", "extended", "discovered", "all"],
+        help=(
+            "core = original 65 names, extended = core + static wider PSX list, "
+            "discovered = core + live PSX symbols, all = extended + discovered (default)"
+        ),
     )
     parser.add_argument(
         "--workers",
@@ -592,7 +718,7 @@ def main() -> int:
     db_path = args.db
     target_years = max(1.0, args.years)
     years = args.years_list
-    tickers = args.tickers
+    tickers = args.tickers if args.tickers else build_universe(args.universe)
     force = args.force
     workers = max(1, args.workers)
 
@@ -611,7 +737,7 @@ def main() -> int:
     log.info("=".join([""] + ["-"] * 60 + [""]))
     log.info("DEEP BACKFILL SUMMARY")
     log.info("  target lookback      : %.1f years", target_years)
-    log.info("  tickers in universe  : %d", len(TARGET_TICKERS) if args.tickers is None else len(tickers))
+    log.info("  tickers in universe  : %d (%s)", len(tickers), "explicit" if args.tickers else args.universe)
     log.info("  tickers attempted    : %d", stats.tickers_attempted)
     log.info("  tickers skipped      : %d", stats.tickers_skipped)
     log.info("  rows inserted        : %d", stats.rows_inserted)
