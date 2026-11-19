@@ -165,14 +165,12 @@ export default function HistoryPage() {
         />
       </div>
 
-      {!buysResolved && (
+      {buysResolved && resolvedBuys.length < MIN_SAMPLE && openBuys === 0 ? (
         <p className="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2 text-[11px] leading-relaxed text-slate-400">
-          <span className="font-semibold text-slate-300">Hit rates are withheld until {MIN_SAMPLE} signals close.</span>{" "}
-          Only closed trades (target hit or stopped out) count — {resolvedBuys.length} buy
-          {resolvedBuys.length === 1 ? " is" : "s are"} closed and {openBuys} still in play, so a
-          percentage now would describe the sample size, not the edge.
+          <span className="font-semibold text-slate-300">Hit rate needs {MIN_SAMPLE} closed signals.</span>
+          {resolvedBuys.length > 0 ? ` ${resolvedBuys.length} buy is closed and no trades are in play yet — one more closed signal before a rate appears.` : " No buys have closed yet, so a rate now would describe the sample size, not the edge."}
         </p>
-      )}
+      ) : null}
 
       <div className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900/60 shadow-sm">
         {/* Search + result count */}

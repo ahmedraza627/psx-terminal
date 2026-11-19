@@ -213,7 +213,6 @@ type Payload = SweepPayload | MomentumPayload | StressTestPayload;
 const HORIZONS = [
   { id: "1Y", label: "1-Year Lab", file: "/data/backtest_metrics.json" },
   { id: "5Y", label: "5-Year Macro Stress Test", file: "/data/backtest_5y_metrics.json" },
-  { id: "15Y", label: "15-Year Meta-Brain Stress Test", file: "/data/stress_test_15y_metrics.json" },
 ] as const;
 
 type Horizon = (typeof HORIZONS)[number]["id"];
@@ -228,7 +227,6 @@ const STRATEGIES = [
     files: {
       "1Y": "/data/backtest_metrics.json",
       "5Y": "/data/backtest_5y_metrics.json",
-      "15Y": "/data/stress_test_15y_metrics.json",
     },
   },
   {
@@ -237,7 +235,6 @@ const STRATEGIES = [
     files: {
       "1Y": "/data/backtest_metrics.json",
       "5Y": "/data/momentum_5y_metrics.json",
-      "15Y": "/data/stress_test_15y_metrics.json",
     },
   },
 ] as const;
@@ -598,9 +595,6 @@ function StressTestView({ data }: { data: StressTestPayload }) {
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <h2 className="text-base font-bold text-slate-100">Walk-Forward Windows</h2>
-            <p className="text-[11px] text-slate-400">
-              Each window is fit in-sample, then evaluated on the next OOS tail; regime is labelled from the window's drawdown + win-rate profile.
-            </p>
           </div>
           <div className="flex flex-wrap gap-3 font-mono text-[11px]">
             <span className="text-slate-400">
@@ -648,7 +642,7 @@ function StressTestView({ data }: { data: StressTestPayload }) {
             <div>
               <h2 className="text-base font-bold text-slate-100">Representative Equity Curve</h2>
               <p className="text-[11px] text-slate-400">
-                First walk-forward window's book, as a representative shape of the desk through the tape.
+                First walk-forward window's book sketched through the tape.
               </p>
             </div>
           </div>
@@ -766,58 +760,17 @@ export default function BacktestPage() {
             Research · walk-forward validation
           </span>
           <h1 className="mt-1 text-xl font-bold tracking-tight text-slate-50 sm:text-2xl">
-            {horizon === "1Y" ? "1Y Backtest Lab" : horizon === "5Y" ? "5Y Macro Stress Test" : "15Y Meta-Brain Stress Test"}
+            {horizon === "1Y" ? "1Y Backtest Lab" : "5Y Macro Stress Test"}
           </h1>
           <p className="mt-1 max-w-3xl text-[11px] leading-relaxed text-slate-400">
-            {(horizon === "15Y" && data && ("meta" in data) && (data as StressTestPayload).meta?.name)
-              ? (data as StressTestPayload).meta!.name
-              : (data && ("strategy" in data) ? (data as SweepPayload | MomentumPayload).strategy?.name : "Strategy")}
-            {" "}replayed session by session
-            {data?.sessionRange?.from && data?.sessionRange?.to
-              ? ` — ${data.sessionRange.from} to ${data.sessionRange.to} (${data.sessionRange.sessions} sessions${
-                  data.sessionRange.tickers ? ` · ${data.sessionRange.tickers} names` : ""
-                }).`
-              : "."}
+            {(data && ("strategy" in data) ? (data as SweepPayload | MomentumPayload).strategy?.name : "Strategy")}
+            {" "}replayed session by session.
           </p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <StrategyToggle value={strategy} onChange={setStrategy} />
           <HorizonToggle value={horizon} onChange={setHorizon} />
         </div>
-      </div>
-
-      <div className="flex flex-wrap gap-1.5">
-        {isMomentum ? (
-          [
-            `Top ${strategyTopN ?? 10} momentum leaders`,
-            `3M + 6M ROC composite score`,
-            `Monthly rebalance (month-end)`,
-            `7% hard stop · 50d SMA break exit`,
-            `Equal-weight basket`,
-          ].map((chip) => (
-            <span
-              key={chip}
-              className="rounded border border-slate-700/70 bg-slate-800/50 px-2 py-1 font-mono text-[10px] font-semibold text-slate-400"
-            >
-              {chip}
-            </span>
-          ))
-        ) : (
-          [
-            `Above SMA${strategyTrendMaDays ?? 50}`,
-            `RVOL ≥ ${strategyMinRvol ?? 1.5}x · Z ≥ ${strategyMinVolZ ?? 1}`,
-            `ATR × ${strategyAtrStopMult ?? 2} stop`,
-            `Target +${strategyTargetPct ?? 12}%`,
-            `${strategyHoldHorizonSessions ?? 30}s max hold`,
-          ].map((chip) => (
-            <span
-              key={chip}
-              className="rounded border border-slate-700/70 bg-slate-800/50 px-2 py-1 font-mono text-[10px] font-semibold text-slate-400"
-            >
-              {chip}
-            </span>
-          ))
-        )}
       </div>
 
       {!loaded && (
@@ -828,12 +781,7 @@ export default function BacktestPage() {
 
       {loaded && !data && (
         <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">
-          {horizon === "15Y" ? (
-            <>
-              No 15-year Meta-Brain stress test yet — run{" "}
-              <code className="font-mono">python backend/src/quant/stress_test.py</code>.
-            </>
-          ) : isMomentum ? (
+          {isMomentum ? (
             <>
               No momentum rotation report yet — run{" "}
               <code className="font-mono">python backend/src/quant/momentum_rotation.py</code>.
@@ -851,11 +799,11 @@ export default function BacktestPage() {
         </div>
       )}
 
-      {horizon === "15Y" && data && (
+      {data && (
         <StressTestView data={data as StressTestPayload} />
       )}
 
-      {metrics && horizon !== "15Y" && (
+      {metrics && (
         <>
           <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-6">
             <Metric

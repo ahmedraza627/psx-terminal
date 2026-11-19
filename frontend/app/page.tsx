@@ -252,7 +252,7 @@ export default function DailyDeskPage() {
         </div>
       </div>
 
-      {/* UNIFIED DAILY ALPHA BRIEF — regime, confluence picks, stat-arb */}
+      {/* DAILY ALPHA BRIEF — regime, confluence picks, stat-arb */}
       {alpha ? (
         <section className="overflow-hidden rounded-2xl border border-slate-800/80 bg-slate-900/40">
           <header className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-800 p-4 sm:p-5">
