@@ -57,6 +57,23 @@ type AlphaPick = {
   seasonalStatus?: string | null;
 };
 
+type ExtendedSetup = {
+  ticker: string;
+  sector: string;
+  close: number;
+  action: string;
+  reasons: string[];
+  note: string;
+  ret20dPct: number | null;
+  swingPositionPct: number | null;
+  rsi14: number | null;
+  bearishDivergence: boolean;
+  divergenceType: string | null;
+  divergenceNote: string | null;
+  score: number;
+  seasonalStatus?: string | null;
+};
+
 type AlphaArb = {
   legA: string;
   legB: string;
@@ -82,6 +99,7 @@ type AlphaBrief = {
   };
   portfolio?: { grossExposurePct: number; portfolioVarPct: number; varCapPct: number };
   picks: AlphaPick[];
+  extendedSetups?: ExtendedSetup[];
   statArb: AlphaArb[];
   universe: { scanned: number; eligible: number; liquid: number };
 };
@@ -139,6 +157,11 @@ const money = (value: number | null | undefined) =>
 
 const pct = (value: number | null | undefined, digits = 2) =>
   value === null || value === undefined || Number.isNaN(value) ? "—" : value.toFixed(digits);
+
+const signedPct = (value: number | null | undefined, digits = 1) =>
+  value === null || value === undefined || Number.isNaN(value)
+    ? "—"
+    : `${value >= 0 ? "+" : ""}${value.toFixed(digits)}%`;
 
 const RS_WATCH_FLOOR = 8.0; // only elite relative strength qualifies when no sweep fired
 const CARRY_FLOOR = 18.0; // % annualised carry that beats the 11% policy rate by enough
@@ -400,6 +423,58 @@ export default function DailyDeskPage() {
                   </table>
                 </div>
               </>
+            )}
+
+            {alpha.extendedSetups && alpha.extendedSetups.length > 0 && (
+              <div className="mt-4 border-t border-slate-800 pt-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                    Extended — Buy Suppressed
+                  </h3>
+                  <span className="rounded border border-rose-500/40 bg-rose-500/10 px-2 py-0.5 font-mono text-[9px] font-bold text-rose-300">
+                    {alpha.extendedSetups.length} WAIT PULLBACK
+                  </span>
+                </div>
+                <ul className="mt-2 divide-y divide-slate-800/70 overflow-hidden rounded-xl border border-rose-500/25 bg-slate-950/40">
+                  {alpha.extendedSetups.map((setup) => (
+                    <li key={setup.ticker} className="px-3 py-2">
+                      <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1">
+                        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                          <span className="font-mono text-sm font-bold text-slate-50">
+                            {setup.ticker}
+                          </span>
+                          <span className="rounded border border-rose-500/40 bg-rose-500/10 px-1.5 py-0.5 font-mono text-[9px] font-bold text-rose-300">
+                            EXTENDED / WAIT PULLBACK
+                          </span>
+                          {setup.bearishDivergence && (
+                            <span
+                              className="rounded border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 font-mono text-[9px] font-bold text-amber-300"
+                              title={setup.divergenceNote ?? "Swing-high divergence"}
+                            >
+                              BEARISH DIVERGENCE · {setup.divergenceType === "PRICE_VOLUME" ? "VOLUME" : "RSI"}
+                            </span>
+                          )}
+                          <span className="font-mono text-[10px] text-slate-500">{setup.sector}</span>
+                        </div>
+                        <span className="font-mono text-[10px] tabular-nums text-slate-400">
+                          {money(setup.close)}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-[10px] leading-relaxed text-slate-400">{setup.note}</p>
+                      <div className="mt-1 flex flex-wrap gap-1.5">
+                        <Tag>20D {signedPct(setup.ret20dPct)}</Tag>
+                        <Tag>swing {setup.swingPositionPct === null ? "—" : `${pct(setup.swingPositionPct, 0)}%`}</Tag>
+                        {setup.rsi14 !== null && <Tag>RSI {pct(setup.rsi14, 1)}</Tag>}
+                        {setup.divergenceType && <Tag>{setup.divergenceType}</Tag>}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-1.5 text-[10px] leading-snug text-slate-500">
+                  No buy promotion for these names: a 20-session run-up pinned at the top of its swing, or
+                  price making a higher high on weaker RSI/volume. Wait for the pullback.
+                </p>
+              </div>
             )}
 
             <div className="mt-4 border-t border-slate-800 pt-3">

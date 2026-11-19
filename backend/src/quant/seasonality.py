@@ -88,9 +88,29 @@ MIN_AVG_TURNOVER_PKR = 5_000_000
 MIN_AVG_VOLUME = 20_000
 MIN_PRICE_PKR = 5.0
 
+# Exhaustion guard: a seasonal window on a name that has already run is not a
+# dip. Measure the recent swing before anything is flagged for accumulation.
+RUNUP_WINDOW = 20
+EXHAUSTION_RET_20D_PCT = 15.0        # a 20-session move this large is already priced
+EXHAUSTION_SWING_POSITION_PCT = 85.0  # ...and pinned at the top of its recent swing
+EXHAUSTION_MIN_RET_20D_PCT = 8.0      # top-of-swing alone is not a run-up
+EXHAUSTION_MIN_SWING_SPAN_PCT = 5.0   # a flat tape's "top" means nothing
+
+# Bearish divergence: two swing highs inside the recent window, price higher on
+# the second one while RSI or volume fails to confirm.
+DIVERGENCE_WINDOW = 15
+DIVERGENCE_RSI_PERIOD = 14
+DIVERGENCE_MIN_RSI_DROP = 1.0
+DIVERGENCE_VOLUME_SHRINK = 0.80
+DIVERGENCE_RSI_HISTORY = 80  # bars fed to Wilder's RSI so the window has warm-up
+
 STATUS_ACTIVE = "ACCUMULATION WINDOW ACTIVE"
 STATUS_WATCH = "WATCH"
+STATUS_EXTENDED = "EXTENDED / WAIT PULLBACK"
 STATUS_OFF = "OFF-SEASON"
+
+REASON_RUNUP = "recent_runup_exhaustion"
+REASON_DIVERGENCE = "bearish_divergence"
 
 MONTH_LABELS = (
     "Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -344,6 +364,169 @@ def _pct_change(current: float, past: float) -> Optional[float]:
     return (current / past - 1.0) * 100.0
 
 
+def rsi_series(closes: Sequence[float], period: int = DIVERGENCE_RSI_PERIOD) -> List[Optional[float]]:
+    """Wilder's RSI aligned to the closes series (None during warm-up)."""
+    out: List[Optional[float]] = [None] * len(closes)
+    if len(closes) <= period:
+        return out
+
+    def _rsi(avg_gain: float, avg_loss: float) -> float:
+        if avg_loss <= 1e-12:
+            return 100.0 if avg_gain > 0 else 50.0
+        rs = avg_gain / avg_loss
+        return 100.0 - 100.0 / (1.0 + rs)
+
+    gains = 0.0
+    losses = 0.0
+    for i in range(1, period + 1):
+        change = closes[i] - closes[i - 1]
+        gains += max(change, 0.0)
+        losses += max(-change, 0.0)
+    avg_gain = gains / period
+    avg_loss = losses / period
+    out[period] = _rsi(avg_gain, avg_loss)
+    for i in range(period + 1, len(closes)):
+        change = closes[i] - closes[i - 1]
+        avg_gain = (avg_gain * (period - 1) + max(change, 0.0)) / period
+        avg_loss = (avg_loss * (period - 1) + max(-change, 0.0)) / period
+        out[i] = _rsi(avg_gain, avg_loss)
+    return out
+
+
+def bearish_divergence(bars: List[DailyBar]) -> dict:
+    """Swing-high divergence over the last DIVERGENCE_WINDOW sessions.
+
+    The window is split in half; the highest high in each half is a swing high.
+    Price must print an equal-or-higher swing high while either RSI(14) prints a
+    lower high or the volume behind the second high fades by 20%+. Both are
+    distribution tells: the tape is being pushed, not accumulated.
+    """
+    clean = {
+        "bearishDivergence": False,
+        "divergenceType": None,
+        "divergenceNote": None,
+        "priorSwingHigh": None,
+        "recentSwingHigh": None,
+        "rsiPrior": None,
+        "rsiRecent": None,
+        "volumeTrendPct": None,
+    }
+    if len(bars) < DIVERGENCE_WINDOW:
+        return clean
+
+    window = bars[-DIVERGENCE_WINDOW:]
+    highs = [b.high_price for b in window]
+    split = DIVERGENCE_WINDOW // 2
+    prior_i = max(range(0, split), key=lambda i: highs[i])
+    recent_i = split + max(range(0, DIVERGENCE_WINDOW - split), key=lambda i: highs[split + i])
+    prior_high = highs[prior_i]
+    recent_high = highs[recent_i]
+
+    history = bars[-DIVERGENCE_RSI_HISTORY:] if len(bars) > DIVERGENCE_RSI_HISTORY else bars
+    rsi = rsi_series([b.close_price for b in history], DIVERGENCE_RSI_PERIOD)
+    offset = len(history) - DIVERGENCE_WINDOW
+    rsi_prior = rsi[offset + prior_i]
+    rsi_recent = rsi[offset + recent_i]
+
+    prior_volume = sum(float(b.volume) for b in window[:split]) / split
+    recent_volume = sum(float(b.volume) for b in window[-split:]) / split
+    volume_trend = (recent_volume / prior_volume - 1.0) * 100.0 if prior_volume > 1e-9 else None
+
+    higher_high = recent_high >= prior_high * 0.998
+    strictly_higher = recent_high > prior_high
+    rsi_diverges = (
+        rsi_prior is not None
+        and rsi_recent is not None
+        and rsi_recent <= rsi_prior - DIVERGENCE_MIN_RSI_DROP
+    )
+    volume_fades = (
+        prior_volume > 1e-9 and recent_volume <= prior_volume * DIVERGENCE_VOLUME_SHRINK
+    )
+
+    kind: Optional[str] = None
+    note: Optional[str] = None
+    if higher_high and rsi_diverges:
+        kind = "PRICE_RSI"
+        note = (
+            f"Equal-or-higher swing high ({recent_high:.2f} vs {prior_high:.2f}) while "
+            f"RSI(14) made a lower high ({rsi_recent:.1f} vs {rsi_prior:.1f})."
+        )
+    elif strictly_higher and volume_fades:
+        kind = "PRICE_VOLUME"
+        note = (
+            f"Price pushed to a higher swing high ({recent_high:.2f} vs {prior_high:.2f}) "
+            f"on {abs(volume_trend or 0.0):.0f}% lighter volume."
+        )
+
+    return {
+        "bearishDivergence": kind is not None,
+        "divergenceType": kind,
+        "divergenceNote": note,
+        "priorSwingHigh": round(prior_high, 2),
+        "recentSwingHigh": round(recent_high, 2),
+        "rsiPrior": round(rsi_prior, 1) if rsi_prior is not None else None,
+        "rsiRecent": round(rsi_recent, 1) if rsi_recent is not None else None,
+        "volumeTrendPct": round(volume_trend, 1) if volume_trend is not None else None,
+    }
+
+
+def exhaustion_profile(bars: List[DailyBar]) -> dict:
+    """Recent run-up, position in the 20-session swing, and divergence flags."""
+    empty = {
+        "ret20dPct": None,
+        "swingPositionPct": None,
+        "swingSpanPct": None,
+        "rsi14": None,
+        "momentum10Pct": None,
+        "exhausted": False,
+        "bearishDivergence": False,
+        "divergenceType": None,
+        "divergenceNote": None,
+        "volumeTrendPct": None,
+        "reasons": [],
+    }
+    if len(bars) < RUNUP_WINDOW + 1:
+        return empty
+
+    closes = [b.close_price for b in bars]
+    last = closes[-1]
+    ret20 = _pct_change(last, closes[-(RUNUP_WINDOW + 1)])
+    window = closes[-RUNUP_WINDOW:]
+    lo, hi = min(window), max(window)
+    span_pct = (hi / lo - 1.0) * 100.0 if lo > 0 else 0.0
+    swing_pos = (last - lo) / (hi - lo) * 100.0 if hi - lo > 1e-12 else 50.0
+    rsi = rsi_series(closes[-DIVERGENCE_RSI_HISTORY:], DIVERGENCE_RSI_PERIOD)
+    momentum10 = _pct_change(last, closes[-11]) if len(closes) > 11 else None
+
+    ret = ret20 or 0.0
+    exhausted = ret >= EXHAUSTION_RET_20D_PCT or (
+        swing_pos >= EXHAUSTION_SWING_POSITION_PCT
+        and ret >= EXHAUSTION_MIN_RET_20D_PCT
+        and span_pct >= EXHAUSTION_MIN_SWING_SPAN_PCT
+    )
+    divergence = bearish_divergence(bars)
+
+    reasons: List[str] = []
+    if exhausted:
+        reasons.append(REASON_RUNUP)
+    if divergence["bearishDivergence"]:
+        reasons.append(REASON_DIVERGENCE)
+
+    return {
+        "ret20dPct": round(ret, 2),
+        "swingPositionPct": round(swing_pos, 1),
+        "swingSpanPct": round(span_pct, 2),
+        "rsi14": round(rsi[-1], 1) if rsi and rsi[-1] is not None else None,
+        "momentum10Pct": round(momentum10, 2) if momentum10 is not None else None,
+        "exhausted": exhausted,
+        "bearishDivergence": divergence["bearishDivergence"],
+        "divergenceType": divergence["divergenceType"],
+        "divergenceNote": divergence["divergenceNote"],
+        "volumeTrendPct": divergence["volumeTrendPct"],
+        "reasons": reasons,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Per-ticker seasonal analysis
 # ---------------------------------------------------------------------------
@@ -526,6 +709,31 @@ def analyze_ticker(
     position = position_profile(bars)
     liquidity = liquidity_profile(bars)
     status, note = ticker_status(current_month, accumulation_months, position)
+    exhaustion = exhaustion_profile(bars)
+
+    # Exhaustion guard: the calendar may be open, but a name that already ran
+    # (or is distributing into a divergence) is a chase, not an accumulation.
+    guard_reasons: List[str] = []
+    if status == STATUS_ACTIVE:
+        if exhaustion["exhausted"]:
+            guard_reasons.append(REASON_RUNUP)
+        if exhaustion["bearishDivergence"]:
+            guard_reasons.append(REASON_DIVERGENCE)
+        if guard_reasons:
+            status = STATUS_EXTENDED
+            parts = []
+            if REASON_RUNUP in guard_reasons:
+                parts.append(
+                    f"up {exhaustion['ret20dPct']:.1f}% in {RUNUP_WINDOW} sessions, "
+                    f"{exhaustion['swingPositionPct']:.0f}% of its recent swing"
+                )
+            if REASON_DIVERGENCE in guard_reasons:
+                parts.append("bearish swing-high divergence")
+            note = (
+                "Window is open but the tape is extended — "
+                + " and ".join(parts)
+                + ". Wait for a pullback into the accumulation zone."
+            )
 
     best_month = None
     for month in range(1, 13):
@@ -574,6 +782,15 @@ def analyze_ticker(
         "avgTurnoverPkr": liquidity["avgTurnoverPkr"],
         "avgVolume": liquidity["avgVolume"],
         "liquid": liquidity["liquid"],
+        "extended": status == STATUS_EXTENDED,
+        "reason": guard_reasons[0] if guard_reasons else None,
+        "guardReasons": guard_reasons,
+        "ret20dPct": exhaustion["ret20dPct"],
+        "swingPositionPct": exhaustion["swingPositionPct"],
+        "bearishDivergence": exhaustion["bearishDivergence"],
+        "divergenceType": exhaustion["divergenceType"],
+        "divergenceNote": exhaustion["divergenceNote"],
+        "exhaustion": exhaustion,
         "calendar": calendar,
         "statsByMonth": {
             str(m): {
@@ -743,8 +960,13 @@ def build_seasonality_matrix(
         counts: Dict[str, int] = {}
         for rec in records:
             counts[rec["status"]] = counts.get(rec["status"], 0) + 1
+        extended_count = counts.get(STATUS_EXTENDED, 0)
 
-        status = sector_status(counts, len(records))
+        # Extended members still have their calendar window open, so they count
+        # toward whether the sector itself is in season.
+        sector_counts = dict(counts)
+        sector_counts[STATUS_ACTIVE] = counts.get(STATUS_ACTIVE, 0) + extended_count
+        status = sector_status(sector_counts, len(records))
         window60 = pool_window_stats(records, accumulation_months, "forward60")
         window90 = pool_window_stats(records, accumulation_months, "forward90")
         peak60 = pool_window_stats(records, peak_months, "forward60")
@@ -766,6 +988,7 @@ def build_seasonality_matrix(
             "members": len(records),
             "activeCount": counts.get(STATUS_ACTIVE, 0),
             "watchCount": counts.get(STATUS_WATCH, 0),
+            "extendedCount": extended_count,
             "offSeasonCount": counts.get(STATUS_OFF, 0),
             "peakMonths": [month_label(m) for m in peak_months],
             "accumulationMonths": [month_label(m) for m in accumulation_months],
@@ -781,7 +1004,10 @@ def build_seasonality_matrix(
             "tickers": sorted(
                 records,
                 key=lambda r: (
-                    0 if r["status"] == STATUS_ACTIVE else 1 if r["status"] == STATUS_WATCH else 2,
+                    0 if r["status"] == STATUS_ACTIVE
+                    else 1 if r["status"] == STATUS_WATCH
+                    else 2 if r["status"] == STATUS_EXTENDED
+                    else 3,
                     r["position"]["rangePositionPct"],
                 ),
             ),
@@ -804,6 +1030,9 @@ def build_seasonality_matrix(
             "avgVolume": rec["avgVolume"],
             "liquid": rec["liquid"],
             "medianForward60Pct": rec["accumulationWindowStats"]["forward60"]["medianPct"],
+            "ret20dPct": rec["ret20dPct"],
+            "swingPositionPct": rec["swingPositionPct"],
+            "bearishDivergence": rec["bearishDivergence"],
         }
         for sector_row in sectors
         for rec in sector_row["tickers"]
@@ -834,9 +1063,20 @@ def build_seasonality_matrix(
                 "minAvgVolume": MIN_AVG_VOLUME,
                 "minPricePkr": MIN_PRICE_PKR,
             },
+            "exhaustionGuard": {
+                "runupWindow": RUNUP_WINDOW,
+                "runupRetPct": EXHAUSTION_RET_20D_PCT,
+                "swingPositionPct": EXHAUSTION_SWING_POSITION_PCT,
+                "minRetForSwingPct": EXHAUSTION_MIN_RET_20D_PCT,
+                "minSwingSpanPct": EXHAUSTION_MIN_SWING_SPAN_PCT,
+                "divergenceWindow": DIVERGENCE_WINDOW,
+                "rsiPeriod": DIVERGENCE_RSI_PERIOD,
+                "volumeShrinkRatio": DIVERGENCE_VOLUME_SHRINK,
+            },
             "statusDefinitions": {
                 STATUS_ACTIVE: "Calendar accumulation window open and price in the lower 45% of its 3-year range.",
                 STATUS_WATCH: "Accumulation window opens next month.",
+                STATUS_EXTENDED: "Window open and price in range, but a recent run-up or bearish divergence makes it a chase. Wait for a pullback.",
                 STATUS_OFF: "No accumulation window open; price may also be extended.",
             },
             "method": (
@@ -854,6 +1094,9 @@ def build_seasonality_matrix(
         "summary": {
             "tickersAnalyzed": analyzed,
             "activeWindows": len(active_windows),
+            "extendedWindows": sum(
+                1 for s in sectors for rec in s["tickers"] if rec["status"] == STATUS_EXTENDED
+            ),
             "sectorsActive": sum(1 for s in sectors if s["status"] == STATUS_ACTIVE),
             "sectorsWatching": sum(1 for s in sectors if s["status"] == STATUS_WATCH),
             "sectorsOffSeason": sum(1 for s in sectors if s["status"] == STATUS_OFF),

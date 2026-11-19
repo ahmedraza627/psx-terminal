@@ -45,6 +45,7 @@ from src.quant.risk_sizing import (  # noqa: E402
     historical_var_pct,
     position_weight,
 )
+from src.quant.seasonality import exhaustion_profile  # noqa: E402
 from src.quant.sector_rotation import (  # noqa: E402
     DEFAULT_SECTOR_MAP,
     atr,
@@ -79,6 +80,7 @@ SWEEP_VOL_Z = 1.5
 MOMENTUM_LEADER_MIN = 10.0  # composite 3M+6M ROC in %
 
 TOP_N = 10
+MAX_EXTENDED = 6           # blocked-but-interesting names surfaced for review
 RISK_BUDGET_PCT = 1.0      # equity at risk per position at its stop
 MAX_WEIGHT_PCT = 12.0      # per-name concentration cap
 MIN_WEIGHT_PCT = 1.0
@@ -95,6 +97,8 @@ EDGE_SEASONAL = STATUS_ACTIVE
 EDGE_MOMENTUM = "MOMENTUM LEADER"
 EDGE_SWEEP = "LIQUIDITY SWEEP"
 EDGE_TREND = "ABOVE 50D SMA"
+
+ACTION_EXTENDED = "EXTENDED / WAIT PULLBACK"
 
 POSTURE = {
     "TRENDING": "Risk-on - press momentum leaders, trail stops under the 50-day.",
@@ -684,11 +688,47 @@ def build_daily_alpha(
 
     seasonal = seasonal_index(seasonality)
     candidates: List[dict] = []
+    blocked_setups: List[dict] = []
     for ticker, bars in liquid.items():
         momentum = composite_momentum(bars, len(bars) - 1)
         season_row = seasonal.get(ticker)
         seasonal_active = bool(season_row) and season_row.get("status") == STATUS_ACTIVE
-        edges = confluence_edges(bars, seasonal_active, momentum)
+        base_edges = confluence_edges(bars, seasonal_active, momentum)
+        guard = exhaustion_profile(bars)
+        blocked = bool(guard["exhausted"] or guard["bearishDivergence"])
+        # A name that already ran (or is distributing) is never a clean buy: its
+        # seasonal edge is withdrawn and the promotion is suppressed, but the
+        # setup is published so the desk can see why it was rejected.
+        if blocked and (seasonal_active or qualifies(base_edges)):
+            ret = float(guard["ret20dPct"] or 0.0)
+            swing = float(guard["swingPositionPct"] or 0.0)
+            if guard["bearishDivergence"]:
+                note = f"Bearish divergence: {guard['divergenceNote']}"
+            else:
+                note = (
+                    f"Up {ret:.1f}% in 20 sessions and {swing:.0f}% up its recent swing "
+                    "— wait for a pullback."
+                )
+            blocked_setups.append({
+                "ticker": ticker,
+                "sector": (season_row or {}).get("sector") or sector_of(ticker),
+                "close": round(bars[-1].close_price, 2),
+                "action": ACTION_EXTENDED,
+                "reasons": guard["reasons"],
+                "note": note,
+                "ret20dPct": guard["ret20dPct"],
+                "swingPositionPct": guard["swingPositionPct"],
+                "rsi14": guard["rsi14"],
+                "bearishDivergence": guard["bearishDivergence"],
+                "divergenceType": guard["divergenceType"],
+                "divergenceNote": guard["divergenceNote"],
+                "score": confluence_score(base_edges, momentum),
+                "seasonalStatus": (season_row or {}).get("status"),
+                "lastDate": bars[-1].trade_date.isoformat(),
+            })
+        if blocked:
+            continue
+        edges = base_edges
         if not qualifies(edges):
             continue
         sector = (season_row or {}).get("sector") or sector_of(ticker)
@@ -715,6 +755,7 @@ def build_daily_alpha(
         })
 
     candidates.sort(key=lambda row: (-row["score"], -row["momentum6mPct"]))
+    blocked_setups.sort(key=lambda row: -row["score"])
     picks = candidates[:top_n]
     portfolio = size_picks(picks, proxy_bars, proxy_returns)
     for rank, row in enumerate(picks, start=1):
@@ -738,11 +779,13 @@ def build_daily_alpha(
         "marketRegime": regime,
         "portfolio": portfolio,
         "picks": picks,
+        "extendedSetups": blocked_setups[:MAX_EXTENDED],
         "statArb": alerts,
         "universe": {
             "scanned": len(bars_by_ticker),
             "eligible": len(recent),
             "liquid": len(liquid),
+            "extendedBlocked": len(blocked_setups),
             "historySessions": history,
             "minAvgTurnoverPkr": MIN_AVG_TURNOVER,
             "minAvgVolume": MIN_AVG_VOLUME,
@@ -754,6 +797,18 @@ def build_daily_alpha(
             "topN": top_n,
             "confluenceRule": "2+ edges, one of which is momentum leadership or a liquidity sweep",
             "edgeWeights": {EDGE_SEASONAL: 35, EDGE_MOMENTUM: 30, EDGE_SWEEP: 20, EDGE_TREND: 15},
+            "exhaustionGuard": {
+                "action": ACTION_EXTENDED,
+                "runupWindow": 20,
+                "runupRetPct": 15.0,
+                "divergenceWindow": 15,
+                "rule": (
+                    "A 20-session run-up (>=15%, or >=8% pinned at the top 15% of a >=5% "
+                    "swing) or a bearish swing-high divergence withdraws the seasonal "
+                    "edge and blocks buy promotion; the name is published under "
+                    "extendedSetups instead."
+                ),
+            },
             "sizing": {
                 "riskBudgetPct": RISK_BUDGET_PCT,
                 "maxWeightPct": MAX_WEIGHT_PCT,

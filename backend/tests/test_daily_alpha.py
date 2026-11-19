@@ -19,6 +19,7 @@ from src.quant.daily_alpha import (
     spread_alert,
     sweep_signal,
 )
+from src.quant.seasonality import exhaustion_profile
 
 START = date(2025, 1, 1)
 ACTIVE = "ACCUMULATION WINDOW ACTIVE"
@@ -52,6 +53,39 @@ def trend_tape(
 
 def flat_tape(ticker: str, sessions: int = 300, price: float = 100.0, volume: int = 120_000) -> list[DailyBar]:
     return [_bar(ticker, START + timedelta(days=i), price, volume) for i in range(sessions)]
+
+
+def runup_tape(ticker: str = "HOT", sessions: int = 300, run_pct: float = 1.0135) -> list[DailyBar]:
+    """Flat tape, then 20 sessions of compounding gains (a finished run-up)."""
+    closes = [100.0] * (sessions - 20)
+    price = 100.0
+    for _ in range(20):
+        price *= run_pct
+        closes.append(round(price, 2))
+    return [
+        _bar(ticker, START + timedelta(days=i), close, 120_000)
+        for i, close in enumerate(closes)
+    ]
+
+
+def divergent_tape(ticker: str = "DIV") -> list[DailyBar]:
+    """Higher swing high on weaker RSI and fading volume (distribution)."""
+    closes = [100.0]
+    for _ in range(250):
+        closes.append(round(closes[-1] * 1.002, 2))
+    for _ in range(12):
+        closes.append(round(closes[-1] * 1.012, 2))
+    peak = closes[-1]
+    for _ in range(6):
+        closes.append(round(closes[-1] * 0.985, 2))
+    for _ in range(8):
+        closes.append(round(closes[-1] * 1.0016, 2))
+    closes.append(round(peak * 1.0005, 2))
+    volumes = [150_000] * (len(closes) - 7) + [90_000] * 7
+    return [
+        _bar(ticker, START + timedelta(days=i), close, volume)
+        for i, (close, volume) in enumerate(zip(closes, volumes))
+    ]
 
 
 def seasonality_payload(rows: list[dict] | None = None) -> dict:
@@ -131,6 +165,51 @@ def test_confluence_requires_two_edges_including_a_trigger():
         seasonality_payload([{"ticker": "FLAT", "sector": "Banking", "status": ACTIVE}]),
     )
     assert payload["picks"] == []
+
+
+# ---------------------------------------------------------------------------
+# Exhaustion & bearish divergence guard
+# ---------------------------------------------------------------------------
+
+
+def test_runup_is_exhausted_but_orderly_trend_is_not():
+    hot = exhaustion_profile(runup_tape())
+    assert hot["exhausted"] is True
+    assert hot["ret20dPct"] >= 15.0
+    assert "recent_runup_exhaustion" in hot["reasons"]
+
+    # A steady grind sits at the top of its 20-day range every session; only a
+    # real run-up (>=8% pinned in the top 15% of the swing) is exhaustion.
+    calm = exhaustion_profile(trend_tape("CALM", step=0.35))
+    assert calm["exhausted"] is False
+    assert calm["reasons"] == []
+
+
+def test_bearish_divergence_flags_higher_high_on_weaker_rsi():
+    guard = exhaustion_profile(divergent_tape())
+    assert guard["bearishDivergence"] is True
+    assert guard["divergenceType"] == "PRICE_RSI"
+    assert "bearish_divergence" in guard["reasons"]
+    assert guard["divergenceNote"]
+
+    # A monotonic advance makes a higher high with a higher RSI: no divergence.
+    assert exhaustion_profile(trend_tape("UP"))["bearishDivergence"] is False
+
+
+def test_exhausted_seasonal_name_is_blocked_and_published_as_extended():
+    payload = build_daily_alpha(
+        {"HOT": runup_tape()},
+        seasonality_payload(
+            [{"ticker": "HOT", "sector": "Banking", "status": ACTIVE, "winRate60Pct": 64.0,
+              "avgForward60Pct": 8.0, "rangePositionPct": 30.0}]
+        ),
+    )
+    assert all(pick["ticker"] != "HOT" for pick in payload["picks"])
+    extended = payload["extendedSetups"]
+    assert [row["ticker"] for row in extended] == ["HOT"]
+    assert extended[0]["action"] == "EXTENDED / WAIT PULLBACK"
+    assert "recent_runup_exhaustion" in extended[0]["reasons"]
+    assert payload["universe"]["extendedBlocked"] == 1
 
 
 def test_sweep_requires_reclaim_on_volume():

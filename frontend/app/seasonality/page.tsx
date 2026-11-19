@@ -72,6 +72,14 @@ type TickerRecord = {
   avgTurnoverPkr?: number;
   avgVolume?: number;
   liquid?: boolean;
+  extended?: boolean;
+  reason?: string | null;
+  guardReasons?: string[];
+  ret20dPct?: number | null;
+  swingPositionPct?: number | null;
+  bearishDivergence?: boolean;
+  divergenceType?: string | null;
+  divergenceNote?: string | null;
   calendar: CalendarCell[];
   statsByMonth: Record<string, MonthStat>;
 };
@@ -82,6 +90,7 @@ type SectorRow = {
   members: number;
   activeCount: number;
   watchCount: number;
+  extendedCount?: number;
   offSeasonCount: number;
   peakMonths: string[];
   accumulationMonths: string[];
@@ -118,6 +127,7 @@ type SeasonalityPayload = {
   summary: {
     tickersAnalyzed: number;
     activeWindows: number;
+    extendedWindows?: number;
     sectorsActive: number;
     sectorsWatching: number;
     sectorsOffSeason: number;
@@ -146,17 +156,23 @@ type SeasonalityPayload = {
 
 const STATUS_ACTIVE = "ACCUMULATION WINDOW ACTIVE";
 const STATUS_WATCH = "WATCH";
+const STATUS_EXTENDED = "EXTENDED / WAIT PULLBACK";
 const STATUS_OFF = "OFF-SEASON";
-const STATUSES = [STATUS_ACTIVE, STATUS_WATCH, STATUS_OFF] as const;
+const STATUSES = [STATUS_ACTIVE, STATUS_EXTENDED, STATUS_WATCH, STATUS_OFF] as const;
 
 const PAGE_SIZE = 25;
 const MAX_RANGE_PCT = 45;
 
-type Action = "ACCUMULATE ON DIPS" | "WAIT FOR TRIGGER" | "EXTENDED / SKIP";
+type Action =
+  | "ACCUMULATE ON DIPS"
+  | "WAIT FOR TRIGGER"
+  | "EXTENDED / WAIT PULLBACK"
+  | "EXTENDED / SKIP";
 
 const ACTION_TONE: Record<Action, string> = {
   "ACCUMULATE ON DIPS": "border-emerald-500/40 bg-emerald-500/10 text-emerald-300",
   "WAIT FOR TRIGGER": "border-amber-500/40 bg-amber-500/10 text-amber-300",
+  "EXTENDED / WAIT PULLBACK": "border-rose-500/40 bg-rose-500/10 text-rose-300",
   "EXTENDED / SKIP": "border-slate-700 bg-slate-800/60 text-slate-400",
 };
 
@@ -164,12 +180,14 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
 
 const statusTone = (status: string) => {
   if (status === STATUS_ACTIVE) return "border-emerald-500/40 bg-emerald-500/10 text-emerald-300";
+  if (status === STATUS_EXTENDED) return "border-rose-500/40 bg-rose-500/10 text-rose-300";
   if (status === STATUS_WATCH) return "border-amber-500/40 bg-amber-500/10 text-amber-300";
   return "border-slate-700 bg-slate-800/60 text-slate-400";
 };
 
 const shortStatus = (status: string) => {
   if (status === STATUS_ACTIVE) return "ACCUMULATE";
+  if (status === STATUS_EXTENDED) return "EXTENDED";
   if (status === STATUS_WATCH) return "WATCH";
   return "OFF-SEASON";
 };
@@ -203,6 +221,7 @@ const turnoverOf = (t: TickerRecord) => t.avgTurnoverPkr ?? t.liquidity?.avgTurn
 
 /** The one decision the desk needs. */
 function playAction(t: TickerRecord): Action {
+  if (t.status === STATUS_EXTENDED || t.extended) return "EXTENDED / WAIT PULLBACK";
   if (t.status === STATUS_ACTIVE && isLiquid(t)) return "ACCUMULATE ON DIPS";
   if (t.status === STATUS_ACTIVE || t.status === STATUS_WATCH) return "WAIT FOR TRIGGER";
   if (t.position.rangePositionPct <= MAX_RANGE_PCT && isLiquid(t)) return "WAIT FOR TRIGGER";
@@ -274,6 +293,19 @@ export default function SeasonalityPage() {
           (a, b) =>
             b.accumulationWindowStats.forward60.winRatePct -
             a.accumulationWindowStats.forward60.winRatePct,
+        ),
+    [allTickers],
+  );
+
+  /** Guarded: calendar open but already run up, or distributing into divergence. */
+  const extendedNow = useMemo(
+    () =>
+      allTickers
+        .filter((t) => (t.status === STATUS_EXTENDED || t.extended) && isLiquid(t))
+        .sort(
+          (a, b) =>
+            Number(Boolean(b.bearishDivergence)) - Number(Boolean(a.bearishDivergence)) ||
+            (b.ret20dPct ?? 0) - (a.ret20dPct ?? 0),
         ),
     [allTickers],
   );
@@ -355,8 +387,8 @@ export default function SeasonalityPage() {
           </div>
           <p className="mt-1 text-[11px] leading-relaxed text-slate-400">
             {actionNow.length} liquid names buyable now · {activeSectors.length} sectors in window ·{" "}
-            {upcoming.length} opening in the next 3 months. Liquidity gate{" "}
-            {rupees(turnoverGate)}/day, range ≤{MAX_RANGE_PCT}%.
+            {upcoming.length} opening in the next 3 months · {extendedNow.length} extended (blocked).
+            Liquidity gate {rupees(turnoverGate)}/day, range ≤{MAX_RANGE_PCT}%.
           </p>
         </div>
         <div className="font-mono text-[10px] text-slate-500 lg:text-right">
@@ -504,6 +536,78 @@ export default function SeasonalityPage() {
           </>
         )}
       </section>
+
+      {/* --------------------------------------------------------- guarded */}
+      {extendedNow.length > 0 && (
+        <section className="overflow-hidden rounded-2xl border border-rose-500/25 bg-slate-900/40">
+          <header className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/80 px-4 py-3">
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-[13px] font-bold tracking-tight text-slate-100">
+                  Guarded — Extended, Wait Pullback
+                </h2>
+                <span className="rounded border border-rose-500/40 bg-rose-500/10 px-1.5 py-0.5 font-mono text-[9px] font-bold text-rose-300">
+                  EXTENDED / WAIT PULLBACK
+                </span>
+                <span className="font-mono text-[10px] tabular-nums text-slate-500">
+                  {extendedNow.length}
+                </span>
+              </div>
+              <p className="mt-0.5 text-[11px] leading-snug text-slate-500">
+                Window is open and price is in range, but the tape already ran or is diverging —
+                accumulation is withdrawn until it pulls back.
+              </p>
+            </div>
+          </header>
+
+          <ul className="divide-y divide-slate-800/70">
+            {extendedNow.slice(0, 8).map((t) => (
+              <li key={`${t.sector}-${t.ticker}`} className="px-4 py-2.5">
+                <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1">
+                  <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                    <span className="font-mono text-[13px] font-bold text-slate-50">{t.ticker}</span>
+                    <span className="font-mono text-[10px] text-slate-500">{t.sector}</span>
+                    {t.bearishDivergence && (
+                      <span
+                        className="rounded border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 font-mono text-[9px] font-bold text-amber-300"
+                        title={t.divergenceNote ?? "Swing-high divergence"}
+                      >
+                        BEARISH DIVERGENCE ·{" "}
+                        {t.divergenceType === "PRICE_VOLUME" ? "VOLUME" : "RSI"}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-x-3 font-mono text-[10px] tabular-nums text-slate-400">
+                    <span>
+                      20D{" "}
+                      <span className={(t.ret20dPct ?? 0) >= 0 ? "text-rose-300" : "text-emerald-300"}>
+                        {(t.ret20dPct ?? 0) >= 0 ? "+" : ""}
+                        {(t.ret20dPct ?? 0).toFixed(1)}%
+                      </span>
+                    </span>
+                    <span>
+                      swing{" "}
+                      <span className="text-slate-200">
+                        {(t.swingPositionPct ?? 0).toFixed(0)}%
+                      </span>
+                    </span>
+                  </div>
+                </div>
+                <p className="mt-1 text-[10px] leading-snug text-slate-500">
+                  {t.divergenceNote ??
+                    `Up ${(t.ret20dPct ?? 0).toFixed(1)}% in 20 sessions and pinned at the top of its recent swing — no chase.`}
+                </p>
+              </li>
+            ))}
+          </ul>
+
+          {extendedNow.length > 8 && (
+            <p className="border-t border-slate-800/80 px-4 py-2 font-mono text-[10px] text-slate-500">
+              +{extendedNow.length - 8} more — filter the explorer by EXTENDED.
+            </p>
+          )}
+        </section>
+      )}
 
       {/* -------------------------------------------------------- upcoming */}
       <section className="rounded-2xl border border-amber-500/25 bg-slate-900/40">
