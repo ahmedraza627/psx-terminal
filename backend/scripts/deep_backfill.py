@@ -45,6 +45,7 @@ import sqlite3
 import sys
 import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -59,6 +60,7 @@ if str(BACKEND_DIR) not in sys.path:
 from src.core.models import DailyBar  # noqa: E402
 from src.ingestion.wal_adapter import WALIngestionManager  # noqa: E402
 from src.ingestion.universe import CORE_TICKERS  # noqa: E402
+from src.quant.sector_rotation import DEFAULT_SECTOR_MAP  # noqa: E402
 
 PROJECT_ROOT = BACKEND_DIR.parent
 DEFAULT_DB = BACKEND_DIR / "psx_history.db"
@@ -79,42 +81,14 @@ log = logging.getLogger("deep_backfill")
 # live desk agree on what "the book" actually is.
 TARGET_TICKERS = CORE_TICKERS
 
-# Wider active PSX equity list. These are the liquid / regularly quoted names
-# beyond the core 65 that Yahoo's .KA endpoint generally carries history for:
-# sugar, textiles, modarabas, insurance, pharma and the second-tier banks,
-# cements and energy names that the core book never held.
-EXTENDED_TICKERS: List[str] = [
-    # Banking
-    "BIPL", "SNBL", "JSBL", "SILK", "SMBL", "BOK", "SCBPL", "HMB",
-    # Cement
-    "DCL", "JVDC", "GWLC",
-    # Oil, gas & E&P / OMC
-    "APL", "PIBTL", "WTL", "BYCO",
-    # Power
-    "NCPL", "NPL", "EPQL", "SPWL",
-    # Chemicals
-    "ICI",
-    # Pharma
-    "GLAXO", "HINOON", "SAPL", "CPHL", "AGIL", "MACTER", "FEROZ",
-    # Textiles
-    "GATM", "NCL", "KTML", "GADT", "BNWM", "CFL", "IBFL", "SPPT",
-    # Food & personal care
-    "FFL", "NESTLE", "FCEPL",
-    # Sugar
-    "JDWS", "MRNS", "ALNRS", "SKRS", "SML", "TSML", "HABSM", "NONS",
-    # Modaraba
-    "MODAM", "FEM", "FHAM", "ORM", "PMI", "SMM",
-    # Steel, engineering & manufacturing
-    "ASTL", "MUGHAL",
-    # Auto
-    "ATLH", "GHNL",
-    # Insurance
-    "ATIL", "IGIHL", "JLICL", "NICL",
-    # Glass, paper, transport, tobacco, leather
-    "TGL", "GHGL", "PKGP", "CHBL", "PNSC", "PIAA", "PAKT", "SRVI",
-    # Technology
-    "PTC",
-]
+# Wider active PSX equity universe: every name in the sector registry that the
+# core book does not already hold (655 registry symbols across the 36 official
+# PSX sectors). Deriving it from DEFAULT_SECTOR_MAP keeps the fetch list and the
+# sector labels in one place, so a ticker can never be fetched without a sector
+# or mapped without being fetched.
+EXTENDED_TICKERS: List[str] = sorted(
+    t for t in DEFAULT_SECTOR_MAP if t not in set(CORE_TICKERS)
+)
 
 # Live symbol discovery. PSX's data portal is the same source the daily market
 # sync uses, so a discovered symbol is an actively quoted PSX name by
@@ -422,6 +396,50 @@ def stored_span_for_ticker(db_path: str, ticker: str) -> Tuple[Optional[date], O
         return None, None, 0
 
 
+def stored_spans(db_path: str) -> Dict[str, Tuple[date, date, int]]:
+    """Every stored (first_date, last_date, count) in one grouped pass.
+
+    The store has no (ticker, date) index, so asking per ticker turns a
+    600-name universe check into 600 full scans of a multi-million row table.
+    One GROUP BY keeps the pre-fetch check effectively free.
+    """
+    try:
+        conn = sqlite3.connect(db_path, timeout=30.0)
+        cur = conn.cursor()
+        rows = cur.execute(
+            "SELECT ticker, MIN(date) AS first, MAX(date) AS last, COUNT(*) AS cnt "
+            "FROM daily_eod GROUP BY ticker"
+        ).fetchall()
+        conn.close()
+    except sqlite3.Error as e:
+        log.warning("could not read stored spans: %s", e)
+        return {}
+    out: Dict[str, Tuple[date, date, int]] = {}
+    for ticker, first, last, cnt in rows:
+        try:
+            out[str(ticker).strip().upper()] = (
+                datetime.strptime(str(first).strip(), "%Y-%m-%d").date(),
+                datetime.strptime(str(last).strip(), "%Y-%m-%d").date(),
+                int(cnt),
+            )
+        except (TypeError, ValueError):
+            continue
+    return out
+
+
+def _span_is_enough(
+    span: Optional[Tuple[date, date, int]],
+    target_years: float,
+) -> bool:
+    if span is None:
+        return False
+    first, last, count = span
+    return (
+        calendar_years_span(first, last) >= target_years
+        and count >= MIN_BARS_FOR_YEARS * target_years
+    )
+
+
 def discover_psx_universe(timeout: float = DISCOVERY_TIMEOUT_SECONDS) -> List[str]:
     """Best-effort live symbol discovery from the PSX data portal.
 
@@ -488,11 +506,18 @@ def needs_fetch(
     ticker: str,
     target_years: float,
     force: bool,
+    spans: Optional[Dict[str, Tuple[date, date, int]]] = None,
 ) -> bool:
-    """True when a ticker still lacks the target lookback."""
-    first, last, count = stored_span_for_ticker(db_path, ticker)
+    """True when a ticker still lacks the target lookback.
+
+    Pass a precomputed `spans` map (see stored_spans) when checking a whole
+    universe so the store is read once instead of once per ticker.
+    """
     if force:
         return True
+    if spans is not None:
+        return not _span_is_enough(spans.get(ticker.strip().upper()), target_years)
+    first, last, count = stored_span_for_ticker(db_path, ticker)
     if first is None or last is None:
         return True
     span_years = calendar_years_span(first, last)
@@ -534,15 +559,17 @@ def deep_backfill(
       because the upstream endpoint is rate-limited and polite cadence matters
       more than wall-clock here.
     """
-    import threading
-
     stats = BackfillStats()
     universe = [t.strip().upper() for t in (tickers or TARGET_TICKERS)]
     target_span = target_years
 
+    # One read of the store's per-ticker coverage, reused for the year range
+    # and for the needs-fetch decisions.
+    spans = stored_spans(db_path)
+
     # Determine which calendar years we actually need to touch.
     if years is None:
-        years = _default_year_range(db_path, universe, target_span)
+        years = _default_year_range(db_path, universe, target_span, spans)
     else:
         years = sorted(int(y) for y in years)
 
@@ -551,12 +578,11 @@ def deep_backfill(
         len(universe), len(years), target_span, force,
     )
 
-    # Backfill in two phases so a single deep ingestion does not hammer the
-    # endpoint with all tickers at once. Phase 1: fetch. Phase 2: write.
+    # Fetch and persist one ticker at a time, with only `max_parallel` fetches
+    # in flight. Writing each ticker as it lands keeps peak memory flat across a
+    # 600+ name universe; buffering every name's bars until the end would grow
+    # into the gigabytes. A single failed ticker never aborts the run.
     write_manager = WALIngestionManager(db_path)
-
-    fetch_results: List[Tuple[str, List[DailyBar], List[Dict[str, Any]]]] = []
-    fetch_lock = threading.Lock()
 
     def _collect(ticker: str, raw_rows: List[Dict[str, Any]], collected: List[DailyBar]) -> None:
         for raw in raw_rows:
@@ -566,10 +592,9 @@ def deep_backfill(
             else:
                 stats.rows_rejected += 1
 
-    def _fetch_one(ticker: str) -> None:
+    def _fetch_bars(ticker: str) -> Tuple[List[DailyBar], float]:
         ticker_ka = f"{ticker}.KA"
         collected: List[DailyBar] = []
-        raws: List[Dict[str, Any]] = []
         estimated_span = 0.0
         if single_span:
             raw_rows, span = fetch_yahoo_range(ticker_ka, years[0])
@@ -579,7 +604,7 @@ def deep_backfill(
             time.sleep(0.25)  # polite cadence to the upstream endpoint
         else:
             for year in years:
-                if not needs_fetch(db_path, ticker, target_span, force):
+                if not needs_fetch(db_path, ticker, target_span, force, spans):
                     # Tail-enough already; skip remaining years for this ticker.
                     break
                 raw_rows, span = fetch_yahoo_span(ticker_ka, year)
@@ -587,52 +612,45 @@ def deep_backfill(
                     estimated_span = max(estimated_span, span)
                     _collect(ticker, raw_rows, collected)
                 time.sleep(0.25)  # polite cadence to the upstream endpoint
-        with fetch_lock:
-            if collected or stats.failed_tickers:
-                fetch_results.append((ticker, collected, raws))
-                stats.years_covered.append((ticker, estimated_span))
+        return collected, estimated_span
 
-    threads: List[threading.Thread] = []
-    for ticker in universe:
-        if not needs_fetch(db_path, ticker, target_span, force):
-            stats.tickers_skipped += 1
-            continue
-        stats.tickers_attempted += 1
-        t = threading.Thread(target=_fetch_one, args=(ticker,), daemon=True)
-        threads.append(t)
-        t.start()
-        if max_parallel <= 1:
-            # Serial mode: one ticker at a time so the upstream endpoint sees a
-            # polite cadence instead of a 65-way burst that trips rate limits.
-            t.join()
-        else:
-            # Keep a bounded degree of parallelism even when many threads are
-            # spawned; otherwise the upstream endpoint rate-limits us.
-            while len([wt for wt in threads if wt.is_alive()]) >= max_parallel:
-                time.sleep(0.5)
+    pending = [t for t in universe if needs_fetch(db_path, t, target_span, force, spans)]
+    stats.tickers_skipped = len(universe) - len(pending)
+    stats.tickers_attempted = len(pending)
 
-    for t in threads:
-        t.join(timeout=600)
-
-    # Persist whatever we fetched.
-    for ticker, bars, _raws in fetch_results:
-        if not bars:
-            if ticker not in stats.failed_tickers:
+    with ThreadPoolExecutor(max_workers=max_parallel) as pool:
+        futures = {pool.submit(_fetch_bars, ticker): ticker for ticker in pending}
+        for future in as_completed(futures):
+            ticker = futures[future]
+            try:
+                bars, span = future.result()
+            except Exception as e:  # noqa: BLE001 - one bad name must not stop the run
+                log.warning("%s fetch raised: %s (skipped)", ticker, e)
                 stats.failed_tickers.append(ticker)
-            continue
-        inserted, quarantined = write_manager.upsert_bars(bars)
-        stats.rows_inserted += inserted
-        stats.rows_rejected += quarantined
-        log.info("%s: upserted %d bars (quarantined %d)", ticker, inserted, quarantined)
+                continue
+            stats.years_covered.append((ticker, span))
+            if not bars:
+                stats.failed_tickers.append(ticker)
+                continue
+            inserted, quarantined = write_manager.upsert_bars(bars)
+            stats.rows_inserted += inserted
+            stats.rows_rejected += quarantined
+            log.info("%s: upserted %d bars (quarantined %d)", ticker, inserted, quarantined)
 
     return stats
 
 
-def _default_year_range(db_path: str, tickers: List[str], target_years: float) -> List[int]:
+def _default_year_range(
+    db_path: str,
+    tickers: List[str],
+    target_years: float,
+    spans: Optional[Dict[str, Tuple[date, date, int]]] = None,
+) -> List[int]:
     """Infer the earliest needed calendar year from the worst-covered ticker."""
+    spans = spans if spans is not None else stored_spans(db_path)
     min_first: Optional[date] = None
     for ticker in tickers:
-        first, *_ = stored_span_for_ticker(db_path, ticker)
+        first = (spans.get(ticker.strip().upper()) or (None, None, 0))[0]
         if first is None:
             # No stored history for this ticker at all; assume we want back to
             # ~2011 so the window is useful for stress testing.

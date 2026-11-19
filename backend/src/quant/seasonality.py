@@ -40,7 +40,7 @@ import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Dict, Iterable, List, Mapping, Optional, Sequence, Tuple, Union
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 if str(BACKEND_DIR) not in sys.path:
@@ -48,7 +48,7 @@ if str(BACKEND_DIR) not in sys.path:
 
 from src.core.config import get_db_path  # noqa: E402
 from src.core.models import DailyBar  # noqa: E402
-from src.ingestion.sqlite_adapter import load_validated_bars  # noqa: E402
+from src.ingestion.sqlite_adapter import iter_validated_bars_by_ticker  # noqa: E402
 from src.quant.sector_rotation import SESSIONS_PER_YEAR, DEFAULT_SECTOR_MAP  # noqa: E402
 
 logging.basicConfig(
@@ -124,9 +124,37 @@ SECTOR_SEASONS: Dict[str, SectorSeason] = {
         11, 3, 3,
         "Crushing season runs Nov-Jan; mills and cane procurement re-rate from late Q3.",
     ),
-    "Textiles": SectorSeason(
+    "Textile Composite": SectorSeason(
         8, 2, 3,
         "Export order books and yarn pricing peak Aug-Sep ahead of the winter shipping cycle.",
+    ),
+    "Textile Spinning": SectorSeason(
+        8, 2, 3,
+        "Spinning mills re-rate as yarn prices and export order books peak Aug-Sep.",
+    ),
+    "Textile Weaving": SectorSeason(
+        9, 2, 3,
+        "Grey cloth and denim weaving orders peak Sep-Oct ahead of the winter shipping window.",
+    ),
+    "Apparel": SectorSeason(
+        9, 3, 3,
+        "Stitched-garment export orders peak Sep-Nov for the holiday delivery season.",
+    ),
+    "Woollen": SectorSeason(
+        11, 3, 2,
+        "Winter shawl, blanket and suiting demand peaks Nov-Jan.",
+    ),
+    "Synthetic & Rayon": SectorSeason(
+        8, 2, 3,
+        "Polyester and rayon offtake tracks the textile export cycle, peaking Aug-Sep.",
+    ),
+    "Jute": SectorSeason(
+        6, 3, 2,
+        "Jute batching and bag demand peak Jun-Aug ahead of the Kharif harvest movement.",
+    ),
+    "Vanaspati": SectorSeason(
+        10, 3, 2,
+        "Cooking-oil and ghee offtake builds into Oct-Dec as winter and wedding demand peak.",
     ),
     "Cement": SectorSeason(
         10, 3, 3,
@@ -152,9 +180,9 @@ SECTOR_SEASONS: Dict[str, SectorSeason] = {
         8, 3, 3,
         "New model-year launches and post-budget demand peak Aug-Oct.",
     ),
-    "Steel": SectorSeason(
-        10, 3, 3,
-        "Rebar demand tracks the construction peak into Oct-Dec.",
+    "Auto Parts": SectorSeason(
+        8, 3, 3,
+        "Tier-1 parts volumes track assembler build schedules, peaking with Aug-Oct model-year output.",
     ),
     "Refining": SectorSeason(
         6, 3, 2,
@@ -180,13 +208,33 @@ SECTOR_SEASONS: Dict[str, SectorSeason] = {
         10, 3, 3,
         "Capital-goods ordering follows the Jul-Sep development budget release.",
     ),
-    "Cabling": SectorSeason(
+    "Cable & Electrical": SectorSeason(
         7, 3, 3,
-        "Power-sector cabling orders peak Jul-Sep with the summer build.",
+        "Power-sector cabling and switchgear orders peak Jul-Sep with the summer build.",
     ),
-    "Manufacturing": SectorSeason(
+    "Oil Marketing": SectorSeason(
+        12, 2, 2,
+        "Winter furnace-oil and transport fuel demand peaks Dec-Jan; OMC margins firm into it.",
+    ),
+    "Investment Banks": SectorSeason(
+        12, 2, 2,
+        "Year-end portfolio rebalancing, dividend capture and NAV dressing peak Dec-Jan.",
+    ),
+    "Leasing": SectorSeason(
+        7, 3, 2,
+        "Auto-finance and equipment leasing disbursements peak Jul-Sep with the fiscal-year capex cycle.",
+    ),
+    "Property": SectorSeason(
         10, 3, 3,
-        "Industrial output peaks Oct-Dec ahead of year-end dispatch targets.",
+        "Plot launches and real-estate bookings peak Oct-Dec ahead of the winter build season.",
+    ),
+    "REIT": SectorSeason(
+        12, 3, 2,
+        "Distribution announcements and year-end yield harvesting peak Dec-Feb.",
+    ),
+    "Miscellaneous": SectorSeason(
+        12, 3, 2,
+        "Conglomerate and holding-company books dress into the December fiscal close.",
     ),
     "Insurance": SectorSeason(
         1, 2, 2,
@@ -609,26 +657,44 @@ def sector_status(counts: Dict[str, int], members: int) -> str:
 
 
 def build_seasonality_matrix(
-    bars_by_ticker: Dict[str, List[DailyBar]],
+    bars_by_ticker: Union[Mapping[str, List[DailyBar]], Iterable[Tuple[str, List[DailyBar]]]],
     current_month: Optional[int] = None,
     min_bars: int = MIN_HISTORY_BARS,
 ) -> dict:
-    """Build the full seasonality matrix payload from an in-memory tape."""
+    """Build the full seasonality matrix payload from a tape.
+
+    Accepts either a ticker -> bars mapping or an iterable of (ticker, bars)
+    pairs. The streaming form is what keeps the engine usable on a 650-name
+    universe: each ticker is analysed and then dropped, so only the compact
+    per-ticker records stay resident.
+    """
     now = datetime.now(timezone.utc)
     if current_month is None:
         # PSX trades on PKT (UTC+5); the local session month is what matters.
         from datetime import timedelta
         current_month = (now + timedelta(hours=5)).month
 
-    eligible = {
-        ticker: bars
-        for ticker, bars in bars_by_ticker.items()
-        if len(bars) >= min_bars
-    }
+    if isinstance(bars_by_ticker, Mapping):
+        pairs: Iterable[Tuple[str, List[DailyBar]]] = sorted(
+            bars_by_ticker.items(), key=lambda pair: pair[0]
+        )
+    else:
+        pairs = bars_by_ticker
 
     records_by_sector: Dict[str, List[dict]] = {}
-    for ticker in sorted(eligible):
-        bars = eligible[ticker]
+    analyzed = 0
+    sessions_from: Optional[str] = None
+    sessions_to: Optional[str] = None
+    for ticker, bars in pairs:
+        if len(bars) < min_bars:
+            continue
+        analyzed += 1
+        first = bars[0].trade_date.isoformat()
+        last = bars[-1].trade_date.isoformat()
+        if sessions_from is None or first < sessions_from:
+            sessions_from = first
+        if sessions_to is None or last > sessions_to:
+            sessions_to = last
         sector = DEFAULT_SECTOR_MAP.get(ticker, "OTHER")
         record = analyze_ticker(ticker, bars, sector, current_month)
         records_by_sector.setdefault(sector, []).append(record)
@@ -707,11 +773,8 @@ def build_seasonality_matrix(
     ]
     active_windows.sort(key=lambda row: row["sector"])
 
-    sessions: List[str] = []
-    for bars in eligible.values():
-        sessions.extend([bars[0].trade_date.isoformat(), bars[-1].trade_date.isoformat()])
-    session_from = min(sessions) if sessions else None
-    session_to = max(sessions) if sessions else None
+    session_from = sessions_from
+    session_to = sessions_to
 
     return {
         "generatedAt": now.isoformat(timespec="seconds"),
@@ -741,11 +804,11 @@ def build_seasonality_matrix(
         "sessionRange": {
             "from": session_from,
             "to": session_to,
-            "tickers": len(eligible),
+            "tickers": analyzed,
             "sectors": len(sectors),
         },
         "summary": {
-            "tickersAnalyzed": len(eligible),
+            "tickersAnalyzed": analyzed,
             "activeWindows": len(active_windows),
             "sectorsActive": sum(1 for s in sectors if s["status"] == STATUS_ACTIVE),
             "sectorsWatching": sum(1 for s in sectors if s["status"] == STATUS_WATCH),
@@ -771,14 +834,17 @@ def main() -> int:
     args = parser.parse_args()
 
     db_path = args.db or str(get_db_path())
-    bars_by_ticker, rejected = load_validated_bars(db_path)
-    log.info("loaded %d tickers (%d rejected rows) from %s", len(bars_by_ticker), rejected, db_path)
+    min_bars = max(120, args.min_bars)
+    rejected = [0]
+    stream = iter_validated_bars_by_ticker(db_path, min_bars=min_bars, rejected=rejected)
+    log.info("streaming %s (min %d bars per ticker)", db_path, min_bars)
 
     payload = build_seasonality_matrix(
-        bars_by_ticker,
+        stream,
         current_month=args.month,
-        min_bars=max(120, args.min_bars),
+        min_bars=min_bars,
     )
+    log.info("%d tickers analysed, %d rejected rows", payload["summary"]["tickersAnalyzed"], rejected[0])
 
     out_path = Path(args.out) if args.out else DEFAULT_OUTPUT
     out_path.parent.mkdir(parents=True, exist_ok=True)

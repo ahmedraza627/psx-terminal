@@ -15,6 +15,66 @@ def parse_psx_date(raw_date: str) -> date:
     raise ValueError(f"Unrecognized date format: {raw_date}")
 
 
+def iter_validated_bars_by_ticker(
+    db_path: str,
+    min_bars: int = 0,
+    rejected: List[int] | None = None,
+):
+    """Stream (ticker, bars) pairs one ticker at a time.
+
+    `load_validated_bars` materialises every row in the store, which is several
+    gigabytes of Pydantic objects once the universe passes ~500 names. This
+    walks the table in ticker order instead, so peak memory is one ticker's
+    history. The optional `rejected` list receives a single-element counter.
+    """
+    counter = rejected if rejected is not None else [0]
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT ticker, date, open, high, low, close, volume
+        FROM daily_eod
+        ORDER BY ticker ASC, date ASC
+        """
+    )
+
+    current: str | None = None
+    buffer: List[DailyBar] = []
+
+    def _flush() -> Tuple[str, List[DailyBar]] | None:
+        if current is None or len(buffer) < max(1, min_bars):
+            return None
+        buffer.sort(key=lambda b: b.trade_date)
+        return current, list(buffer)
+
+    for r in cur:
+        ticker = str(r["ticker"]).strip().upper()
+        if ticker != current:
+            flushed = _flush()
+            if flushed is not None:
+                yield flushed
+            current = ticker
+            buffer = []
+        try:
+            buffer.append(DailyBar(
+                ticker=ticker,
+                trade_date=parse_psx_date(r["date"]),
+                open_price=r["open"],
+                high_price=r["high"],
+                low_price=r["low"],
+                close_price=r["close"],
+                volume=int(r["volume"] or 0),
+            ))
+        except (ValidationError, ValueError, TypeError):
+            counter[0] += 1
+
+    flushed = _flush()
+    if flushed is not None:
+        yield flushed
+    conn.close()
+
+
 def load_validated_bars(db_path: str) -> Tuple[Dict[str, List[DailyBar]], int]:
     """
     Loads all EOD rows from `daily_eod`, validates them through Pydantic DailyBar,

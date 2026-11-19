@@ -35,64 +35,239 @@ MONTHS_PER_YEAR = 12
 # sector rotation, stat-arb pairing and the seasonality matrix, so a ticker that
 # is added to the universe should be added here in the same change.
 DEFAULT_SECTOR_MAP: Dict[str, str] = {
-    # Banking
-    "UBL": "Banking", "MCB": "Banking", "MEBL": "Banking", "HBL": "Banking",
-    "BAHL": "Banking", "BAFL": "Banking", "NBP": "Banking", "BOP": "Banking",
-    "AKBL": "Banking", "FABL": "Banking", "BIPL": "Banking", "SNBL": "Banking",
-    "JSBL": "Banking", "SILK": "Banking", "SMBL": "Banking", "BOK": "Banking",
-    "SCBPL": "Banking", "HMB": "Banking",
-    # Cement
-    "MLCF": "Cement", "LUCK": "Cement", "DGKC": "Cement", "FCCL": "Cement",
-    "PIOC": "Cement", "CHCC": "Cement", "ACPL": "Cement", "BWCL": "Cement",
-    "KOHC": "Cement", "GTYR": "Cement", "TREET": "Cement", "DCL": "Cement",
-    "JVDC": "Cement", "GWLC": "Cement",
-    # Oil, gas & E&P
-    "OGDC": "Energy", "PPL": "Energy", "MARI": "Energy", "POL": "Energy",
-    "PSO": "Energy", "SHEL": "Energy", "SNGP": "Energy", "SSGC": "Energy",
-    "HASCOL": "Energy", "APL": "Energy", "PIBTL": "Energy", "WTL": "Energy",
-    # Fertiliser
-    "FFC": "Fertilizer", "ENGRO": "Fertilizer", "EFERT": "Fertilizer",
-    "FATIMA": "Fertilizer", "FFBL": "Fertilizer",
-    # Technology
-    "SYS": "Tech", "TRG": "Tech", "AIRLINK": "Tech", "AVN": "Tech",
-    "NETSOL": "Tech", "OCTOPUS": "Tech", "PTC": "Tech",
-    # Refineries
-    "PRL": "Refining", "NRL": "Refining", "ATRL": "Refining", "CNERGY": "Refining",
-    "BYCO": "Refining",
-    # Power
-    "HUBC": "Power", "KAPCO": "Power", "KEL": "Power", "NCPL": "Power",
-    "NPL": "Power", "EPQL": "Power", "SPWL": "Power",
-    # Chemicals
-    "EPCL": "Chemicals", "LOTCHEM": "Chemicals", "ICI": "Chemicals",
-    # Pharma
-    "SEARL": "Pharma", "AGP": "Pharma", "ABOT": "Pharma", "GLAXO": "Pharma",
-    "HINOON": "Pharma", "SAPL": "Pharma", "CPHL": "Pharma", "AGIL": "Pharma",
-    "MACTER": "Pharma", "FEROZ": "Pharma",
-    # Textiles (spinning, weaving, composite)
-    "NML": "Textiles", "ILP": "Textiles", "GATM": "Textiles", "NCL": "Textiles",
-    "KTML": "Textiles", "GADT": "Textiles", "BNWM": "Textiles", "CFL": "Textiles",
-    "IBFL": "Textiles", "SPPT": "Textiles",
-    # Food & personal care
-    "UNITY": "Food", "FFL": "Food", "NESTLE": "Food", "FCEPL": "Food",
-    # Sugar & allied
-    "JDWS": "Sugar", "MRNS": "Sugar", "ALNRS": "Sugar", "SKRS": "Sugar",
-    "SML": "Sugar", "TSML": "Sugar", "HABSM": "Sugar", "NONS": "Sugar",
-    # Modaraba
-    "MODAM": "Modaraba", "FEM": "Modaraba", "FHAM": "Modaraba",
-    "ORM": "Modaraba", "PMI": "Modaraba", "SMM": "Modaraba",
-    # Steel & engineering
-    "THALL": "Steel", "ISL": "Steel", "ASTL": "Steel", "MUGHAL": "Steel",
-    "PAEL": "Engineering", "MTL": "Engineering", "INIL": "Engineering",
-    "INDU": "Manufacturing",
-    # Auto
-    "HCAR": "Auto", "PSMC": "Auto", "ATLH": "Auto", "GHNL": "Auto",
-    # Insurance
-    "AICL": "Insurance", "ATIL": "Insurance", "IGIHL": "Insurance",
-    "JLICL": "Insurance", "NICL": "Insurance",
-    # Glass, paper, transport, tobacco, leather
-    "TGL": "Glass", "GHGL": "Glass", "PKGP": "Paper", "CHBL": "Paper",
-    "PNSC": "Transport", "PIAA": "Transport", "PAKT": "Tobacco",
+    # Full active PSX equity registry: 655 symbols mapped across the 36 official
+    # PSX sector classifications (textile spinning / composite / weaving,
+    # Modaraba, Leasing, Investment Banks, Jute, Apparel, Property, REIT,
+    # Vanaspati, Woollen, Synthetic & Rayon, ...).
+    #
+    # Names absent here still default to "OTHER", but a ticker added to the
+    # deep-backfill universe must be mapped here in the same change so sector
+    # rotation, stat-arb pairing and the seasonality matrix stay aligned.
+    # Apparel (5)
+    "COTT": "Apparel", "IMAGE": "Apparel", "INKL": "Apparel", "MSOT": "Apparel",
+    "STYLERS": "Apparel",
+    # Auto (13)
+    "AGTL": "Auto", "ATLH": "Auto", "DFML": "Auto", "GAIL": "Auto", "GAL": "Auto", "GHNI": "Auto",
+    "GHNL": "Auto", "HCAR": "Auto", "HINO": "Auto", "INDU": "Auto", "MTL": "Auto", "PSMC": "Auto",
+    "SAZEW": "Auto",
+    # Auto Parts (13)
+    "AGIL": "Auto Parts", "ATBA": "Auto Parts", "BELA": "Auto Parts", "BWHL": "Auto Parts",
+    "DWAE": "Auto Parts", "EXIDE": "Auto Parts", "GTYR": "Auto Parts", "LOADS": "Auto Parts",
+    "PTL": "Auto Parts", "SLM": "Auto Parts", "TBL": "Auto Parts", "THALL": "Auto Parts",
+    "TREI": "Auto Parts",
+    # Banking (24)
+    "ABL": "Banking", "AKBL": "Banking", "BAFL": "Banking", "BAHL": "Banking", "BIPL": "Banking",
+    "BML": "Banking", "BOK": "Banking", "BOP": "Banking", "FABL": "Banking", "HBL": "Banking",
+    "HMB": "Banking", "JSBL": "Banking", "MCB": "Banking", "MEBL": "Banking", "NBP": "Banking",
+    "NIB": "Banking", "SBL": "Banking", "SCBPL": "Banking", "SILK": "Banking", "SMBL": "Banking",
+    "SMBLCPSA": "Banking", "SMBLCPSB": "Banking", "SNBL": "Banking", "UBL": "Banking",
+    # Cable & Electrical (11)
+    "CECL": "Cable & Electrical", "EMCO": "Cable & Electrical", "FCL": "Cable & Electrical",
+    "JOPP": "Cable & Electrical", "PAEL": "Cable & Electrical", "PCAL": "Cable & Electrical",
+    "SIEM": "Cable & Electrical", "SING": "Cable & Electrical", "WAVES": "Cable & Electrical",
+    "WAVESAPP": "Cable & Electrical", "WHALE": "Cable & Electrical",
+    # Cement (21)
+    "ACPL": "Cement", "BWCL": "Cement", "CHCC": "Cement", "DBCI": "Cement", "DCL": "Cement",
+    "DGKC": "Cement", "DNCC": "Cement", "FCCL": "Cement", "FECTC": "Cement", "FLYNG": "Cement",
+    "GWLC": "Cement", "KOHC": "Cement", "LPCL": "Cement", "LUCK": "Cement", "MLCF": "Cement",
+    "PAKCEM": "Cement", "PIOC": "Cement", "POWER": "Cement", "SMCPL": "Cement", "THCCL": "Cement",
+    "ZELP": "Cement",
+    # Chemicals (29)
+    "ARPL": "Chemicals", "BAPL": "Chemicals", "BERG": "Chemicals", "BIFO": "Chemicals",
+    "BUXL": "Chemicals", "DAAG": "Chemicals", "DOL": "Chemicals", "DYNO": "Chemicals",
+    "EPCL": "Chemicals", "GCIL": "Chemicals", "GCWL": "Chemicals", "GCWLPRS": "Chemicals",
+    "GGL": "Chemicals", "ICI": "Chemicals", "ICL": "Chemicals", "LCI": "Chemicals",
+    "LINDE": "Chemicals", "LOTCHEM": "Chemicals", "LPGL": "Chemicals", "NICL": "Chemicals",
+    "NRSL": "Chemicals", "PAKOXY": "Chemicals", "PGCL": "Chemicals", "PPVC": "Chemicals",
+    "SARC": "Chemicals", "SHCI": "Chemicals", "SITC": "Chemicals", "SPL": "Chemicals",
+    "WAHN": "Chemicals",
+    # Energy (4)
+    "MARI": "Energy", "OGDC": "Energy", "POL": "Energy", "PPL": "Energy",
+    # Engineering (19)
+    "ADOS": "Engineering", "AGHA": "Engineering", "ASL": "Engineering", "ASTL": "Engineering",
+    "BCL": "Engineering", "BECO": "Engineering", "CSAP": "Engineering", "DADX": "Engineering",
+    "DKL": "Engineering", "DSL": "Engineering", "HSPI": "Engineering", "INIL": "Engineering",
+    "ISL": "Engineering", "ITTEFAQ": "Engineering", "KSBP": "Engineering", "MSCL": "Engineering",
+    "MUGHAL": "Engineering", "MUGHALC": "Engineering", "PECO": "Engineering",
+    # Fertilizer (7)
+    "AGL": "Fertilizer", "AHCL": "Fertilizer", "EFERT": "Fertilizer", "ENGRO": "Fertilizer",
+    "FATIMA": "Fertilizer", "FFBL": "Fertilizer", "FFC": "Fertilizer",
+    # Food (31)
+    "ASC": "Food", "BBFL": "Food", "BFAGRO": "Food", "BNL": "Food", "CLOV": "Food", "COLG": "Food",
+    "FCEPL": "Food", "FFL": "Food", "GDL": "Food", "GIL": "Food", "GLPL": "Food", "ISIL": "Food",
+    "MFFL": "Food", "MFL": "Food", "MUREB": "Food", "NATF": "Food", "NESTLE": "Food",
+    "NMFL": "Food", "PREMA": "Food", "QUICE": "Food", "RMPL": "Food", "SCL": "Food",
+    "SHEZ": "Food", "SLSOPVI": "Food", "SOYASUP": "Food", "TOMCL": "Food", "TREET": "Food",
+    "UNITY": "Food", "UPFL": "Food", "WAHDAT": "Food", "ZIL": "Food",
+    # Glass (9)
+    "BGL": "Glass", "FRCL": "Glass", "GGGL": "Glass", "GHGL": "Glass", "GVGL": "Glass",
+    "KCL": "Glass", "REGAL": "Glass", "STCL": "Glass", "TGL": "Glass",
+    # Insurance (40)
+    "AGIC": "Insurance", "AICL": "Insurance", "ALAC": "Insurance", "ALIFE": "Insurance",
+    "ASIC": "Insurance", "ATIL": "Insurance", "BEEM": "Insurance", "BIIC": "Insurance",
+    "CENI": "Insurance", "CSIL": "Insurance", "EFUG": "Insurance", "EFUL": "Insurance",
+    "EWIC": "Insurance", "EWLA": "Insurance", "HICL": "Insurance", "HMICL": "Insurance",
+    "IGIHL": "Insurance", "IGIIL": "Insurance", "IGIL": "Insurance", "INL": "Insurance",
+    "JAZZSURE": "Insurance", "JGICL": "Insurance", "JLICL": "Insurance", "PAKQATAR": "Insurance",
+    "PAKRI": "Insurance", "PGIC": "Insurance", "PIL": "Insurance", "PINL": "Insurance",
+    "PKGI": "Insurance", "PQGTL": "Insurance", "PRIC": "Insurance", "RICL": "Insurance",
+    "SHNI": "Insurance", "SICL": "Insurance", "SSIC": "Insurance", "SWL": "Insurance",
+    "TPLI": "Insurance", "TPLL": "Insurance", "UNIC": "Insurance", "UVIC": "Insurance",
+    # Investment Banks (48)
+    "AHL": "Investment Banks", "AKDSL": "Investment Banks", "AMBL": "Investment Banks",
+    "AMSL": "Investment Banks", "ARMG": "Investment Banks", "BIPLS": "Investment Banks",
+    "CASH": "Investment Banks", "CYAN": "Investment Banks", "DAWH": "Investment Banks",
+    "DCM": "Investment Banks", "DEL": "Investment Banks", "DHPL": "Investment Banks",
+    "DLL": "Investment Banks", "EFGH": "Investment Banks", "ENGROH": "Investment Banks",
+    "ESBL": "Investment Banks", "FCEL": "Investment Banks", "FCIBL": "Investment Banks",
+    "FCSC": "Investment Banks", "FDIBL": "Investment Banks", "FDPL": "Investment Banks",
+    "FNEL": "Investment Banks", "ICIBL": "Investment Banks", "IFSL": "Investment Banks",
+    "IGIBL": "Investment Banks", "IML": "Investment Banks", "IMS": "Investment Banks",
+    "ITSL": "Investment Banks", "JSCL": "Investment Banks", "JSGCL": "Investment Banks",
+    "JSIL": "Investment Banks", "LSECL": "Investment Banks", "LSEFSL": "Investment Banks",
+    "LSEVL": "Investment Banks", "MCBAH": "Investment Banks", "MCBIM": "Investment Banks",
+    "NEXT": "Investment Banks", "OLPL": "Investment Banks", "PASL": "Investment Banks",
+    "PIAHCLA": "Investment Banks", "PIAHCLB": "Investment Banks", "PRIB": "Investment Banks",
+    "PSX": "Investment Banks", "SIBL": "Investment Banks", "SPAC1": "Investment Banks",
+    "SPAC2": "Investment Banks", "TRIBL": "Investment Banks", "TSBL": "Investment Banks",
+    # Jute (3)
+    "ASRL": "Jute", "CJPL": "Jute", "SUHJ": "Jute",
+    # Leasing (9)
+    "CPAL": "Leasing", "ENGL": "Leasing", "GRYL": "Leasing", "PGLC": "Leasing", "PICL": "Leasing",
+    "SLCL": "Leasing", "SLL": "Leasing", "SPCL": "Leasing", "SPLC": "Leasing",
+    # Leather (6)
+    "BATA": "Leather", "FIL": "Leather", "LEUL": "Leather", "PAKL": "Leather", "SGF": "Leather",
     "SRVI": "Leather",
+    # Miscellaneous (23)
+    "AKDHL": "Miscellaneous", "AKGL": "Miscellaneous", "ARPAK": "Miscellaneous",
+    "DCTL": "Miscellaneous", "DIIL": "Miscellaneous", "ECOP": "Miscellaneous",
+    "GAMON": "Miscellaneous", "GEMPACRA": "Miscellaneous", "GOC": "Miscellaneous",
+    "HACC": "Miscellaneous", "HADC": "Miscellaneous", "MWMP": "Miscellaneous",
+    "OML": "Miscellaneous", "PABC": "Miscellaneous", "PHDL": "Miscellaneous",
+    "PSEL": "Miscellaneous", "SHFA": "Miscellaneous", "STPL": "Miscellaneous",
+    "TISL": "Miscellaneous", "TRIPF": "Miscellaneous", "UBDL": "Miscellaneous",
+    "UDLI": "Miscellaneous", "UDPL": "Miscellaneous",
+    # Modaraba (26)
+    "BFMOD": "Modaraba", "CSM": "Modaraba", "FANM": "Modaraba", "FCONM": "Modaraba",
+    "FECM": "Modaraba", "FEM": "Modaraba", "FFLM": "Modaraba", "FHAM": "Modaraba",
+    "FIBLM": "Modaraba", "FIM": "Modaraba", "FIMM": "Modaraba", "FNBM": "Modaraba",
+    "FPJM": "Modaraba", "FPRM": "Modaraba", "FTMM": "Modaraba", "FTSM": "Modaraba",
+    "GEMBCEM": "Modaraba", "OLPM": "Modaraba", "ORIXM": "Modaraba", "ORM": "Modaraba",
+    "PIM": "Modaraba", "PMI": "Modaraba", "SINDM": "Modaraba", "TRSM": "Modaraba",
+    "UCAPM": "Modaraba", "WASL": "Modaraba",
+    # Oil Marketing (11)
+    "APL": "Oil Marketing", "BPL": "Oil Marketing", "HASCOL": "Oil Marketing",
+    "HTL": "Oil Marketing", "OBOY": "Oil Marketing", "PSO": "Oil Marketing",
+    "SHEL": "Oil Marketing", "SNGP": "Oil Marketing", "SPSL": "Oil Marketing",
+    "SSGC": "Oil Marketing", "WAFI": "Oil Marketing",
+    # Paper (13)
+    "ABSON": "Paper", "CEPB": "Paper", "CPPL": "Paper", "DBSL": "Paper", "GEMPAPL": "Paper",
+    "IPAK": "Paper", "MACFL": "Paper", "MERIT": "Paper", "PKGS": "Paper", "PPP": "Paper",
+    "RPL": "Paper", "SEPL": "Paper", "SPEL": "Paper",
+    # Pharma (18)
+    "ABOT": "Pharma", "AGP": "Pharma", "BFBIO": "Pharma", "CPHL": "Pharma", "CWHC": "Pharma",
+    "FEROZ": "Pharma", "GLAXO": "Pharma", "GSKCH": "Pharma", "HALEON": "Pharma",
+    "HINOON": "Pharma", "HPL": "Pharma", "IBLHL": "Pharma", "LIVEN": "Pharma", "MACTER": "Pharma",
+    "OTSU": "Pharma", "SAPL": "Pharma", "SEARL": "Pharma", "WYETH": "Pharma",
+    # Power (19)
+    "ALTN": "Power", "EPQL": "Power", "GEMMEL": "Power", "GENP": "Power", "HUBC": "Power",
+    "KAPCO": "Power", "KEL": "Power", "KOHE": "Power", "KOHP": "Power", "LPL": "Power",
+    "NCPL": "Power", "NGLEL": "Power", "NPL": "Power", "PKGP": "Power", "SEL": "Power",
+    "SEPCO": "Power", "SGPL": "Power", "SPWL": "Power", "TSPL": "Power",
+    # Property (5)
+    "BRRG": "Property", "HUSI": "Property", "JVDC": "Property", "PACE": "Property",
+    "TPLP": "Property",
+    # REIT (7)
+    "DCR": "REIT", "GRR": "REIT", "IREIT": "REIT", "JSRR": "REIT", "NNAR": "REIT", "SRR": "REIT",
+    "TPLRF1": "REIT",
+    # Refining (5)
+    "ATRL": "Refining", "BYCO": "Refining", "CNERGY": "Refining", "NRL": "Refining",
+    "PRL": "Refining",
+    # Sugar (34)
+    "AABS": "Sugar", "ADAMS": "Sugar", "AGSML": "Sugar", "ALNRS": "Sugar", "ANSM": "Sugar",
+    "BAFS": "Sugar", "CHAS": "Sugar", "DWSM": "Sugar", "FRSM": "Sugar", "HABSM": "Sugar",
+    "HAL": "Sugar", "HRPL": "Sugar", "HSM": "Sugar", "HWQS": "Sugar", "IMSL": "Sugar",
+    "JDWS": "Sugar", "JSML": "Sugar", "KPUS": "Sugar", "MIRKS": "Sugar", "MRNS": "Sugar",
+    "MZSM": "Sugar", "NONS": "Sugar", "PMRS": "Sugar", "PNGRS": "Sugar", "SANSM": "Sugar",
+    "SASML": "Sugar", "SHJS": "Sugar", "SHSML": "Sugar", "SKRS": "Sugar", "SLSO": "Sugar",
+    "SML": "Sugar", "TCORP": "Sugar", "TICL": "Sugar", "TSML": "Sugar",
+    # Synthetic & Rayon (12)
+    "AASM": "Synthetic & Rayon", "DSFL": "Synthetic & Rayon", "GATI": "Synthetic & Rayon",
+    "IBFL": "Synthetic & Rayon", "NAFL": "Synthetic & Rayon", "NORS": "Synthetic & Rayon",
+    "NSRM": "Synthetic & Rayon", "PSYL": "Synthetic & Rayon", "RUPL": "Synthetic & Rayon",
+    "SGABL": "Synthetic & Rayon", "SGFL": "Synthetic & Rayon", "TRPOL": "Synthetic & Rayon",
+    # Tech (24)
+    "AIRLINK": "Tech", "AVN": "Tech", "GEMNETS": "Tech", "GEMSPNL": "Tech", "HCL": "Tech",
+    "HUMNL": "Tech", "ITANZ": "Tech", "MDTL": "Tech", "NETSOL": "Tech", "OCTOPUS": "Tech",
+    "PAKD": "Tech", "PTC": "Tech", "QTECH": "Tech", "SELECT": "Tech", "STL": "Tech", "SYM": "Tech",
+    "SYS": "Tech", "TELE": "Tech", "TPL": "Tech", "TPLT": "Tech", "TRG": "Tech", "WTL": "Tech",
+    "ZAL": "Tech", "ZUMA": "Tech",
+    # Textile Composite (51)
+    "ADMM": "Textile Composite", "AHTM": "Textile Composite", "ANL": "Textile Composite",
+    "ANLNV": "Textile Composite", "ANTM": "Textile Composite", "ARUJ": "Textile Composite",
+    "BHAT": "Textile Composite", "BTL": "Textile Composite", "CHBL": "Textile Composite",
+    "CRTM": "Textile Composite", "FASM": "Textile Composite", "FML": "Textile Composite",
+    "FSWL": "Textile Composite", "FTHM": "Textile Composite", "FZCM": "Textile Composite",
+    "GATM": "Textile Composite", "GFIL": "Textile Composite", "HAEL": "Textile Composite",
+    "HAFL": "Textile Composite", "HATM": "Textile Composite", "ILP": "Textile Composite",
+    "ISTM": "Textile Composite", "JUBS": "Textile Composite", "KAKL": "Textile Composite",
+    "KHYT": "Textile Composite", "KML": "Textile Composite", "KOIL": "Textile Composite",
+    "KTML": "Textile Composite", "MEHT": "Textile Composite", "MFTM": "Textile Composite",
+    "MTIL": "Textile Composite", "MUBT": "Textile Composite", "NCL": "Textile Composite",
+    "NINA": "Textile Composite", "NML": "Textile Composite", "PASM": "Textile Composite",
+    "QUET": "Textile Composite", "REDCO": "Textile Composite", "REWM": "Textile Composite",
+    "SAPT": "Textile Composite", "SCHT": "Textile Composite", "SFAT": "Textile Composite",
+    "SFL": "Textile Composite", "SFLL": "Textile Composite", "STML": "Textile Composite",
+    "SURC": "Textile Composite", "TAJT": "Textile Composite", "TOWL": "Textile Composite",
+    "USMT": "Textile Composite", "ZAHID": "Textile Composite", "ZHCM": "Textile Composite",
+    # Textile Spinning (84)
+    "AAL": "Textile Spinning", "AATM": "Textile Spinning", "ADTM": "Textile Spinning",
+    "ALQT": "Textile Spinning", "AMTEX": "Textile Spinning", "ANNT": "Textile Spinning",
+    "APOT": "Textile Spinning", "AQTM": "Textile Spinning", "ARCTM": "Textile Spinning",
+    "ASTM": "Textile Spinning", "AWTX": "Textile Spinning", "AZMT": "Textile Spinning",
+    "AZTM": "Textile Spinning", "BCML": "Textile Spinning", "BILF": "Textile Spinning",
+    "BROT": "Textile Spinning", "CCM": "Textile Spinning", "CFL": "Textile Spinning",
+    "CLOUD": "Textile Spinning", "CTM": "Textile Spinning", "CWSM": "Textile Spinning",
+    "DFSM": "Textile Spinning", "DINT": "Textile Spinning", "DKTM": "Textile Spinning",
+    "DMC": "Textile Spinning", "DMIL": "Textile Spinning", "DMTM": "Textile Spinning",
+    "DMTX": "Textile Spinning", "DSIL": "Textile Spinning", "DSML": "Textile Spinning",
+    "DWTM": "Textile Spinning", "ELCM": "Textile Spinning", "ELSM": "Textile Spinning",
+    "FAEL": "Textile Spinning", "GADT": "Textile Spinning", "GLAT": "Textile Spinning",
+    "GLOT": "Textile Spinning", "GOEM": "Textile Spinning", "GSPM": "Textile Spinning",
+    "GUSM": "Textile Spinning", "GUTM": "Textile Spinning", "HAJT": "Textile Spinning",
+    "HIRAT": "Textile Spinning", "HMIM": "Textile Spinning", "IDEAL": "Textile Spinning",
+    "IDRT": "Textile Spinning", "IDSM": "Textile Spinning", "IDYM": "Textile Spinning",
+    "ISHT": "Textile Spinning", "JATM": "Textile Spinning", "JDMT": "Textile Spinning",
+    "JKSM": "Textile Spinning", "KACM": "Textile Spinning", "KHSM": "Textile Spinning",
+    "KOHTM": "Textile Spinning", "KOSM": "Textile Spinning", "KSTM": "Textile Spinning",
+    "LMSM": "Textile Spinning", "MDTM": "Textile Spinning", "MQTM": "Textile Spinning",
+    "MUKT": "Textile Spinning", "NAGC": "Textile Spinning", "NATM": "Textile Spinning",
+    "NCML": "Textile Spinning", "NPSM": "Textile Spinning", "OLSM": "Textile Spinning",
+    "PRET": "Textile Spinning", "RAVT": "Textile Spinning", "RCML": "Textile Spinning",
+    "RUBY": "Textile Spinning", "SAIF": "Textile Spinning", "SERT": "Textile Spinning",
+    "SHCM": "Textile Spinning", "SHDT": "Textile Spinning", "SLSOPP": "Textile Spinning",
+    "SLYT": "Textile Spinning", "SNAI": "Textile Spinning", "SRSM": "Textile Spinning",
+    "SSML": "Textile Spinning", "SUCM": "Textile Spinning", "SUTM": "Textile Spinning",
+    "SZTM": "Textile Spinning", "TATM": "Textile Spinning", "THAS": "Textile Spinning",
+    # Textile Weaving (15)
+    "ASHT": "Textile Weaving", "AYZT": "Textile Weaving", "HKKT": "Textile Weaving",
+    "ICCI": "Textile Weaving", "ICCT": "Textile Weaving", "MOHE": "Textile Weaving",
+    "PCML": "Textile Weaving", "PRWM": "Textile Weaving", "SDIL": "Textile Weaving",
+    "SDOT": "Textile Weaving", "SERF": "Textile Weaving", "SMTM": "Textile Weaving",
+    "STJT": "Textile Weaving", "YOUW": "Textile Weaving", "ZTL": "Textile Weaving",
+    # Tobacco (3)
+    "KHTC": "Tobacco", "PAKT": "Tobacco", "PMPK": "Tobacco",
+    # Transport (7)
+    "BLUEX": "Transport", "CLVL": "Transport", "GEMBLUEX": "Transport", "PIBTL": "Transport",
+    "PICT": "Transport", "PNSC": "Transport", "SLGL": "Transport",
+    # Vanaspati (3)
+    "POML": "Vanaspati", "SSOM": "Vanaspati", "SURAJ": "Vanaspati",
+    # Woollen (2)
+    "BNWM": "Woollen", "MOON": "Woollen",
+    # 786 Investments is a live equity whose numeric symbol breaks the usual
+    # alpha-prefix convention; Yahoo carries no series for it, so it is listed
+    # for registry completeness only.
+    "786": "Investment Banks",
 }
 
 
