@@ -39,6 +39,53 @@ type Trap = {
   mansfieldRs: number;
 };
 
+type AlphaPick = {
+  rank: number;
+  ticker: string;
+  sector: string;
+  close: number;
+  edges: string[];
+  edgeCount: number;
+  score: number;
+  winRatePct: number | null;
+  stopLoss: number;
+  stopDistancePct: number;
+  targetWeightPct: number;
+  riskBudgetPct: number;
+  momentum6mPct: number;
+  avgTurnoverPkr: number;
+  seasonalStatus?: string | null;
+};
+
+type AlphaArb = {
+  legA: string;
+  legB: string;
+  sector: string;
+  zScore: number;
+  action: string;
+  hedgeRatio: number;
+  confidencePct: number;
+};
+
+type AlphaBrief = {
+  generatedAt: string;
+  sessionDate: string;
+  marketRegime: {
+    regime: string;
+    hurstExponent: number;
+    varianceRatio: number;
+    posture: string;
+    stressScore: number;
+    drawdownFromHighPct: number;
+    breadthPct: number;
+    proxySessions: number;
+  };
+  portfolio?: { grossExposurePct: number; portfolioVarPct: number; varCapPct: number };
+  picks: AlphaPick[];
+  statArb: AlphaArb[];
+  universe: { scanned: number; eligible: number; liquid: number };
+};
+
 type Latest = {
   sessionDate: string;
   kse100?: { close: number | null; changePct: number | null };
@@ -54,6 +101,21 @@ type Latest = {
     targetPct?: number;
   };
 };
+
+function readAlpha(): AlphaBrief | null {
+  const candidates = [
+    path.join(process.cwd(), "public", "data", "daily_alpha_brief.json"),
+    path.join(process.cwd(), "frontend", "public", "data", "daily_alpha_brief.json"),
+  ];
+  for (const file of candidates) {
+    try {
+      return JSON.parse(fs.readFileSync(file, "utf-8")) as AlphaBrief;
+    } catch {
+      // try the next candidate
+    }
+  }
+  return null;
+}
 
 function readLatest(): Latest | null {
   const candidates = [
@@ -81,6 +143,20 @@ const pct = (value: number | null | undefined, digits = 2) =>
 const RS_WATCH_FLOOR = 8.0; // only elite relative strength qualifies when no sweep fired
 const CARRY_FLOOR = 18.0; // % annualised carry that beats the 11% policy rate by enough
 
+const REGIME_TONE: Record<string, string> = {
+  TRENDING: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  CHOPPY: "border-amber-200 bg-amber-50 text-amber-700",
+  STRESS: "border-rose-200 bg-rose-50 text-rose-700",
+  UNKNOWN: "border-slate-200 bg-slate-50 text-slate-600",
+};
+
+const EDGE_TONE: Record<string, string> = {
+  "ACCUMULATION WINDOW ACTIVE": "border-blue-200 bg-blue-50 text-blue-700",
+  "MOMENTUM LEADER": "border-emerald-200 bg-emerald-50 text-emerald-700",
+  "LIQUIDITY SWEEP": "border-amber-200 bg-amber-50 text-amber-700",
+  "ABOVE 50D SMA": "border-slate-200 bg-slate-50 text-slate-600",
+};
+
 function Tag({children}: {children: React.ReactNode}) {
   return (
     <span className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">
@@ -100,6 +176,7 @@ function Stat({label, value, tone}: {label: string; value: string; tone?: string
 
 export default function DailyDeskPage() {
   const latest = readLatest();
+  const alpha = readAlpha();
   // Live gates, published by the desk run. The desk and the 1-year lab share one engine.
   const engine = {
     trendMaDays: latest?.engine?.trendMaDays ?? 50,
@@ -145,6 +222,154 @@ export default function DailyDeskPage() {
           <Stat label="SBP Policy Rate" value={`${pct(sbpRate, 1)}%`} tone="text-slate-900" />
         </div>
       </div>
+
+      {/* UNIFIED DAILY ALPHA BRIEF — regime, confluence picks, stat-arb */}
+      {alpha ? (
+        <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
+          <header className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 p-4 sm:p-5">
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-base font-bold text-slate-900">Daily Alpha Brief</h2>
+                <span
+                  className={`rounded border px-2 py-0.5 text-[10px] font-bold tracking-wide ${
+                    REGIME_TONE[alpha.marketRegime.regime] ?? REGIME_TONE.UNKNOWN
+                  }`}
+                >
+                  {alpha.marketRegime.regime}
+                </span>
+                <span className="rounded border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold text-slate-500">
+                  {alpha.sessionDate ?? "—"}
+                </span>
+              </div>
+              <p className="mt-1 text-[11px] text-slate-500">{alpha.marketRegime.posture}</p>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                <Tag>Hurst {pct(alpha.marketRegime.hurstExponent, 3)}</Tag>
+                <Tag>Variance ratio {pct(alpha.marketRegime.varianceRatio, 2)}</Tag>
+                <Tag>Drawdown {pct(alpha.marketRegime.drawdownFromHighPct)}%</Tag>
+                <Tag>Stress {pct(alpha.marketRegime.stressScore, 1)}/100</Tag>
+                <Tag>Breadth {pct(alpha.marketRegime.breadthPct, 1)}%</Tag>
+              </div>
+            </div>
+            <div className="text-right text-[10px] leading-relaxed text-slate-400">
+              <div>{alpha.universe.liquid} liquid of {alpha.universe.eligible} eligible</div>
+              <div>{alpha.picks.length} confluence picks · {alpha.statArb.length} stat-arb</div>
+              {alpha.portfolio && (
+                <div>
+                  gross {pct(alpha.portfolio.grossExposurePct, 1)}% · VaR {pct(alpha.portfolio.portfolioVarPct, 2)}%
+                </div>
+              )}
+              <div>refreshed {alpha.generatedAt.slice(0, 16).replace("T", " ")} UTC</div>
+            </div>
+          </header>
+
+          <div className="p-4 sm:p-5">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+              High-Conviction Confluence Picks
+            </h3>
+            {alpha.picks.length === 0 ? (
+              <p className="px-1 py-6 text-center text-xs text-slate-400">
+                No name clears two independent edges today — the regime says wait.
+              </p>
+            ) : (
+              <div className="mt-2 overflow-x-auto">
+                <table className="w-full min-w-[640px] border-collapse text-left text-[11px]">
+                  <thead>
+                    <tr className="border-b border-slate-200 text-[9px] uppercase tracking-wide text-slate-400">
+                      <th className="py-1.5 pr-2 font-semibold">Ticker</th>
+                      <th className="py-1.5 pr-2 font-semibold">Sector</th>
+                      <th className="py-1.5 pr-2 font-semibold">Active Edges</th>
+                      <th className="py-1.5 pr-2 text-right font-semibold">Win Rate</th>
+                      <th className="py-1.5 pr-2 text-right font-semibold">Stop-Loss</th>
+                      <th className="py-1.5 text-right font-semibold">Target Wt %</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {alpha.picks.map((pick) => (
+                      <tr key={pick.ticker} className="align-top">
+                        <td className="py-2 pr-2">
+                          <div className="font-mono text-sm font-bold text-slate-900">{pick.ticker}</div>
+                          <div className="font-mono text-[10px] text-slate-400">{money(pick.close)}</div>
+                        </td>
+                        <td className="py-2 pr-2 text-slate-600">{pick.sector}</td>
+                        <td className="py-2 pr-2">
+                          <div className="flex flex-wrap gap-1">
+                            {pick.edges.map((edge) => (
+                              <span
+                                key={edge}
+                                className={`rounded border px-1.5 py-0.5 text-[9px] font-semibold ${
+                                  EDGE_TONE[edge] ?? "border-slate-200 bg-slate-50 text-slate-600"
+                                }`}
+                              >
+                                {edge}
+                              </span>
+                            ))}
+                          </div>
+                        </td>
+                        <td className="py-2 pr-2 text-right font-mono font-semibold text-slate-700">
+                          {pick.winRatePct === null ? "—" : `${pct(pick.winRatePct, 1)}%`}
+                        </td>
+                        <td className="py-2 pr-2 text-right font-mono font-semibold text-rose-700">
+                          {money(pick.stopLoss)}
+                          <div className="text-[9px] font-normal text-rose-400">-{pct(pick.stopDistancePct, 1)}%</div>
+                        </td>
+                        <td className="py-2 text-right font-mono font-semibold text-slate-900">
+                          {pct(pick.targetWeightPct, 2)}%
+                          <div className="text-[9px] font-normal text-slate-400">risk {pct(pick.riskBudgetPct, 2)}%</div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            <div className="mt-4 border-t border-slate-200 pt-3">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                Active Stat-Arb Spreads (|z| ≥ 2.0)
+              </h3>
+              {alpha.statArb.length === 0 ? (
+                <p className="px-1 py-4 text-center text-xs text-slate-400">
+                  No same-sector spread is stretched beyond two sigma.
+                </p>
+              ) : (
+                <ul className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  {alpha.statArb.map((arb) => (
+                    <li
+                      key={`${arb.legA}-${arb.legB}`}
+                      className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-mono text-xs font-bold text-slate-900">
+                          {arb.legA} / {arb.legB}
+                        </span>
+                        <span
+                          className={`font-mono text-xs font-bold ${
+                            arb.zScore > 0 ? "text-rose-700" : "text-emerald-700"
+                          }`}
+                        >
+                          {arb.zScore > 0 ? "+" : ""}
+                          {pct(arb.zScore)}σ
+                        </span>
+                      </div>
+                      <div className="mt-0.5 text-[10px] font-semibold text-slate-600">{arb.action}</div>
+                      <div className="mt-1 flex flex-wrap gap-1.5">
+                        <Tag>{arb.sector}</Tag>
+                        <Tag>hedge {pct(arb.hedgeRatio, 3)}</Tag>
+                        <Tag>conf {pct(arb.confidencePct, 0)}%</Tag>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </section>
+      ) : (
+        <div className="rounded-xl border border-slate-200 bg-white p-4 text-xs text-slate-500 shadow-sm">
+          Daily alpha brief not generated yet — run{" "}
+          <code className="font-mono">python backend/src/quant/daily_alpha.py</code>.
+        </div>
+      )}
 
       {!latest && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">

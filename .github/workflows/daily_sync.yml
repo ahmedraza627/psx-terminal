@@ -72,6 +72,13 @@ jobs:
                   print(db, conn.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone())
           PY
 
+      # Unified daily brief: market regime, confluence picks with exact sizing and
+      # live stat-arb spreads. sync_daily already ran it; this re-runs the cheap
+      # aggregation against the seasonality matrix written moments ago, so a failure
+      # inside the long sync never leaves the brief stale.
+      - name: Refresh daily alpha brief
+        run: python backend/src/quant/daily_alpha.py
+
       # No [skip ci] here: Vercel honours it and would skip the production deploy.
       - name: Commit and push refreshed data
         run: |

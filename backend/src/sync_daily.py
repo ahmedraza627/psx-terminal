@@ -158,6 +158,21 @@ def run_daily_sync(session: date | None = None, offline: bool = False) -> int:
     except Exception as exc:
         print(f"[WARN] momentum rotation skipped: {exc}")
 
+    # Unified daily alpha brief: regime header, confluence picks and live
+    # stat-arb spreads, all in one small payload the dashboard reads directly.
+    # Seasonality is rebuilt first so the accumulation flags match this session.
+    alpha = None
+    try:
+        from src.quant.daily_alpha import refresh_daily_alpha  # noqa: E402
+
+        alpha = refresh_daily_alpha(str(db_path), refresh_seasonality=True)
+        regime = alpha["marketRegime"]
+        print(f"[INFO] daily alpha: {len(alpha['picks'])} confluence picks, "
+              f"{len(alpha['statArb'])} stat-arb alerts, regime {regime['regime']} "
+              f"(H={regime['hurstExponent']}, VR={regime['varianceRatio']})")
+    except Exception as exc:  # the desk brief must not block the sync itself
+        print(f"[WARN] daily alpha skipped: {exc}")
+
     (DATA_DIR / "sync_status.json").write_text(json.dumps({
         "lastSynced": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "sessionDate": session_day.isoformat() if session_day else None,
@@ -166,6 +181,8 @@ def run_daily_sync(session: date | None = None, offline: bool = False) -> int:
         "barsUpserted": inserted,
         "quarantined": quarantined,
         "signals": len(signals),
+        "alphaPicks": len(alpha["picks"]) if alpha else 0,
+        "alphaRegime": alpha["marketRegime"]["regime"] if alpha else None,
         "engineVersion": "v2.0-wal-live",
     }, indent=2), encoding="utf-8")
 
