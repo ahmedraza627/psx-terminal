@@ -69,9 +69,18 @@ export default function HistoryPage() {
     (entry) => entry.status === "TARGET HIT" || entry.status === "STOPPED OUT",
   );
   const winners = resolvedBuys.filter((entry) => entry.status === "TARGET HIT").length;
-  const hitRate = resolvedBuys.length ? ((winners / resolvedBuys.length) * 100).toFixed(1) : "–";
-  const avoidsWorked = avoids.filter((entry) => entry.status === "AVOID WORKED").length;
-  const avoidRate = avoids.length ? ((avoidsWorked / avoids.length) * 100).toFixed(0) : "–";
+  const resolvedAvoids = avoids.filter(
+    (entry) => entry.status === "AVOID WORKED" || entry.status === "AVOID FAILED",
+  );
+  const avoidsWorked = resolvedAvoids.filter((entry) => entry.status === "AVOID WORKED").length;
+  /** Below this many resolved signals a rate is noise, not evidence. */
+  const MIN_SAMPLE = 3;
+  const buysResolved = resolvedBuys.length >= MIN_SAMPLE;
+  const avoidsResolved = resolvedAvoids.length >= MIN_SAMPLE;
+  const hitRate = buysResolved ? ((winners / resolvedBuys.length) * 100).toFixed(1) : null;
+  const avoidRate = avoidsResolved ? ((avoidsWorked / resolvedAvoids.length) * 100).toFixed(0) : null;
+  const openBuys = buys.length - resolvedBuys.length;
+  const openAvoids = avoids.length - resolvedAvoids.length;
   const closed = entries.filter((entry) => entry.status !== "IN PLAY");
   const avgPnl = closed.length
     ? (closed.reduce((sum, entry) => sum + entry.pnlPct, 0) / closed.length).toFixed(2)
@@ -128,23 +137,42 @@ export default function HistoryPage() {
         />
         <Card
           label="Buy Hit Rate"
-          value={hitRate === "–" ? "–" : `${hitRate}%`}
-          hint={`${winners}W / ${resolvedBuys.length - winners}L resolved`}
-          tone="text-emerald-400"
+          value={hitRate === null ? "—" : `${hitRate}%`}
+          hint={
+            buysResolved
+              ? `${winners}W / ${resolvedBuys.length - winners}L closed`
+              : `${resolvedBuys.length} closed · ${openBuys} in play`
+          }
+          tone={hitRate === null ? "text-slate-500" : "text-emerald-400"}
         />
         <Card
           label="Avoid Success"
-          value={avoidRate === "–" ? "–" : `${avoidRate}%`}
-          hint={`${avoidsWorked} of ${avoids.length} traps worked`}
-          tone="text-amber-600"
+          value={avoidRate === null ? "—" : `${avoidRate}%`}
+          hint={
+            avoidsResolved
+              ? `${avoidsWorked} of ${resolvedAvoids.length} closed traps worked`
+              : `${resolvedAvoids.length} closed · ${openAvoids} in play`
+          }
+          tone={avoidRate === null ? "text-slate-500" : "text-amber-400"}
         />
         <Card
           label="Avg P&L (closed)"
-          value={avgPnl === "–" ? "–" : `${avgPnl}%`}
-          hint="Live against entry reference"
-          tone="text-blue-600"
+          value={avgPnl === "–" ? "—" : `${avgPnl}%`}
+          hint={
+            closed.length ? `${closed.length} resolved signals` : "No closed signals yet"
+          }
+          tone={closed.length ? "text-sky-400" : "text-slate-500"}
         />
       </div>
+
+      {!buysResolved && (
+        <p className="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2 text-[11px] leading-relaxed text-slate-400">
+          <span className="font-semibold text-slate-300">Hit rates are withheld until {MIN_SAMPLE} signals close.</span>{" "}
+          Only closed trades (target hit or stopped out) count — {resolvedBuys.length} buy
+          {resolvedBuys.length === 1 ? " is" : "s are"} closed and {openBuys} still in play, so a
+          percentage now would describe the sample size, not the edge.
+        </p>
+      )}
 
       <div className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900/60 shadow-sm">
         {/* Search + result count */}

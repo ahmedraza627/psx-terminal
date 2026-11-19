@@ -150,6 +150,7 @@ const STATUS_OFF = "OFF-SEASON";
 const STATUSES = [STATUS_ACTIVE, STATUS_WATCH, STATUS_OFF] as const;
 
 const PAGE_SIZE = 25;
+const MAX_RANGE_PCT = 45;
 
 type Action = "ACCUMULATE ON DIPS" | "WAIT FOR TRIGGER" | "EXTENDED / SKIP";
 
@@ -159,16 +160,7 @@ const ACTION_TONE: Record<Action, string> = {
   "EXTENDED / SKIP": "border-slate-700 bg-slate-800/60 text-slate-400",
 };
 
-const ACTION_ORDER: Action[] = ["ACCUMULATE ON DIPS", "WAIT FOR TRIGGER", "EXTENDED / SKIP"];
-
-const ACTION_HINT: Record<Action, string> = {
-  "ACCUMULATE ON DIPS":
-    "Calendar window open, price in the lower 45% of its 3-year range and turnover clears the desk's liquidity gate. Scale in on red sessions.",
-  "WAIT FOR TRIGGER":
-    "Window opens next month, or the name still needs a liquid close inside the accumulation zone. Set alerts, do not pre-buy.",
-  "EXTENDED / SKIP":
-    "Calendar is closed to this name or the tape is already stretched. No new risk from a seasonal entry.",
-};
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 const statusTone = (status: string) => {
   if (status === STATUS_ACTIVE) return "border-emerald-500/40 bg-emerald-500/10 text-emerald-300";
@@ -195,7 +187,7 @@ const heat = (value: number, samples: number) => {
   return "bg-rose-500/25 text-rose-200";
 };
 
-/** Turnover in millions, the unit a PSX desk actually quotes. */
+/** Turnover in the units a PSX desk quotes. */
 const rupees = (value: number | null | undefined) => {
   if (value === null || value === undefined || !Number.isFinite(value)) return "—";
   if (value >= 1_000_000_000) return `Rs ${(value / 1_000_000_000).toFixed(2)}bn`;
@@ -209,66 +201,31 @@ const isLiquid = (t: TickerRecord) =>
 
 const turnoverOf = (t: TickerRecord) => t.avgTurnoverPkr ?? t.liquidity?.avgTurnoverPkr ?? 0;
 
-/** The one line the desk needs: buy, wait, or ignore. */
+/** The one decision the desk needs. */
 function playAction(t: TickerRecord): Action {
-  const range = t.position.rangePositionPct;
   if (t.status === STATUS_ACTIVE && isLiquid(t)) return "ACCUMULATE ON DIPS";
   if (t.status === STATUS_ACTIVE || t.status === STATUS_WATCH) return "WAIT FOR TRIGGER";
-  if (range <= 45 && isLiquid(t)) return "WAIT FOR TRIGGER";
+  if (t.position.rangePositionPct <= MAX_RANGE_PCT && isLiquid(t)) return "WAIT FOR TRIGGER";
   return "EXTENDED / SKIP";
 }
 
-function Stat({ label, value, hint, tone }: { label: string; value: string; hint: string; tone: string }) {
-  return (
-    <div className="rounded-2xl border border-slate-800/80 bg-slate-900/50 p-4">
-      <span className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-        {label}
-      </span>
-      <span className={`mt-1.5 block font-mono text-xl font-bold tabular-nums ${tone}`}>{value}</span>
-      <span className="mt-1 block text-[10px] leading-snug text-slate-500">{hint}</span>
-    </div>
-  );
+/** Months from the current calendar month to a window month, wrapping the year. */
+function monthsUntil(currentMonth: number, targetMonth: number) {
+  return (targetMonth - currentMonth + 12) % 12;
 }
 
-function QuestionCard({
-  index,
-  question,
-  answer,
-  children,
-  className = "",
-}: {
-  index: number;
-  question: string;
-  answer: string;
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <section className={`flex flex-col rounded-2xl border border-slate-800/80 bg-slate-900/40 ${className}`}>
-      <header className="border-b border-slate-800/80 px-4 py-3 sm:px-5">
-        <div className="flex items-start gap-2.5">
-          <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border border-slate-700 bg-slate-950 font-mono text-[10px] font-bold text-emerald-300">
-            {index}
-          </span>
-          <div className="min-w-0">
-            <h2 className="text-[13px] font-bold tracking-tight text-slate-100">{question}</h2>
-            <p className="mt-0.5 text-[11px] leading-snug text-slate-500">{answer}</p>
-          </div>
-        </div>
-      </header>
-      <div className="min-w-0 flex-1 p-4 sm:p-5">{children}</div>
-    </section>
-  );
-}
-
-function RangeBar({ value }: { value: number }) {
-  const clamped = Math.max(0, Math.min(100, value));
-  const tone = clamped <= 45 ? "bg-emerald-400/80" : clamped <= 65 ? "bg-amber-400/80" : "bg-rose-400/80";
-  return (
-    <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
-      <div className={`h-full rounded-full ${tone}`} style={{ width: `${clamped}%` }} />
-    </div>
-  );
+function nextWindowIn(sector: SectorRow, currentMonth: number) {
+  const offsets = sector.accumulationMonths
+    .map((label) => MONTHS.indexOf(label) + 1)
+    .filter((month) => month > 0)
+    .map((month) => {
+      const delta = monthsUntil(currentMonth, month);
+      return delta === 0 ? 12 : delta;
+    });
+  if (offsets.length === 0) return null;
+  const delta = Math.min(...offsets);
+  if (delta > 3) return null;
+  return { delta, month: MONTHS[(currentMonth + delta - 1) % 12] };
 }
 
 /* ------------------------------------------------------------------- page */
@@ -280,6 +237,7 @@ export default function SeasonalityPage() {
   const [sectorFilter, setSectorFilter] = useState<string>("ALL");
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
+  const [heatmapOpen, setHeatmapOpen] = useState(false);
 
   useEffect(() => {
     fetch("/data/seasonality_matrix.json")
@@ -296,44 +254,51 @@ export default function SeasonalityPage() {
     [data],
   );
 
-  /** Liquid names sitting in the lower 45% of their 3-year range. */
-  const playbookCandidates = useMemo(() => {
-    const ranked = allTickers
-      .filter((t) => isLiquid(t) && t.position.rangePositionPct <= 45)
-      .sort((a, b) => {
-        const actionRank = (t: TickerRecord) =>
-          playAction(t) === "ACCUMULATE ON DIPS" ? 0 : playAction(t) === "WAIT FOR TRIGGER" ? 1 : 2;
-        const byAction = actionRank(a) - actionRank(b);
-        if (byAction !== 0) return byAction;
-        return (
-          b.accumulationWindowStats.forward60.winRatePct -
-          a.accumulationWindowStats.forward60.winRatePct
-        );
-      });
-    return ranked;
-  }, [allTickers]);
+  const sectorByName = useMemo(() => {
+    const map = new Map<string, SectorRow>();
+    for (const sector of data?.sectors ?? []) map.set(sector.sector, sector);
+    return map;
+  }, [data]);
 
-  const actionCounts = useMemo(() => {
-    const counts: Record<Action, number> = {
-      "ACCUMULATE ON DIPS": 0,
-      "WAIT FOR TRIGGER": 0,
-      "EXTENDED / SKIP": 0,
-    };
-    for (const t of playbookCandidates) counts[playAction(t)] += 1;
-    return counts;
-  }, [playbookCandidates]);
-
-  const liveSectors = useMemo(
-    () => (data ? data.sectors.filter((s) => s.status !== STATUS_OFF) : []),
-    [data],
+  /** Action Now: liquid names whose calendar is open and price is still in range. */
+  const actionNow = useMemo(
+    () =>
+      allTickers
+        .filter(
+          (t) =>
+            t.status === STATUS_ACTIVE &&
+            isLiquid(t) &&
+            t.position.rangePositionPct <= MAX_RANGE_PCT,
+        )
+        .sort(
+          (a, b) =>
+            b.accumulationWindowStats.forward60.winRatePct -
+            a.accumulationWindowStats.forward60.winRatePct,
+        ),
+    [allTickers],
   );
+
+  /** Upcoming Next: sectors opening within 3 months (WATCH is the one-month case). */
+  const upcoming = useMemo(() => {
+    if (!data) return [];
+    const current = data.meta.currentMonth;
+    return data.sectors
+      .filter((sector) => sector.status !== STATUS_ACTIVE)
+      .map((sector) => ({ sector, next: nextWindowIn(sector, current) }))
+      .filter(
+        (row): row is { sector: SectorRow; next: { delta: number; month: string } } =>
+          row.next !== null,
+      )
+      .sort((a, b) => a.next.delta - b.next.delta);
+  }, [data]);
 
   const tickers = useMemo(() => {
     const needle = query.trim().toUpperCase();
     return allTickers.filter((t) => {
       if (statusFilter !== "ALL" && t.status !== statusFilter) return false;
       if (sectorFilter !== "ALL" && t.sector !== sectorFilter) return false;
-      if (needle && !t.ticker.includes(needle) && !t.sector.toUpperCase().includes(needle)) return false;
+      if (needle && !t.ticker.includes(needle) && !t.sector.toUpperCase().includes(needle))
+        return false;
       return true;
     });
   }, [allTickers, statusFilter, sectorFilter, query]);
@@ -371,25 +336,27 @@ export default function SeasonalityPage() {
   const sectorOptions = data.sectors.map((s) => s.sector);
   const gate = meta.liquidityGate;
   const turnoverGate = gate?.minAvgTurnoverPkr ?? 5_000_000;
-  const topCandidates = playbookCandidates.slice(0, 12);
+  const activeSectors = data.sectors
+    .filter((sector) => sector.status === STATUS_ACTIVE)
+    .sort((a, b) => b.activeCount - a.activeCount);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* header */}
-      <div className="flex flex-col gap-3 border-b border-slate-800 pb-5 lg:flex-row lg:items-end lg:justify-between">
+      <div className="flex flex-col gap-3 border-b border-slate-800 pb-4 lg:flex-row lg:items-end lg:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-lg font-bold tracking-tight text-slate-50 sm:text-xl">
               Seasonal Playbook
             </h1>
             <span className="rounded border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 font-mono text-[10px] font-bold text-emerald-300">
-              {meta.currentMonthLabel.toUpperCase()} · PRE-SEASON SCAN
+              {meta.currentMonthLabel.toUpperCase()} · NOW &amp; UPCOMING
             </span>
           </div>
-          <p className="mt-1 max-w-3xl text-[11px] leading-relaxed text-slate-400">
-            Which sector calendars are open right now, why the cycle is turning, and which liquid names
-            are still cheap enough to buy. Pooled forward 60/90-session returns,{" "}
-            {data.sessionRange.from ?? "—"} → {data.sessionRange.to ?? "—"}.
+          <p className="mt-1 text-[11px] leading-relaxed text-slate-400">
+            {actionNow.length} liquid names buyable now · {activeSectors.length} sectors in window ·{" "}
+            {upcoming.length} opening in the next 3 months. Liquidity gate{" "}
+            {rupees(turnoverGate)}/day, range ≤{MAX_RANGE_PCT}%.
           </p>
         </div>
         <div className="font-mono text-[10px] text-slate-500 lg:text-right">
@@ -397,68 +364,187 @@ export default function SeasonalityPage() {
             {summary.tickersAnalyzed} tickers · {data.sessionRange.sectors} sectors
           </div>
           <div>
-            liquidity gate {rupees(turnoverGate)}/day · range ≤{" "}
-            {meta.positionFilter.accumulationMaxRangePct?.toFixed(0) ?? 45}%
+            {data.sessionRange.from ?? "—"} → {data.sessionRange.to ?? "—"} · generated{" "}
+            {data.generatedAt.slice(0, 10)}
           </div>
-          <div>generated {data.generatedAt.replace("T", " ").slice(0, 19)} UTC</div>
         </div>
       </div>
 
-      {/* headline stats */}
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-5">
-        <Stat
-          label="Active Windows"
-          value={String(summary.activeWindows)}
-          hint="calendar + price both qualified"
-          tone="text-emerald-400"
-        />
-        <Stat
-          label="Sectors Active"
-          value={String(summary.sectorsActive)}
-          hint="≥30% of members in window"
-          tone="text-emerald-400"
-        />
-        <Stat
-          label="Sectors Watching"
-          value={String(summary.sectorsWatching)}
-          hint="window opens next month"
-          tone="text-amber-300"
-        />
-        <Stat
-          label="Buyable Candidates"
-          value={String(actionCounts["ACCUMULATE ON DIPS"])}
-          hint="liquid · in-range · window open"
-          tone="text-emerald-300"
-        />
-        <Stat
-          label="Off-Season"
-          value={String(summary.sectorsOffSeason)}
-          hint="no pre-season bid"
-          tone="text-slate-400"
-        />
-      </div>
-
-      {/* ------------------------------------------------ playbook summary */}
-      <div className="grid gap-4 xl:grid-cols-2">
-        <QuestionCard
-          index={1}
-          question="Active & upcoming seasons"
-          answer="Sector calendars that are open now or open next month."
-        >
-          {liveSectors.length === 0 ? (
-            <p className="py-6 text-center text-xs text-slate-500">
-              No sector calendar is open this month — the playbook is in cash.
+      {/* ---------------------------------------------------- action now */}
+      <section className="overflow-hidden rounded-2xl border border-emerald-500/25 bg-slate-900/40">
+        <header className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/80 px-4 py-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <h2 className="text-[13px] font-bold tracking-tight text-slate-100">Action Now</h2>
+              <span className="rounded border border-emerald-500/40 bg-emerald-500/10 px-1.5 py-0.5 font-mono text-[9px] font-bold text-emerald-300">
+                ACCUMULATE ON DIPS
+              </span>
+              <span className="font-mono text-[10px] tabular-nums text-slate-500">
+                {actionNow.length}
+              </span>
+            </div>
+            <p className="mt-0.5 text-[11px] leading-snug text-slate-500">
+              Window open and price inside the lower {MAX_RANGE_PCT}% of its 3-year range — scale in
+              on red sessions.
             </p>
-          ) : (
-            <ul className="space-y-2.5">
-              {liveSectors.map((sector) => (
-                <li
+          </div>
+          {activeSectors.length > 0 && (
+            <div className="flex flex-wrap gap-1 font-mono text-[9px]">
+              {activeSectors.map((sector) => (
+                <span
                   key={sector.sector}
-                  className="rounded-xl border border-slate-800/80 bg-slate-950/60 px-3 py-2.5"
+                  className="rounded border border-emerald-500/30 bg-emerald-500/5 px-1.5 py-0.5 text-emerald-300/90"
+                  title={sector.rationale}
                 >
+                  {sector.sector}
+                </span>
+              ))}
+            </div>
+          )}
+        </header>
+
+        {actionNow.length === 0 ? (
+          <p className="px-4 py-8 text-center text-xs text-slate-500">
+            No liquid name is inside its accumulation zone — wait for a pullback.
+          </p>
+        ) : (
+          <>
+            {/* desktop table */}
+            <div className="hidden overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch] md:block">
+              <table className="w-full min-w-[820px] text-left font-mono text-[11px]">
+                <thead className="bg-slate-950/60 text-[9px] uppercase tracking-wide text-slate-500">
+                  <tr>
+                    <th className="px-3 py-2">Ticker</th>
+                    <th className="px-3 py-2">Sector</th>
+                    <th className="px-3 py-2 text-right">Range</th>
+                    <th className="px-3 py-2 text-right">Win 60D</th>
+                    <th className="px-3 py-2 text-right">Win 90D</th>
+                    <th className="px-3 py-2 text-right">Avg 90D</th>
+                    <th className="px-3 py-2 font-sans normal-case">Why now</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/70">
+                  {actionNow.map((t) => {
+                    const w60 = t.accumulationWindowStats.forward60;
+                    const w90 = t.accumulationWindowStats.forward90;
+                    return (
+                      <tr key={`${t.sector}-${t.ticker}`} className="hover:bg-slate-900/60">
+                        <td className="whitespace-nowrap px-3 py-2 font-bold text-slate-50">
+                          {t.ticker}
+                          <span className="ml-1.5 text-[9px] font-normal text-slate-500">
+                            {rupees(turnoverOf(t))}
+                          </span>
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-2 text-slate-400">{t.sector}</td>
+                        <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-slate-200">
+                          {t.position.rangePositionPct.toFixed(0)}%
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-slate-200">
+                          {w60.winRatePct.toFixed(0)}%
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-slate-200">
+                          {w90.winRatePct.toFixed(0)}%
+                        </td>
+                        <td
+                          className={`whitespace-nowrap px-3 py-2 text-right font-bold tabular-nums ${
+                            w90.avgPct >= 0 ? "text-emerald-300" : "text-rose-300"
+                          }`}
+                        >
+                          {signed(w90.avgPct, 1)}
+                        </td>
+                        <td className="max-w-[22rem] px-3 py-2 font-sans text-[10px] leading-snug text-slate-400">
+                          {sectorByName.get(t.sector)?.rationale ?? t.phaseNote}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* mobile: two-line rows, no tall cards */}
+            <ul className="divide-y divide-slate-800/70 md:hidden">
+              {actionNow.map((t) => {
+                const w60 = t.accumulationWindowStats.forward60;
+                const w90 = t.accumulationWindowStats.forward90;
+                return (
+                  <li key={`${t.sector}-${t.ticker}`} className="px-3 py-2.5">
+                    <div className="flex items-baseline justify-between gap-2">
+                      <div className="flex min-w-0 items-baseline gap-1.5">
+                        <span className="font-mono text-sm font-bold text-slate-50">{t.ticker}</span>
+                        <span className="truncate font-mono text-[9px] text-slate-500">
+                          {t.sector}
+                        </span>
+                      </div>
+                      <span className="shrink-0 font-mono text-[10px] tabular-nums text-slate-300">
+                        range {t.position.rangePositionPct.toFixed(0)}%
+                      </span>
+                    </div>
+                    <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 font-mono text-[10px] tabular-nums text-slate-400">
+                      <span>
+                        win60 <span className="text-slate-200">{w60.winRatePct.toFixed(0)}%</span>
+                      </span>
+                      <span>
+                        win90 <span className="text-slate-200">{w90.winRatePct.toFixed(0)}%</span>
+                      </span>
+                      <span>
+                        avg90{" "}
+                        <span className={w90.avgPct >= 0 ? "text-emerald-300" : "text-rose-300"}>
+                          {signed(w90.avgPct, 1)}
+                        </span>
+                      </span>
+                    </div>
+                    <p className="mt-1 line-clamp-2 font-sans text-[10px] leading-snug text-slate-500">
+                      {sectorByName.get(t.sector)?.rationale ?? t.phaseNote}
+                    </p>
+                  </li>
+                );
+              })}
+            </ul>
+          </>
+        )}
+      </section>
+
+      {/* -------------------------------------------------------- upcoming */}
+      <section className="rounded-2xl border border-amber-500/25 bg-slate-900/40">
+        <header className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/80 px-4 py-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-[13px] font-bold tracking-tight text-slate-100">Upcoming Next</h2>
+              <span className="rounded border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 font-mono text-[9px] font-bold text-amber-300">
+                WATCH · 1–3 MONTHS
+              </span>
+              <span className="font-mono text-[10px] tabular-nums text-slate-500">
+                {upcoming.length}
+              </span>
+            </div>
+            <p className="mt-0.5 text-[11px] leading-snug text-slate-500">
+              Set alerts on the liquid names now; do not pre-buy before the window opens.
+            </p>
+          </div>
+        </header>
+
+        {upcoming.length === 0 ? (
+          <p className="px-4 py-8 text-center text-xs text-slate-500">
+            Nothing opens in the next three months — the next bid is further out.
+          </p>
+        ) : (
+          <ul className="grid gap-px bg-slate-800/60 sm:grid-cols-2 xl:grid-cols-3">
+            {upcoming.map(({ sector, next }) => {
+              const monitors = sector.tickers
+                .filter(isLiquid)
+                .sort(
+                  (a, b) =>
+                    a.position.rangePositionPct - b.position.rangePositionPct ||
+                    b.accumulationWindowStats.forward60.winRatePct -
+                      a.accumulationWindowStats.forward60.winRatePct,
+                )
+                .slice(0, 3);
+              return (
+                <li key={sector.sector} className="bg-slate-900/40 px-4 py-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex min-w-0 items-center gap-2">
-                      <span className="truncate font-mono text-sm font-bold text-slate-100">
+                      <span className="truncate font-mono text-[12px] font-bold text-slate-100">
                         {sector.sector}
                       </span>
                       <span
@@ -469,334 +555,136 @@ export default function SeasonalityPage() {
                         {shortStatus(sector.status)}
                       </span>
                     </div>
-                    <span className="font-mono text-[10px] tabular-nums text-slate-500">
-                      {sector.activeCount} active · {sector.watchCount} watch
+                    <span className="shrink-0 font-mono text-[10px] tabular-nums text-amber-300">
+                      {next.month} · {next.delta === 1 ? "next month" : `in ${next.delta} mo`}
                     </span>
                   </div>
-                  <div className="mt-2 flex flex-wrap gap-1 font-mono text-[9px]">
-                    <span className="rounded border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-emerald-300">
-                      WINDOW {sector.accumulationMonths.join("·") || "—"}
-                    </span>
-                    <span className="rounded border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-amber-300">
-                      PEAK {sector.peakMonths.join("·") || "—"}
-                    </span>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </QuestionCard>
 
-        <QuestionCard
-          index={2}
-          question="Cyclical catalyst — why now"
-          answer="The physical supply-chain reason the window exists, not a chart pattern."
-        >
-          {liveSectors.length === 0 ? (
-            <p className="py-6 text-center text-xs text-slate-500">
-              Nothing to buy before the next window opens.
-            </p>
-          ) : (
-            <ul className="space-y-3">
-              {liveSectors.map((sector) => (
-                <li key={sector.sector} className="border-l-2 border-emerald-500/30 pl-3">
-                  <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1">
-                    <span className="font-mono text-[11px] font-bold text-slate-200">{sector.sector}</span>
-                    <span className="font-mono text-[10px] tabular-nums text-slate-500">
-                      win 60d {sector.accumulationWindow.forward60.winRatePct.toFixed(0)}% · median{" "}
-                      {signed(sector.accumulationWindow.forward60.medianPct, 1)}
-                    </span>
+                  <div className="mt-1 font-mono text-[9px] text-slate-500">
+                    window {sector.accumulationMonths.join("·") || "—"} · peak{" "}
+                    {sector.peakMonths.join("·") || "—"}
                   </div>
-                  <p className="mt-1 text-[11px] leading-relaxed text-slate-400">{sector.rationale}</p>
-                </li>
-              ))}
-            </ul>
-          )}
-        </QuestionCard>
 
-        <QuestionCard
-          index={3}
-          question="Top liquid candidates & timing"
-          answer={`Liquid ≥ ${rupees(turnoverGate)}/day and in the lower ≤45% of their 3-year range, ranked by seasonal hit rate.`}
-          className="xl:col-span-2"
-        >
-          {topCandidates.length === 0 ? (
-            <p className="py-6 text-center text-xs text-slate-500">
-              No liquid name is still inside its accumulation zone — wait for a pullback.
-            </p>
-          ) : (
-            <>
-              <ul className="space-y-2">
-                {topCandidates.map((t) => {
-                  const w60 = t.accumulationWindowStats.forward60;
-                  const w90 = t.accumulationWindowStats.forward90;
-                  const action = playAction(t);
-                  return (
-                    <li
-                      key={`${t.sector}-${t.ticker}`}
-                      className="rounded-xl border border-slate-800/80 bg-slate-950/60 p-3"
-                    >
-                      <div className="flex flex-wrap items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono text-sm font-bold text-slate-50">{t.ticker}</span>
-                            <span
-                              className={`rounded border px-1.5 py-0.5 font-mono text-[9px] font-bold ${ACTION_TONE[action]}`}
-                            >
-                              {action}
-                            </span>
-                          </div>
-                          <div className="mt-0.5 font-mono text-[10px] text-slate-500">
-                            {t.sector} · PKR {t.lastClose.toFixed(2)} · {rupees(turnoverOf(t))}/day
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="font-mono text-[10px] uppercase tracking-wide text-slate-500">
-                            Range position
-                          </div>
-                          <div className="font-mono text-sm font-bold tabular-nums text-slate-200">
+                  <p className="mt-1.5 text-[10px] leading-snug text-slate-400">
+                    {sector.rationale}
+                  </p>
+
+                  <div className="mt-2 flex flex-wrap items-center gap-1">
+                    <span className="font-mono text-[9px] uppercase tracking-wide text-slate-600">
+                      watch
+                    </span>
+                    {monitors.length === 0 ? (
+                      <span className="font-mono text-[10px] text-slate-600">no liquid names</span>
+                    ) : (
+                      monitors.map((t) => (
+                        <span
+                          key={t.ticker}
+                          className="rounded border border-slate-700 bg-slate-950 px-1.5 py-0.5 font-mono text-[9px] text-slate-300"
+                          title={`range ${t.position.rangePositionPct.toFixed(0)}% · win60 ${t.accumulationWindowStats.forward60.winRatePct.toFixed(0)}% · ${rupees(turnoverOf(t))}/day`}
+                        >
+                          {t.ticker}{" "}
+                          <span className="text-slate-500">
                             {t.position.rangePositionPct.toFixed(0)}%
-                          </div>
-                        </div>
-                      </div>
+                          </span>
+                        </span>
+                      ))
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
 
-                      <div className="mt-2">
-                        <RangeBar value={t.position.rangePositionPct} />
-                      </div>
-
-                      <div className="mt-2.5 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                        {[
-                          { label: "Win 60D", value: `${w60.winRatePct.toFixed(0)}%`, tone: "text-slate-100" },
-                          {
-                            label: "Median 60D",
-                            value: signed(w60.medianPct, 1),
-                            tone: w60.medianPct >= 0 ? "text-emerald-300" : "text-rose-300",
-                          },
-                          {
-                            label: "Avg 90D",
-                            value: signed(w90.avgPct, 1),
-                            tone: w90.avgPct >= 0 ? "text-emerald-300" : "text-rose-300",
-                          },
-                          {
-                            label: "3Y DD",
-                            value: `${t.position.drawdownFromHighPct.toFixed(1)}%`,
-                            tone: "text-slate-400",
-                          },
-                        ].map((cell) => (
-                          <div
-                            key={cell.label}
-                            className="rounded-lg border border-slate-800/70 bg-slate-900/60 px-2 py-1.5"
-                          >
-                            <div className="text-[9px] uppercase tracking-wide text-slate-500">
-                              {cell.label}
-                            </div>
-                            <div className={`font-mono text-xs font-bold tabular-nums ${cell.tone}`}>
-                              {cell.value}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-              {playbookCandidates.length > topCandidates.length && (
-                <p className="mt-3 text-center font-mono text-[10px] text-slate-500">
-                  +{playbookCandidates.length - topCandidates.length} more in-range liquid names in the
-                  explorer below.
-                </p>
-              )}
-            </>
-          )}
-        </QuestionCard>
-
-        <QuestionCard
-          index={4}
-          question="Actionable execution status"
-          answer="Every in-range liquid name is tagged with the only decision that matters."
-          className="xl:col-span-2"
+      {/* ------------------------------------------- collapsible heatmap */}
+      <section className="overflow-hidden rounded-2xl border border-slate-800/80 bg-slate-900/40">
+        <button
+          type="button"
+          onClick={() => setHeatmapOpen((open) => !open)}
+          aria-expanded={heatmapOpen}
+          className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-slate-900/70"
         >
-          <div className="grid gap-3 sm:grid-cols-3">
-            {ACTION_ORDER.map((action) => (
-              <div
-                key={action}
-                className={`rounded-xl border px-3 py-3 ${ACTION_TONE[action]}`}
-              >
-                <div className="flex items-baseline justify-between gap-2">
-                  <span className="font-mono text-[10px] font-bold tracking-wide">{action}</span>
-                  <span className="font-mono text-lg font-bold tabular-nums">
-                    {actionCounts[action]}
-                  </span>
-                </div>
-                <p className="mt-1 text-[10px] leading-snug text-slate-400">{ACTION_HINT[action]}</p>
-              </div>
-            ))}
-          </div>
-          <p className="mt-3 text-[10px] leading-relaxed text-slate-500">
-            Entry rule: a liquid close inside the lower half of the 3-year range while the calendar window
-            is open. No chasing above the 45% range mark, and no position below the {rupees(turnoverGate)}{" "}
-            turnover gate — the exit is the edge.
-          </p>
-        </QuestionCard>
-      </div>
-
-      {/* seasonality calendar */}
-      <section className="rounded-2xl border border-slate-800/80 bg-slate-900/40 p-4 sm:p-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-[13px] font-bold tracking-tight text-slate-100">Seasonality calendar</h2>
-            <p className="text-[11px] text-slate-500">
+            <div className="flex items-center gap-2">
+              <h2 className="text-[13px] font-bold tracking-tight text-slate-100">
+                Seasonality calendar
+              </h2>
+              <span className="font-mono text-[9px] text-slate-500">
+                {data.sectors.length} sectors × 12 months
+              </span>
+            </div>
+            <p className="mt-0.5 text-[11px] text-slate-500">
               Mean forward 60-session return by month ·{" "}
-              <span className="text-emerald-300">A</span> pre-season accumulation ·{" "}
-              <span className="text-amber-300">P</span> peak season
+              <span className="text-emerald-300">A</span> accumulation ·{" "}
+              <span className="text-amber-300">P</span> peak
             </p>
           </div>
-          <div className="flex items-center gap-2 font-mono text-[10px] text-slate-500">
-            <span className="h-2.5 w-4 rounded-sm bg-rose-500/25" /> weak
-            <span className="h-2.5 w-4 rounded-sm bg-slate-800" /> flat
-            <span className="h-2.5 w-4 rounded-sm bg-emerald-500/35" /> strong
-          </div>
-        </div>
+          <span className="shrink-0 rounded border border-slate-700 bg-slate-950 px-2 py-1 font-mono text-[10px] text-slate-400">
+            {heatmapOpen ? "Hide" : "Show"}
+          </span>
+        </button>
 
-        <div className="mt-3 overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
-          <table className="w-full min-w-[760px] border-separate border-spacing-y-1 font-mono text-[10px]">
-            <thead>
-              <tr className="text-slate-500">
-                <th className="sticky left-0 z-10 bg-slate-950 px-2 py-1 text-left font-semibold">
-                  SECTOR
-                </th>
-                {["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"].map(
-                  (label) => (
-                    <th key={label} className="px-1 py-1 text-center font-semibold">
-                      {label}
+        {heatmapOpen && (
+          <div className="border-t border-slate-800/80 p-2 sm:p-3">
+            <div className="overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
+              <table className="w-full min-w-[680px] border-separate border-spacing-y-px font-mono text-[10px]">
+                <thead>
+                  <tr className="text-[8px] uppercase tracking-wide text-slate-500">
+                    <th className="sticky left-0 z-10 bg-slate-950 px-2 py-1 text-left font-semibold">
+                      Sector
                     </th>
-                  ),
-                )}
-              </tr>
-            </thead>
-            <tbody>
-              {data.sectors.map((sector) => (
-                <tr key={sector.sector}>
-                  <td className="sticky left-0 z-10 whitespace-nowrap bg-slate-950 px-2 py-1">
-                    <span className="text-slate-200">{sector.sector}</span>
-                    <span className="ml-1 text-slate-600">{sector.members}</span>
-                  </td>
-                  {sector.calendar.map((cell) => (
-                    <td key={cell.month} className="p-0">
-                      <div
-                        title={`${sector.sector} ${cell.label}: ${cell.samples} samples · win ${cell.winRatePct.toFixed(
-                          0,
-                        )}% · avg ${signed(cell.avgForward60Pct, 1)}`}
-                        className={`relative mx-0.5 rounded px-1 py-1.5 text-center tabular-nums ${heat(
-                          cell.avgForward60Pct,
-                          cell.samples,
-                        )}`}
-                      >
-                        <span className="block font-bold">{cell.avgForward60Pct.toFixed(1)}</span>
-                        <span className="block text-[8px] opacity-70">{cell.winRatePct.toFixed(0)}%</span>
-                        {cell.isAccumulation && (
-                          <span className="absolute right-0.5 top-0 text-[8px] font-black text-emerald-300">
-                            A
-                          </span>
-                        )}
-                        {cell.isPeak && (
-                          <span className="absolute bottom-0 right-0.5 text-[8px] font-black text-amber-300">
-                            P
-                          </span>
-                        )}
-                      </div>
-                    </td>
+                    {MONTHS.map((label) => (
+                      <th key={label} className="px-0.5 py-1 text-center font-semibold">
+                        {label}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.sectors.map((sector) => (
+                    <tr key={sector.sector}>
+                      <td className="sticky left-0 z-10 whitespace-nowrap bg-slate-950 px-2 py-0.5">
+                        <span className="text-[10px] text-slate-300">{sector.sector}</span>
+                        <span className="ml-1 text-slate-600">{sector.members}</span>
+                      </td>
+                      {sector.calendar.map((cell) => (
+                        <td key={cell.month} className="p-0">
+                          <div
+                            title={`${sector.sector} ${cell.label}: ${cell.samples} samples · win ${cell.winRatePct.toFixed(
+                              0,
+                            )}% · avg ${signed(cell.avgForward60Pct, 1)}`}
+                            className={`relative mx-px rounded-sm py-0.5 text-center tabular-nums ${heat(
+                              cell.avgForward60Pct,
+                              cell.samples,
+                            )}`}
+                          >
+                            <span className="block text-[9px] font-bold leading-tight">
+                              {cell.avgForward60Pct.toFixed(1)}
+                            </span>
+                            {cell.isAccumulation && (
+                              <span className="absolute right-0 top-0 text-[7px] font-black text-emerald-300">
+                                A
+                              </span>
+                            )}
+                            {cell.isPeak && (
+                              <span className="absolute bottom-0 right-0 text-[7px] font-black text-amber-300">
+                                P
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                      ))}
+                    </tr>
                   ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      {/* sector cards */}
-      <section className="rounded-2xl border border-slate-800/80 bg-slate-900/40 p-4 sm:p-5">
-        <h2 className="text-[13px] font-bold tracking-tight text-slate-100">Sector window scorecard</h2>
-        <p className="text-[11px] text-slate-500">
-          Pooled accumulation-window statistics for all {data.sectors.length} sectors.
-        </p>
-        <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {data.sectors.map((sector) => (
-            <div
-              key={sector.sector}
-              className="flex flex-col rounded-xl border border-slate-800/80 bg-slate-950/60 p-3.5"
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <div className="truncate font-mono text-sm font-bold text-slate-50">{sector.sector}</div>
-                  <div className="font-mono text-[10px] tabular-nums text-slate-500">
-                    {sector.members} names · {sector.activeCount} active · {sector.watchCount} watch
-                  </div>
-                </div>
-                <span
-                  className={`shrink-0 rounded border px-1.5 py-0.5 font-mono text-[9px] font-bold ${statusTone(
-                    sector.status,
-                  )}`}
-                >
-                  {shortStatus(sector.status)}
-                </span>
-              </div>
-
-              <div className="mt-2.5 flex flex-wrap gap-1 font-mono text-[9px]">
-                <span className="rounded border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-emerald-300">
-                  ACC {sector.accumulationMonths.join("·") || "—"}
-                </span>
-                <span className="rounded border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-amber-300">
-                  PEAK {sector.peakMonths.join("·") || "—"}
-                </span>
-              </div>
-
-              <div className="mt-3 grid grid-cols-4 gap-1 text-center font-mono text-[10px]">
-                <div>
-                  <div className="text-slate-500">WIN 60</div>
-                  <div className="font-bold tabular-nums text-slate-100">
-                    {sector.accumulationWindow.forward60.winRatePct.toFixed(0)}%
-                  </div>
-                </div>
-                <div>
-                  <div className="text-slate-500">MED 60</div>
-                  <div
-                    className={`font-bold tabular-nums ${
-                      sector.accumulationWindow.forward60.medianPct >= 0
-                        ? "text-emerald-300"
-                        : "text-rose-300"
-                    }`}
-                  >
-                    {signed(sector.accumulationWindow.forward60.medianPct, 1)}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-slate-500">AVG 90</div>
-                  <div
-                    className={`font-bold tabular-nums ${
-                      sector.accumulationWindow.forward90.avgPct >= 0 ? "text-emerald-300" : "text-rose-300"
-                    }`}
-                  >
-                    {signed(sector.accumulationWindow.forward90.avgPct, 1)}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-slate-500">N</div>
-                  <div className="font-bold tabular-nums text-slate-300">
-                    {sector.accumulationWindow.forward60.samples}
-                  </div>
-                </div>
-              </div>
-
-              <p className="mt-3 border-t border-slate-800/80 pt-2.5 text-[10px] leading-snug text-slate-500">
-                {sector.rationale}
-              </p>
+                </tbody>
+              </table>
             </div>
-          ))}
-        </div>
+          </div>
+        )}
       </section>
 
-      {/* ticker explorer */}
+      {/* --------------------------------------------------------- explorer */}
       <section className="overflow-hidden rounded-2xl border border-slate-800/80 bg-slate-900/40">
         <div className="flex flex-col gap-3 border-b border-slate-800/80 p-3 sm:p-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-wrap items-center gap-1">
@@ -919,72 +807,38 @@ export default function SeasonalityPage() {
           </table>
         </div>
 
-        {/* mobile card stack */}
+        {/* mobile compact rows */}
         <ul className="divide-y divide-slate-800/70 md:hidden">
           {pageRows.map((t) => {
             const w60 = t.accumulationWindowStats.forward60;
             const w90 = t.accumulationWindowStats.forward90;
             const action = playAction(t);
             return (
-              <li key={`${t.sector}-${t.ticker}`} className="p-3">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-mono text-sm font-bold text-slate-50">{t.ticker}</span>
-                      <span
-                        className={`rounded border px-1.5 py-0.5 font-mono text-[9px] font-bold ${ACTION_TONE[action]}`}
-                      >
-                        {action}
-                      </span>
-                    </div>
-                    <div className="mt-0.5 font-mono text-[10px] text-slate-500">
-                      {t.sector} · PKR {t.lastClose.toFixed(2)}
-                    </div>
+              <li key={`${t.sector}-${t.ticker}`} className="px-3 py-2">
+                <div className="flex items-baseline justify-between gap-2">
+                  <div className="flex min-w-0 items-baseline gap-1.5">
+                    <span className="font-mono text-[13px] font-bold text-slate-50">{t.ticker}</span>
+                    <span className="truncate font-mono text-[9px] text-slate-500">{t.sector}</span>
                   </div>
                   <span
-                    className={`shrink-0 rounded border px-1.5 py-0.5 font-mono text-[9px] font-bold ${statusTone(
-                      t.status,
-                    )}`}
+                    className={`shrink-0 rounded border px-1.5 py-0.5 font-mono text-[8px] font-bold ${ACTION_TONE[action]}`}
                   >
-                    {shortStatus(t.status)}
+                    {action}
                   </span>
                 </div>
-
-                <div className="mt-2">
-                  <RangeBar value={t.position.rangePositionPct} />
-                  <div className="mt-1 flex justify-between font-mono text-[9px] text-slate-500">
-                    <span>3Y range {t.position.rangePositionPct.toFixed(0)}%</span>
-                    <span>turnover {rupees(turnoverOf(t))}</span>
-                  </div>
-                </div>
-
-                <div className="mt-2 grid grid-cols-3 gap-1.5 font-mono text-[10px]">
-                  <div className="rounded border border-slate-800/70 bg-slate-950/60 px-2 py-1">
-                    <div className="text-[8px] uppercase text-slate-500">Win 60D</div>
-                    <div className="font-bold tabular-nums text-slate-200">
-                      {w60.winRatePct.toFixed(0)}%
-                    </div>
-                  </div>
-                  <div className="rounded border border-slate-800/70 bg-slate-950/60 px-2 py-1">
-                    <div className="text-[8px] uppercase text-slate-500">Med 60D</div>
-                    <div
-                      className={`font-bold tabular-nums ${
-                        w60.medianPct >= 0 ? "text-emerald-300" : "text-rose-300"
-                      }`}
-                    >
-                      {signed(w60.medianPct, 1)}
-                    </div>
-                  </div>
-                  <div className="rounded border border-slate-800/70 bg-slate-950/60 px-2 py-1">
-                    <div className="text-[8px] uppercase text-slate-500">Avg 90D</div>
-                    <div
-                      className={`font-bold tabular-nums ${
-                        w90.avgPct >= 0 ? "text-emerald-300" : "text-rose-300"
-                      }`}
-                    >
+                <div className="mt-0.5 flex flex-wrap gap-x-3 font-mono text-[10px] tabular-nums text-slate-400">
+                  <span>
+                    range <span className="text-slate-200">{t.position.rangePositionPct.toFixed(0)}%</span>
+                  </span>
+                  <span>
+                    win60 <span className="text-slate-200">{w60.winRatePct.toFixed(0)}%</span>
+                  </span>
+                  <span>
+                    avg90{" "}
+                    <span className={w90.avgPct >= 0 ? "text-emerald-300" : "text-rose-300"}>
                       {signed(w90.avgPct, 1)}
-                    </div>
-                  </div>
+                    </span>
+                  </span>
                 </div>
               </li>
             );
