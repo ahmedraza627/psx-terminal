@@ -39,13 +39,13 @@ import sys
 import time
 import uuid
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
-from urllib.error import URLError
+from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-BACKEND_DIR = Path(__file__).resolve().parents[2]
+BACKEND_DIR = Path(__file__).resolve().parents[1]
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
@@ -95,8 +95,8 @@ def years_from_yahoo_span(result: Dict[str, Any]) -> float:
             return 0.0
         first_ts = min(ts)
         last_ts = max(ts)
-        first_date = datetime.utcfromtimestamp(first_ts).date()
-        last_date = datetime.utcfromtimestamp(last_ts).date()
+        first_date = datetime.fromtimestamp(first_ts, timezone.utc).date()
+        last_date = datetime.fromtimestamp(last_ts, timezone.utc).date()
         return calendar_years_span(first_date, last_date)
     except Exception:
         return 0.0
@@ -145,6 +145,85 @@ def _epoch_for_year(year: int, month: int = 1, day: int = 1) -> int:
     return int((datetime(year, month, day) - datetime(1970, 1, 1)).total_seconds())
 
 
+def _rows_from_payload(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Flatten a Yahoo chart payload into raw per-session row dicts."""
+    results = payload.get("chart", {}).get("result", [])
+    if not results:
+        return []
+    data_obj = results[0]
+    timestamps = data_obj.get("timestamp", [])
+    indicators = data_obj.get("indicators", {}).get("quote", [{}])[0]
+    opens = indicators.get("open") or []
+    highs = indicators.get("high") or []
+    lows = indicators.get("low") or []
+    closes = indicators.get("close") or []
+    volumes = indicators.get("volume") or []
+    out: List[Dict[str, Any]] = []
+    for i in range(len(timestamps)):
+        out.append({
+            "ts": timestamps[i],
+            "open": opens[i] if i < len(opens) else None,
+            "high": highs[i] if i < len(highs) else None,
+            "low": lows[i] if i < len(lows) else None,
+            "close": closes[i] if i < len(closes) else None,
+            "volume": volumes[i] if i < len(volumes) else None,
+        })
+    return out
+
+
+def _fetch_chart_payload(
+    url: str,
+    tag: str,
+    retries: int = 4,
+    backoff: float = 2.0,
+) -> Optional[Dict[str, Any]]:
+    """Fetch and decode one chart URL, retrying transient failures.
+
+    A 404 / 401 / 403 is terminal for that symbol+span: a delisted or unknown
+    ticker will never succeed, so retry backoff is not spent on it.
+    """
+    last_error: Optional[Exception] = None
+    for attempt in range(1, retries + 1):
+        try:
+            req = Request(url, headers={"User-Agent": USER_AGENT})
+            with urlopen(req, timeout=30) as resp:
+                return json.loads(resp.read().decode("utf-8", "replace"))
+        except HTTPError as e:
+            last_error = e
+            if e.code in (401, 403, 404):
+                log.info("%s terminal HTTP %s (skipping)", tag, e.code)
+                return None
+            wait = backoff ** attempt
+            log.warning(
+                "%s attempt=%d/%d HTTP %s (retry in %.1fs)",
+                tag, attempt, retries, e.code, wait,
+            )
+            time.sleep(wait)
+        except URLError as e:
+            last_error = e
+            wait = backoff ** attempt
+            log.warning(
+                "%s attempt=%d/%d url error: %s (retry in %.1fs)",
+                tag, attempt, retries, e, wait,
+            )
+            time.sleep(wait)
+        except (json.JSONDecodeError, ValueError, OSError) as e:
+            last_error = e
+            wait = backoff
+            log.warning(
+                "%s attempt=%d/%d parse error: %s (retry in %.1fs)",
+                tag, attempt, retries, e, wait,
+            )
+            time.sleep(wait)
+        except Exception as e:
+            last_error = e
+            log.warning("%s attempt=%d/%d unexpected: %s", tag, attempt, retries, e)
+            break
+
+    log.error("%s failed after %d attempts: %s", tag, retries, last_error)
+    return None
+
+
 def fetch_yahoo_span(
     ticker_ka: str,
     year: int,
@@ -154,66 +233,39 @@ def fetch_yahoo_span(
     """Fetch one calendar year of daily chart data for a .KA ticker.
 
     Returns (raw_rows, estimated_span_years). Empty on genuine failure after
-    retries. Transient network / HTTP errors are retried with exponential
-    backoff; a 404 / 401 / 403 is treated as terminal for that year so we do
-    not hammer a dead endpoint.
+    retries.
     """
     period1 = _epoch_for_year(year, 1, 1)
     # +1 year so January data is not clipped by a timezone-hesitant period2.
     period2 = _epoch_for_year(year + 1, 1, 1)
+    payload = _fetch_chart_payload(
+        _yahoo_url(ticker_ka, period1, period2), f"{ticker_ka} year={year}", retries, backoff
+    )
+    if payload is None:
+        return [], 0.0
+    return _rows_from_payload(payload), years_from_yahoo_span(payload)
 
-    last_error: Optional[Exception] = None
-    for attempt in range(1, retries + 1):
-        try:
-            url = _yahoo_url(ticker_ka, period1, period2)
-            req = Request(url, headers={"User-Agent": USER_AGENT})
-            with urlopen(req, timeout=30) as resp:
-                payload = json.loads(resp.read().decode("utf-8", "replace"))
-            results = payload.get("chart", {}).get("result", [])
-            if not results:
-                return [], years_from_yahoo_span(payload)
-            data_obj = results[0]
-            timestamps = data_obj.get("timestamp", [])
-            indicators = data_obj.get("indicators", {}).get("quote", [{}])[0]
-            out: List[Dict[str, Any]] = []
-            for i in range(len(timestamps)):
-                row: Dict[str, Any] = {
-                    "ts": timestamps[i],
-                    "open": (indicators.get("open") or [])[i] if i < len(indicators.get("open", [])) else None,
-                    "high": (indicators.get("high") or [])[i] if i < len(indicators.get("high", [])) else None,
-                    "low": (indicators.get("low") or [])[i] if i < len(indicators.get("low", [])) else None,
-                    "close": (indicators.get("close") or [])[i] if i < len(indicators.get("close", [])) else None,
-                    "volume": (indicators.get("volume") or [])[i] if i < len(indicators.get("volume", [])) else None,
-                }
-                out.append(row)
-            span = years_from_yahoo_span(payload)
-            return out, span
-        except URLError as e:
-            last_error = e
-            wait = backoff ** attempt
-            log.warning(
-                "%s year=%d attempt=%d/%d url error: %s (retry in %.1fs)",
-                ticker_ka, year, attempt, retries, e, wait,
-            )
-            time.sleep(wait)
-        except (json.JSONDecodeError, ValueError, OSError) as e:
-            last_error = e
-            wait = backoff
-            log.warning(
-                "%s year=%d attempt=%d/%d parse error: %s (retry in %.1fs)",
-                ticker_ka, year, attempt, retries, e, wait,
-            )
-            time.sleep(wait)
-        except Exception as e:
-            last_error = e
-            log.warning(
-                "%s year=%d attempt=%d/%d unexpected: %s",
-                ticker_ka, year, attempt, retries, e,
-            )
-            break
 
-    log.error("%s year=%d failed after %d attempts: %s", ticker_ka, year, retries, last_error)
-    return [], 0.0
+def fetch_yahoo_range(
+    ticker_ka: str,
+    start_year: int,
+    retries: int = 4,
+    backoff: float = 2.0,
+) -> Tuple[List[Dict[str, Any]], float]:
+    """Fetch the whole start_year -> today span in a single request.
+
+    Yahoo happily returns a decade-plus of daily bars per call, so this is both
+    far fewer requests than year chunking and much less likely to trip the
+    upstream rate limiter during a full-universe backfill.
+    """
+    period1 = _epoch_for_year(start_year, 1, 1)
+    period2 = int(time.time())
+    payload = _fetch_chart_payload(
+        _yahoo_url(ticker_ka, period1, period2), f"{ticker_ka} span={start_year}+", retries, backoff
+    )
+    if payload is None:
+        return [], 0.0
+    return _rows_from_payload(payload), years_from_yahoo_span(payload)
 
 
 # ---------------------------------------------------------------------------
@@ -223,7 +275,7 @@ def fetch_yahoo_span(
 
 def parse_yahoo_date(ts: Any) -> date:
     try:
-        return datetime.utcfromtimestamp(int(ts)).date()
+        return datetime.fromtimestamp(int(ts), timezone.utc).date()
     except (TypeError, ValueError, OSError):
         raise ValueError(f"unparseable yahoo timestamp: {ts!r}")
 
@@ -237,19 +289,20 @@ def validate_yahoo_row(ticker: str, row: Dict[str, Any]) -> Optional[DailyBar]:
             return None
         dt = parse_yahoo_date(ts)
 
-        opens = row.get("open")
-        highs = row.get("high")
-        lows = row.get("low")
-        closes = row.get("close")
+        # Rows arrive flattened (one scalar per field per session), but keep
+        # tolerating the raw Yahoo per-field array shape for older callers.
+        def _scalar(value: Any) -> Optional[float]:
+            if isinstance(value, list):
+                value = value[0] if value else None
+            try:
+                return float(value) if value is not None else None
+            except (TypeError, ValueError):
+                return None
 
-        def _at(arr, i):
-            v = arr[i] if isinstance(arr, list) and i < len(arr) else None
-            return float(v) if v is not None else None
-
-        o = _at(opens, 0) if isinstance(opens, list) else None
-        h = _at(highs, 0) if isinstance(highs, list) else None
-        l = _at(lows, 0) if isinstance(lows, list) else None
-        c = _at(closes, 0) if isinstance(closes, list) else None
+        o = _scalar(row.get("open"))
+        h = _scalar(row.get("high"))
+        l = _scalar(row.get("low"))
+        c = _scalar(row.get("close"))
 
         # Yahoo can return literal nulls for halted days. Quarantine those.
         if o is None or h is None or l is None or c is None:
@@ -353,6 +406,7 @@ def deep_backfill(
     years: Optional[List[int]] = None,
     tickers: Optional[List[str]] = None,
     max_parallel: int = 1,
+    single_span: bool = False,
 ) -> BackfillStats:
     """Top-level backfill orchestration.
 
@@ -388,25 +442,35 @@ def deep_backfill(
     fetch_results: List[Tuple[str, List[DailyBar], List[Dict[str, Any]]]] = []
     fetch_lock = threading.Lock()
 
+    def _collect(ticker: str, raw_rows: List[Dict[str, Any]], collected: List[DailyBar]) -> None:
+        for raw in raw_rows:
+            bar = validate_yahoo_row(ticker, raw)
+            if bar is not None:
+                collected.append(bar)
+            else:
+                stats.rows_rejected += 1
+
     def _fetch_one(ticker: str) -> None:
         ticker_ka = f"{ticker}.KA"
         collected: List[DailyBar] = []
         raws: List[Dict[str, Any]] = []
         estimated_span = 0.0
-        for year in years:
-            if not needs_fetch(db_path, ticker, target_span, force):
-                # Tail-enough already; skip remaining years for this ticker.
-                break
-            raw_rows, span = fetch_yahoo_span(ticker_ka, year)
+        if single_span:
+            raw_rows, span = fetch_yahoo_range(ticker_ka, years[0])
             if raw_rows:
-                estimated_span = max(estimated_span, span)
-                for raw in raw_rows:
-                    bar = validate_yahoo_row(ticker, raw)
-                    if bar is not None:
-                        collected.append(bar)
-                    else:
-                        stats.rows_rejected += 1
+                estimated_span = span
+                _collect(ticker, raw_rows, collected)
             time.sleep(0.25)  # polite cadence to the upstream endpoint
+        else:
+            for year in years:
+                if not needs_fetch(db_path, ticker, target_span, force):
+                    # Tail-enough already; skip remaining years for this ticker.
+                    break
+                raw_rows, span = fetch_yahoo_span(ticker_ka, year)
+                if raw_rows:
+                    estimated_span = max(estimated_span, span)
+                    _collect(ticker, raw_rows, collected)
+                time.sleep(0.25)  # polite cadence to the upstream endpoint
         with fetch_lock:
             if collected or stats.failed_tickers:
                 fetch_results.append((ticker, collected, raws))
@@ -421,7 +485,11 @@ def deep_backfill(
         t = threading.Thread(target=_fetch_one, args=(ticker,), daemon=True)
         threads.append(t)
         t.start()
-        if max_parallel > 1:
+        if max_parallel <= 1:
+            # Serial mode: one ticker at a time so the upstream endpoint sees a
+            # polite cadence instead of a 65-way burst that trips rate limits.
+            t.join()
+        else:
             # Keep a bounded degree of parallelism even when many threads are
             # spawned; otherwise the upstream endpoint rate-limits us.
             while len([wt for wt in threads if wt.is_alive()]) >= max_parallel:
@@ -464,7 +532,9 @@ def _default_year_range(db_path: str, tickers: List[str], target_years: float) -
 
     # Clamp to a sane lower bound; Yahoo's free endpoint is not a 1970 archive.
     lower = max(min_first.year, 2010)
-    return list(range(lower, date.today().year + 2))
+    # Never walk into future calendar years: Yahoo has no data there and the
+    # retries only waste the run's quota.
+    return list(range(lower, date.today().year + 1))
 
 
 # ---------------------------------------------------------------------------
@@ -512,6 +582,11 @@ def main() -> int:
         default=1,
         help="concurrent fetch threads (default: 1, polite to the upstream endpoint)",
     )
+    parser.add_argument(
+        "--single-span",
+        action="store_true",
+        help="fetch the whole lookback in one request per ticker instead of year chunks",
+    )
     args = parser.parse_args()
 
     db_path = args.db
@@ -522,7 +597,15 @@ def main() -> int:
     workers = max(1, args.workers)
 
     start = datetime.now()
-    stats = deep_backfill(db_path, target_years, force=force, years=years, tickers=tickers, max_parallel=workers)
+    stats = deep_backfill(
+        db_path,
+        target_years,
+        force=force,
+        years=years,
+        tickers=tickers,
+        max_parallel=workers,
+        single_span=args.single_span,
+    )
     elapsed = (datetime.now() - start).total_seconds()
 
     log.info("=".join([""] + ["-"] * 60 + [""]))

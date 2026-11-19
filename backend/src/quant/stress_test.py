@@ -36,6 +36,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import sys
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -56,6 +57,13 @@ from src.quant.risk_sizing import SizingConfig, book_kelly_scale, historical_var
 from src.quant.sector_rotation import SESSIONS_PER_YEAR, DEFAULT_SECTOR_MAP, group_by_sector  # noqa: E402
 from src.quant.sliding_window import MonotonicWindowTracker  # noqa: E402
 from src.quant.stat_arb import SpreadSignal, StatArbConfig, sector_pairs_for_tape, spread_signals_for_pair  # noqa: E402  # noqa: E402
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+log = logging.getLogger("stress_test")
 
 PROJECT_ROOT = BACKEND_DIR.parent
 DATA_DIR = PROJECT_ROOT / "frontend" / "public" / "data"
@@ -426,9 +434,9 @@ def run_walk_forward_window(
         rec.stat_arb_pairs = len(pairs)
         signals: List[SpreadSignal] = []
         cfg = StatArbConfig()
-        for a, b in pairs:
-            ba = window_bars.get(a)
-            bb = window_bars.get(b)
+        for pair in pairs:
+            ba = window_bars.get(pair.leg_a)
+            bb = window_bars.get(pair.leg_b)
             if not ba or not bb:
                 continue
             signals.extend(spread_signals_for_pair(ba, bb, cfg))
