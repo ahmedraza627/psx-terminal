@@ -124,7 +124,7 @@ SECTOR_SEASONS: Dict[str, SectorSeason] = {
         11, 3, 3,
         "Crushing season runs Nov-Jan; mills and cane procurement re-rate from late Q3.",
     ),
-    "Textile": SectorSeason(
+    "Textiles": SectorSeason(
         8, 2, 3,
         "Export order books and yarn pricing peak Aug-Sep ahead of the winter shipping cycle.",
     ),
