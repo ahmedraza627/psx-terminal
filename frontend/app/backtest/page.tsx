@@ -218,6 +218,9 @@ const HORIZONS = [
 
 type Horizon = (typeof HORIZONS)[number]["id"];
 
+// Long 1Y/5Y trade ledgers are sliced: 25 rows keeps low-RAM phones responsive.
+const TRADES_PAGE_SIZE = 25;
+
 const STRATEGIES = [
   {
     id: "sweep",
@@ -247,10 +250,10 @@ const money = (value: number | null | undefined) =>
 const signed = (value: number) => `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
 
 const outcomeTone = (outcome: string) => {
-  if (outcome === "TARGET HIT") return "border-emerald-300 bg-emerald-50 text-emerald-700";
-  if (outcome === "STOPPED OUT") return "border-rose-300 bg-rose-50 text-rose-700";
-  if (outcome === "TIME EXIT") return "border-slate-300 bg-slate-50 text-slate-600";
-  return "border-blue-300 bg-blue-50 text-blue-700";
+  if (outcome === "TARGET HIT") return "border-emerald-500/40 bg-emerald-500/10 text-emerald-300";
+  if (outcome === "STOPPED OUT") return "border-rose-500/40 bg-rose-500/10 text-rose-300";
+  if (outcome === "TIME EXIT") return "border-slate-700 bg-slate-900/40 text-slate-400";
+  return "border-blue-500/40 bg-blue-500/10 text-blue-300";
 };
 
 function Metric({
@@ -265,10 +268,10 @@ function Metric({
   tone: string;
 }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
-      <span className="block text-[10px] font-semibold uppercase tracking-wider text-slate-400">{label}</span>
+    <div className="rounded-2xl border border-slate-800/80 bg-slate-900/40 p-3 shadow-sm sm:p-4">
+      <span className="block text-[10px] font-semibold uppercase tracking-wider text-slate-500">{label}</span>
       <span className={`mt-1 block font-mono text-xl font-black sm:text-2xl ${tone}`}>{value}</span>
-      <span className="mt-0.5 block text-[10px] text-slate-500">{hint}</span>
+      <span className="mt-0.5 block text-[10px] text-slate-400">{hint}</span>
     </div>
   );
 }
@@ -284,7 +287,7 @@ function HorizonToggle({
     <div
       role="group"
       aria-label="Backtest horizon"
-      className="inline-flex w-full rounded-lg border border-slate-200 bg-white p-0.5 shadow-sm sm:w-auto"
+      className="inline-flex w-full rounded-lg border border-slate-800/80 bg-slate-900/60 p-0.5 sm:w-auto"
     >
       {HORIZONS.map((option) => (
         <button
@@ -294,8 +297,8 @@ function HorizonToggle({
           aria-pressed={value === option.id}
           className={`flex-1 whitespace-nowrap rounded-md px-3 py-1.5 text-[11px] font-semibold transition-colors sm:flex-none ${
             value === option.id
-              ? "bg-slate-900 text-white"
-              : "text-slate-600 hover:bg-slate-50"
+              ? "bg-slate-800 text-white"
+              : "text-slate-400 hover:bg-slate-800/60"
           }`}
         >
           {option.label}
@@ -316,7 +319,7 @@ function StrategyToggle({
     <div
       role="group"
       aria-label="Backtest strategy"
-      className="inline-flex w-full rounded-lg border border-slate-200 bg-white p-0.5 shadow-sm sm:w-auto"
+      className="inline-flex w-full rounded-lg border border-slate-800/80 bg-slate-900/60 p-0.5 sm:w-auto"
     >
       {STRATEGIES.map((option) => (
         <button
@@ -326,8 +329,8 @@ function StrategyToggle({
           aria-pressed={value === option.id}
           className={`flex-1 whitespace-nowrap rounded-md px-3 py-1.5 text-[11px] font-semibold transition-colors sm:flex-none ${
             value === option.id
-              ? "bg-amber-600 text-white"
-              : "text-slate-600 hover:bg-slate-50"
+              ? "border-amber-500/50 bg-amber-500/15 text-amber-300"
+              : "text-slate-400 hover:bg-slate-800/60"
           }`}
         >
           {option.label}
@@ -379,7 +382,7 @@ function EquityChart({
             y1={H * fraction}
             x2={W}
             y2={H * fraction}
-            stroke="#e2e8f0"
+            stroke="#1e293b"
             strokeWidth="1"
             vectorEffect="non-scaling-stroke"
           />
@@ -389,7 +392,7 @@ function EquityChart({
           y1={y(baseline)}
           x2={W}
           y2={y(baseline)}
-          stroke="#94a3b8"
+          stroke="#64748b"
           strokeDasharray="4 4"
           strokeWidth="1"
           vectorEffect="non-scaling-stroke"
@@ -405,16 +408,16 @@ function EquityChart({
           vectorEffect="non-scaling-stroke"
         />
       </svg>
-      <span className="pointer-events-none absolute left-0 top-0 rounded bg-white/90 px-1.5 py-0.5 font-mono text-[10px] font-bold text-slate-700">
+      <span className="pointer-events-none absolute left-0 top-0 rounded bg-slate-900/85 px-1.5 py-0.5 font-mono text-[10px] font-bold text-slate-300">
         {money(Math.max(...values))}
       </span>
-      <span className="pointer-events-none absolute bottom-0 left-0 rounded bg-white/90 px-1.5 py-0.5 font-mono text-[10px] text-slate-500">
+      <span className="pointer-events-none absolute bottom-0 left-0 rounded bg-slate-900/85 px-1.5 py-0.5 font-mono text-[10px] text-slate-400">
         {money(Math.min(...values))}
       </span>
-      <span className="pointer-events-none absolute right-0 top-0 rounded bg-white/90 px-1.5 py-0.5 font-mono text-[10px] font-bold text-slate-900">
+      <span className="pointer-events-none absolute right-0 top-0 rounded bg-slate-900/85 px-1.5 py-0.5 font-mono text-[10px] font-bold text-slate-100">
         PKR {money(last?.equity)}
       </span>
-      <div className="pointer-events-none absolute inset-x-0 -bottom-5 flex justify-between font-mono text-[10px] text-slate-400">
+      <div className="pointer-events-none absolute inset-x-0 -bottom-5 flex justify-between font-mono text-[10px] text-slate-500">
         <span>{first?.date}</span>
         <span>{last?.date}</span>
       </div>
@@ -426,7 +429,7 @@ function CycleTable({ rows }: { rows: YearRow[] }) {
   return (
     <div className="overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
       <table className="w-full min-w-[380px] text-left font-mono text-xs">
-        <thead className="border-b border-slate-200 text-[10px] uppercase tracking-wide text-slate-500">
+        <thead className="border-b border-slate-800 text-[10px] uppercase tracking-wide text-slate-400">
           <tr>
             <th className="py-2 pr-3 font-semibold">Year</th>
             <th className="px-3 py-2 text-right font-semibold">Return</th>
@@ -434,15 +437,15 @@ function CycleTable({ rows }: { rows: YearRow[] }) {
             <th className="py-2 pl-3 text-right font-semibold">Max DD</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-100">
+        <tbody className="divide-y divide-slate-800/70">
           {rows.map((row) => (
             <tr key={row.year}>
-              <td className="py-2 pr-3 font-semibold text-slate-900">{row.year}</td>
-              <td className={`px-3 py-2 text-right font-bold ${row.returnPct >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+              <td className="py-2 pr-3 font-semibold text-slate-100">{row.year}</td>
+              <td className={`px-3 py-2 text-right font-bold ${row.returnPct >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
                 {signed(row.returnPct)}
               </td>
-              <td className="px-3 py-2 text-right text-slate-600">{row.signals}</td>
-              <td className="py-2 pl-3 text-right text-rose-600">-{row.maxDrawdownPct.toFixed(1)}%</td>
+              <td className="px-3 py-2 text-right text-slate-400">{row.signals}</td>
+              <td className="py-2 pl-3 text-right text-rose-400">-{row.maxDrawdownPct.toFixed(1)}%</td>
             </tr>
           ))}
         </tbody>
@@ -453,16 +456,16 @@ function CycleTable({ rows }: { rows: YearRow[] }) {
 
 function DrawdownList({ episodes }: { episodes: DrawdownEpisode[] }) {
   return (
-    <ul className="divide-y divide-slate-100">
+    <ul className="divide-y divide-slate-800/70">
       {episodes.map((episode) => (
         <li key={`${episode.peakDate}-${episode.troughDate}`} className="py-2 first:pt-0 last:pb-0">
           <div className="flex items-baseline justify-between gap-3">
-            <span className="font-mono text-sm font-bold text-rose-600">{episode.depthPct.toFixed(1)}%</span>
-            <span className="font-mono text-[10px] text-slate-500">
+            <span className="font-mono text-sm font-bold text-rose-400">{episode.depthPct.toFixed(1)}%</span>
+            <span className="font-mono text-[10px] text-slate-400">
               {episode.peakDate} → {episode.troughDate}
             </span>
           </div>
-          <p className="mt-0.5 text-[10px] text-slate-500">
+          <p className="mt-0.5 text-[10px] text-slate-400">
             {episode.recoveryDate
               ? `Recovered ${episode.recoveryDate}${episode.sessions ? ` · ${episode.sessions} sessions underwater` : ""}`
               : "Still underwater at the end of the tape"}
@@ -481,7 +484,7 @@ function WindowTable({ windows }: { windows: Array<StressTestWindow> }) {
   return (
     <div className="overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
       <table className="w-full min-w-[480px] text-left font-mono text-xs">
-        <thead className="border-b border-slate-200 text-[10px] uppercase tracking-wide text-slate-500">
+        <thead className="border-b border-slate-800 text-[10px] uppercase tracking-wide text-slate-400">
           <tr>
             <th className="py-2 pr-2 font-semibold">Window</th>
             <th className="px-2 py-2 text-right font-semibold">OOS Sessions</th>
@@ -493,22 +496,22 @@ function WindowTable({ windows }: { windows: Array<StressTestWindow> }) {
             <th className="px-2 py-2 text-right font-semibold">Regime</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-100">
+        <tbody className="divide-y divide-slate-800/70">
           {(windows ?? []).map((w) => (
             <tr key={w.window}>
-              <td className="py-2 pr-2 font-semibold text-slate-900">{w.window}</td>
-              <td className="px-2 py-2 text-right text-slate-600">{w.oosSessions}</td>
-              <td className={`px-2 py-2 text-right font-bold ${w.sweep.winRatePct >= 45 ? "text-emerald-600" : w.sweep.winRatePct >= 35 ? "text-slate-900" : "text-rose-600"}`}>
+              <td className="py-2 pr-2 font-semibold text-slate-100">{w.window}</td>
+              <td className="px-2 py-2 text-right text-slate-400">{w.oosSessions}</td>
+              <td className={`px-2 py-2 text-right font-bold ${w.sweep.winRatePct >= 45 ? "text-emerald-400" : w.sweep.winRatePct >= 35 ? "text-slate-100" : "text-rose-400"}`}>
                 {w.sweep.winRatePct.toFixed(1)}%
               </td>
-              <td className="px-2 py-2 text-right text-rose-600">-{w.sweep.maxDrawdownPct.toFixed(1)}%</td>
-              <td className={`px-2 py-2 text-right font-bold ${w.momentum.winRatePct >= 30 ? "text-emerald-600" : w.momentum.winRatePct >= 22 ? "text-slate-900" : "text-rose-600"}`}>
+              <td className="px-2 py-2 text-right text-rose-400">-{w.sweep.maxDrawdownPct.toFixed(1)}%</td>
+              <td className={`px-2 py-2 text-right font-bold ${w.momentum.winRatePct >= 30 ? "text-emerald-400" : w.momentum.winRatePct >= 22 ? "text-slate-100" : "text-rose-400"}`}>
                 {w.momentum.winRatePct.toFixed(1)}%
               </td>
-              <td className="px-2 py-2 text-right text-rose-600">-{w.momentum.maxDrawdownPct.toFixed(1)}%</td>
-              <td className="px-2 py-2 text-right text-slate-600">{w.statArb.pairs}</td>
+              <td className="px-2 py-2 text-right text-rose-400">-{w.momentum.maxDrawdownPct.toFixed(1)}%</td>
+              <td className="px-2 py-2 text-right text-slate-400">{w.statArb.pairs}</td>
               <td className="px-2 py-2 text-right">
-                <span className={`inline-block rounded-full border px-2 py-0.5 text-[10px] font-bold ${w.regime === "FAVORABLE" ? "border-emerald-300 bg-emerald-50 text-emerald-700" : w.regime === "STRESS" ? "border-rose-300 bg-rose-50 text-rose-700" : w.regime === "UNFAVORABLE" ? "border-rose-300 bg-rose-50 text-rose-700" : "border-slate-300 bg-slate-50 text-slate-600"}`}>
+                <span className={`inline-block rounded-full border px-2 py-0.5 text-[10px] font-bold ${w.regime === "FAVORABLE" ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300" : w.regime === "STRESS" ? "border-rose-500/40 bg-rose-500/10 text-rose-300" : w.regime === "UNFAVORABLE" ? "border-rose-500/40 bg-rose-500/10 text-rose-300" : "border-slate-700 bg-slate-900/40 text-slate-400"}`}>
                   {w.regime}
                 </span>
               </td>
@@ -532,12 +535,12 @@ function RegimeSwitchingChart({ rows }: { rows: Array<{ regime: string; windows:
     <div className="flex items-center gap-3">
       {rows.map((row) => (
         <div key={row.regime} className="flex-1 flex flex-col items-center">
-          <span className="text-[10px] font-semibold text-slate-500">{row.windows}</span>
+          <span className="text-[10px] font-semibold text-slate-400">{row.windows}</span>
           <div
             className="mt-1 h-6 rounded-md"
             style={{ width: `${(row.windows / total) * 100}%`, backgroundColor: colorFor(row.regime) }}
           />
-          <span className="mt-1 text-[10px] font-semibold text-slate-700">{row.regime}</span>
+          <span className="mt-1 text-[10px] font-semibold text-slate-300">{row.regime}</span>
         </div>
       ))}
     </div>
@@ -557,60 +560,60 @@ function StressTestView({ data }: { data: StressTestPayload }) {
           label="Windows"
           value={String(meta?.windowCount ?? windows.length)}
           hint="walk-forward out-of-sample windows"
-          tone="text-slate-900"
+          tone="text-slate-100"
         />
         <Metric
           label="Sweep Win Rate"
           value={`${agg?.sweep.winRatePct.toFixed(1)}%`}
           hint={`${agg?.sweep.wins}W / ${agg?.sweep.losses}L · avg ${agg?.sweep.avgWinRatePct.toFixed(1)}%`}
-          tone={agg && agg.sweep.winRatePct >= 45 ? "text-emerald-600" : "text-rose-600"}
+          tone={agg && agg.sweep.winRatePct >= 45 ? "text-emerald-400" : "text-rose-400"}
         />
         <Metric
           label="Sweep Worst DD"
           value={`-${agg?.sweep.worstWindowDrawdownPct.toFixed(1)}%`}
           hint={`${agg?.sweep.windowsAbove10DD} window(s) > 10% DD`}
-          tone="text-rose-600"
+          tone="text-rose-400"
         />
         <Metric
           label="Momentum Win Rate"
           value={`${agg?.momentum.winRatePct.toFixed(1)}%`}
           hint={`${agg?.momentum.wins}W / ${agg?.momentum.losses}L · avg ${agg?.momentum.avgWinRatePct.toFixed(1)}%`}
-          tone={agg && agg.momentum.winRatePct >= 30 ? "text-emerald-600" : "text-rose-600"}
+          tone={agg && agg.momentum.winRatePct >= 30 ? "text-emerald-400" : "text-rose-400"}
         />
         <Metric
           label="Momentum Worst DD"
           value={`-${agg?.momentum.worstWindowDrawdownPct.toFixed(1)}%`}
           hint={`${agg?.momentum.windowsAbove10DD} window(s) > 10% DD`}
-          tone="text-rose-600"
+          tone="text-rose-400"
         />
         <Metric
           label="stat-arb Pairs"
           value={String(windows.reduce((s, w) => s + w.statArb.pairs, 0))}
           hint={`${windows.reduce((s, w) => s + w.statArb.signals, 0)} spread signals across all windows`}
-          tone="text-slate-900"
+          tone="text-slate-100"
         />
       </div>
 
-      <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+      <section className="rounded-2xl border border-slate-800/80 bg-slate-900/40 p-4 shadow-sm sm:p-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <h2 className="text-base font-bold text-slate-900">Walk-Forward Windows</h2>
-            <p className="text-[11px] text-slate-500">
+            <h2 className="text-base font-bold text-slate-100">Walk-Forward Windows</h2>
+            <p className="text-[11px] text-slate-400">
               Each window is fit in-sample, then evaluated on the next OOS tail; regime is labelled from the window's drawdown + win-rate profile.
             </p>
           </div>
           <div className="flex flex-wrap gap-3 font-mono text-[11px]">
-            <span className="text-slate-500">
-              Sizing <span className="text-slate-700">{meta?.sizingMode ?? "atrp"}</span>
+            <span className="text-slate-400">
+              Sizing <span className="text-slate-300">{meta?.sizingMode ?? "atrp"}</span>
             </span>
-            <span className="text-slate-500">
-              Kelly <span className="text-slate-700">{meta?.withKelly ? "on" : "off"}</span>
+            <span className="text-slate-400">
+              Kelly <span className="text-slate-300">{meta?.withKelly ? "on" : "off"}</span>
             </span>
-            <span className="text-slate-500">
-              VaR <span className="text-slate-700">{meta?.withVar ? "on" : "off"}</span>
+            <span className="text-slate-400">
+              VaR <span className="text-slate-300">{meta?.withVar ? "on" : "off"}</span>
             </span>
-            <span className="text-slate-500">
-              stat-arb <span className="text-slate-700">{meta?.statArbEnabled ? "on" : "off"}</span>
+            <span className="text-slate-400">
+              stat-arb <span className="text-slate-300">{meta?.statArbEnabled ? "on" : "off"}</span>
             </span>
           </div>
         </div>
@@ -618,16 +621,16 @@ function StressTestView({ data }: { data: StressTestPayload }) {
         {windows.length > 0 ? (
           <div className="mt-4 grid gap-4 lg:grid-cols-2">
             <div>
-              <h3 className="text-sm font-bold text-slate-700 mb-2">Per-Window Detail</h3>
+              <h3 className="text-sm font-bold text-slate-300 mb-2">Per-Window Detail</h3>
               <WindowTable windows={windows} />
             </div>
 
             <div>
-              <h3 className="text-sm font-bold text-slate-700 mb-2">Regime Switching</h3>
+              <h3 className="text-sm font-bold text-slate-300 mb-2">Regime Switching</h3>
               <RegimeSwitchingChart rows={agg?.regimeSwitching ?? []} />
-              <ul className="mt-3 divide-y divide-slate-100">
+              <ul className="mt-3 divide-y divide-slate-800/70">
                 {(agg?.regimeSwitching ?? []).map((row) => (
-                  <li key={row.regime} className="py-1.5 text-xs text-slate-600">
+                  <li key={row.regime} className="py-1.5 text-xs text-slate-400">
                     <span className="font-semibold">{row.regime}</span>: {row.windows} window{row.windows === 1 ? "" : "s"}
                   </li>
                 ))}
@@ -635,16 +638,16 @@ function StressTestView({ data }: { data: StressTestPayload }) {
             </div>
           </div>
         ) : (
-          <p className="py-6 text-center text-xs text-slate-400">No walk-forward windows yet.</p>
+          <p className="py-6 text-center text-xs text-slate-500">No walk-forward windows yet.</p>
         )}
       </section>
 
       {data.equityCurve && data.equityCurve.length > 1 ? (
-        <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+        <section className="rounded-2xl border border-slate-800/80 bg-slate-900/40 p-4 shadow-sm sm:p-5">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <h2 className="text-base font-bold text-slate-900">Representative Equity Curve</h2>
-              <p className="text-[11px] text-slate-500">
+              <h2 className="text-base font-bold text-slate-100">Representative Equity Curve</h2>
+              <p className="text-[11px] text-slate-400">
                 First walk-forward window's book, as a representative shape of the desk through the tape.
               </p>
             </div>
@@ -665,6 +668,7 @@ export default function BacktestPage() {
   const [loaded, setLoaded] = useState(false);
   const [query, setQuery] = useState("");
   const [outcome, setOutcome] = useState<"ALL" | "WINS" | "LOSSES" | "OPEN">("ALL");
+  const [tradePage, setTradePage] = useState(1);
 
   useEffect(() => {
     const strategyConfig = STRATEGIES.find((s) => s.id === strategy);
@@ -731,6 +735,18 @@ export default function BacktestPage() {
     });
   }, [trades, outcome, query]);
 
+  // A new result set always starts at page one; a stale offset would show an empty sheet.
+  useEffect(() => {
+    setTradePage(1);
+  }, [outcome, query, horizon, strategy]);
+
+  const tradePageCount = Math.max(1, Math.ceil(rows.length / TRADES_PAGE_SIZE));
+  const currentTradePage = Math.min(tradePage, tradePageCount);
+  const pageTrades = rows.slice(
+    (currentTradePage - 1) * TRADES_PAGE_SIZE,
+    currentTradePage * TRADES_PAGE_SIZE,
+  );
+
   const isFiltered = outcome !== "ALL" || query.trim().length > 0;
   const positive = (metrics?.totalReturnPct ?? 0) >= 0;
   const profitFactor =
@@ -746,10 +762,13 @@ export default function BacktestPage() {
     <div className="space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0">
-          <h1 className="text-xl font-bold tracking-tight text-slate-900">
+          <span className="font-mono text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-400/80">
+            Research · walk-forward validation
+          </span>
+          <h1 className="mt-1 text-xl font-bold tracking-tight text-slate-50 sm:text-2xl">
             {horizon === "1Y" ? "1Y Backtest Lab" : horizon === "5Y" ? "5Y Macro Stress Test" : "15Y Meta-Brain Stress Test"}
           </h1>
-          <p className="text-xs text-slate-500">
+          <p className="mt-1 max-w-3xl text-[11px] leading-relaxed text-slate-400">
             {(horizon === "15Y" && data && ("meta" in data) && (data as StressTestPayload).meta?.name)
               ? (data as StressTestPayload).meta!.name
               : (data && ("strategy" in data) ? (data as SweepPayload | MomentumPayload).strategy?.name : "Strategy")}
@@ -778,7 +797,7 @@ export default function BacktestPage() {
           ].map((chip) => (
             <span
               key={chip}
-              className="rounded border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-slate-600"
+              className="rounded border border-slate-700/70 bg-slate-800/50 px-2 py-1 font-mono text-[10px] font-semibold text-slate-400"
             >
               {chip}
             </span>
@@ -793,7 +812,7 @@ export default function BacktestPage() {
           ].map((chip) => (
             <span
               key={chip}
-              className="rounded border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-slate-600"
+              className="rounded border border-slate-700/70 bg-slate-800/50 px-2 py-1 font-mono text-[10px] font-semibold text-slate-400"
             >
               {chip}
             </span>
@@ -802,13 +821,13 @@ export default function BacktestPage() {
       </div>
 
       {!loaded && (
-        <div className="rounded-xl border border-slate-200 bg-white p-6 text-center text-xs text-slate-400 shadow-sm">
+        <div className="rounded-2xl border border-slate-800/80 bg-slate-900/40 p-6 text-center text-xs text-slate-500 shadow-sm">
           Replaying the stored tape…
         </div>
       )}
 
       {loaded && !data && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">
           {horizon === "15Y" ? (
             <>
               No 15-year Meta-Brain stress test yet — run{" "}
@@ -843,25 +862,25 @@ export default function BacktestPage() {
               label="Win Rate"
               value={`${metrics.winRatePct.toFixed(1)}%`}
               hint={`${metrics.wins}W / ${metrics.losses}L resolved`}
-              tone="text-emerald-600"
+              tone="text-emerald-400"
             />
             <Metric
               label="Total Return"
               value={signed(metrics.totalReturnPct)}
               hint={`PKR ${money(metrics.endingEquity)} book`}
-              tone={positive ? "text-emerald-600" : "text-rose-600"}
+              tone={positive ? "text-emerald-400" : "text-rose-400"}
             />
             <Metric
               label="CAGR"
               value={`${(metrics.cagrPct ?? 0).toFixed(2)}%`}
               hint={`${years.toFixed(1)}y annualised`}
-              tone={(metrics.cagrPct ?? 0) >= 0 ? "text-emerald-600" : "text-rose-600"}
+              tone={(metrics.cagrPct ?? 0) >= 0 ? "text-emerald-400" : "text-rose-400"}
             />
             <Metric
               label="Profit Factor"
               value={profitFactor}
               hint={`Gross +${metrics.grossProfitPct.toFixed(1)}% vs -${metrics.grossLossPct.toFixed(1)}%`}
-              tone="text-slate-900"
+              tone="text-slate-100"
             />
             <Metric
               label="Max Drawdown"
@@ -870,33 +889,33 @@ export default function BacktestPage() {
                 macro && !isStress && data && ('maxDrawdown' in data) ? `Trough ${(data as SweepPayload | MomentumPayload).maxDrawdown?.troughDate ?? ""}`
                   : "Peak-to-trough on equity"
               }
-              tone="text-rose-600"
+              tone="text-rose-400"
             />
             <Metric
               label="Signals"
               value={String(metrics.totalSignals)}
               hint={`${!isStress && ('tradesPerYear' in metrics) ? metrics.tradesPerYear ?? 0 : 0}/yr · ${metrics.avgBarsHeld.toFixed(0)}d avg hold`}
-              tone="text-slate-900"
+              tone="text-slate-100"
             />
           </div>
 
-          <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+          <section className="rounded-2xl border border-slate-800/80 bg-slate-900/40 p-4 shadow-sm sm:p-5">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
-                <h2 className="text-base font-bold text-slate-900">Equity Curve</h2>
-                <p className="text-[11px] text-slate-500">
+                <h2 className="text-base font-bold text-slate-100">Equity Curve</h2>
+                <p className="text-[11px] text-slate-400">
                   ${strategyPositionPct ?? 10}% of live equity per signal · dashed line is starting capital
                 </p>
               </div>
               <div className="flex flex-wrap gap-3 font-mono text-[11px]">
-                <span className="text-slate-500">
-                  Avg/trade <span className={metrics.avgPnlPct >= 0 ? "text-emerald-600" : "text-rose-600"}>{signed(metrics.avgPnlPct)}</span>
+                <span className="text-slate-400">
+                  Avg/trade <span className={metrics.avgPnlPct >= 0 ? "text-emerald-400" : "text-rose-400"}>{signed(metrics.avgPnlPct)}</span>
                 </span>
-                <span className="text-slate-500">
-                  Best <span className="text-emerald-600">{signed(metrics.bestTradePct)}</span>
+                <span className="text-slate-400">
+                  Best <span className="text-emerald-400">{signed(metrics.bestTradePct)}</span>
                 </span>
-                <span className="text-slate-500">
-                  Worst <span className="text-rose-600">{signed(metrics.worstTradePct)}</span>
+                <span className="text-slate-400">
+                  Worst <span className="text-rose-400">{signed(metrics.worstTradePct)}</span>
                 </span>
               </div>
             </div>
@@ -904,30 +923,30 @@ export default function BacktestPage() {
               {curve.length > 1 ? (
                 <EquityChart points={curve} baseline={baseline} positive={positive} />
               ) : (
-                <p className="py-10 text-center text-xs text-slate-400">Not enough sessions for a curve yet.</p>
+                <p className="py-10 text-center text-xs text-slate-500">Not enough sessions for a curve yet.</p>
               )}
             </div>
           </section>
 
           {macro && !isStress && ((data && ('yearlyReturns' in data) && (data as SweepPayload | MomentumPayload).yearlyReturns?.length) || (data && ('drawdownEpisodes' in data) && (data as SweepPayload | MomentumPayload).drawdownEpisodes?.length)) ? (
             <div className="grid gap-4 lg:grid-cols-2">
-              <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-                <h2 className="text-base font-bold text-slate-900">Market Cycles</h2>
-                <p className="mb-3 text-[11px] text-slate-500">Calendar-year return, signal count and worst drawdown</p>
+              <section className="rounded-2xl border border-slate-800/80 bg-slate-900/40 p-4 shadow-sm sm:p-5">
+                <h2 className="text-base font-bold text-slate-100">Market Cycles</h2>
+                <p className="mb-3 text-[11px] text-slate-400">Calendar-year return, signal count and worst drawdown</p>
                 {data?.yearlyReturns?.length ? (
                   <CycleTable rows={data.yearlyReturns} />
                 ) : (
-                  <p className="py-6 text-center text-xs text-slate-400">No completed calendar years yet.</p>
+                  <p className="py-6 text-center text-xs text-slate-500">No completed calendar years yet.</p>
                 )}
               </section>
 
-              <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-                <h2 className="text-base font-bold text-slate-900">Drawdown Episodes</h2>
-                <p className="mb-3 text-[11px] text-slate-500">Peak-to-trough underwater stretches, deepest first</p>
+              <section className="rounded-2xl border border-slate-800/80 bg-slate-900/40 p-4 shadow-sm sm:p-5">
+                <h2 className="text-base font-bold text-slate-100">Drawdown Episodes</h2>
+                <p className="mb-3 text-[11px] text-slate-400">Peak-to-trough underwater stretches, deepest first</p>
                 {data?.drawdownEpisodes?.length ? (
                   <DrawdownList episodes={data.drawdownEpisodes} />
                 ) : (
-                  <p className="py-6 text-center text-xs text-slate-400">No drawdown recorded.</p>
+                  <p className="py-6 text-center text-xs text-slate-500">No drawdown recorded.</p>
                 )}
               </section>
             </div>
@@ -935,8 +954,8 @@ export default function BacktestPage() {
         </>
       )}
 
-      <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex flex-col gap-2 border-b border-slate-200 p-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+      <section className="overflow-hidden rounded-2xl border border-slate-800/80 bg-slate-900/40">
+        <div className="flex flex-col gap-2 border-b border-slate-800 p-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
           <div className="flex items-center gap-1.5">
             {(["ALL", "WINS", "LOSSES", "OPEN"] as const).map((tab) => (
               <button
@@ -946,8 +965,8 @@ export default function BacktestPage() {
                 aria-pressed={outcome === tab}
                 className={`rounded-md border px-2.5 py-1.5 text-[11px] font-semibold transition-colors ${
                   outcome === tab
-                    ? "border-slate-900 bg-slate-900 text-white"
-                    : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                    ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-300"
+                    : "border-slate-700 bg-slate-950 text-slate-400 hover:bg-slate-800/60"
                 }`}
               >
                 {tab}
@@ -956,7 +975,7 @@ export default function BacktestPage() {
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
             <div className="relative w-full sm:w-56">
-              <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-400">
+              <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-500">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
                   <circle cx="11" cy="11" r="7" />
                   <path d="M20 20l-3.5-3.5" />
@@ -968,11 +987,11 @@ export default function BacktestPage() {
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Search ticker, date, outcome…"
                 aria-label="Search simulated trades"
-                className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 font-sans text-xs text-slate-900 placeholder:text-slate-400 focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-300"
+                className="w-full rounded-lg border border-slate-800 bg-slate-900/60 py-2 pl-9 pr-3 font-sans text-xs text-slate-100 placeholder:text-slate-500 focus:border-slate-600 focus:outline-none focus:ring-1 focus:ring-slate-700"
               />
             </div>
-            <div className="flex items-center gap-2 text-[11px] text-slate-500">
-              <span className="font-mono font-semibold text-slate-700">
+            <div className="flex items-center gap-2 text-[11px] text-slate-400">
+              <span className="font-mono font-semibold text-slate-300">
                 {rows.length} {rows.length === 1 ? "trade" : "trades"}
               </span>
               {isFiltered && (
@@ -982,7 +1001,7 @@ export default function BacktestPage() {
                     setQuery("");
                     setOutcome("ALL");
                   }}
-                  className="rounded border border-slate-200 px-2 py-0.5 font-semibold text-slate-600 transition-colors hover:bg-slate-50"
+                  className="rounded border border-slate-800 px-2 py-0.5 font-semibold text-slate-400 transition-colors hover:bg-slate-800/60"
                 >
                   Reset
                 </button>
@@ -991,9 +1010,73 @@ export default function BacktestPage() {
           </div>
         </div>
 
-        <div className="overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
+        {/* mobile: card stack instead of a 900px table */}
+        <ul className="divide-y divide-slate-800/70 md:hidden">
+          {pageTrades.map((trade) => {
+            const t = trade as Trade;
+            return (
+              <li key={`${t.id}-${t.ticker}-${t.signalDate}`} className="p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-sm font-bold text-slate-50">{t.ticker}</span>
+                      <span
+                        className={`rounded-full border px-2 py-0.5 text-[9px] font-bold ${outcomeTone(
+                          t.outcome,
+                        )}`}
+                      >
+                        {t.outcome}
+                      </span>
+                    </div>
+                    <div className="mt-0.5 font-mono text-[10px] tabular-nums text-slate-500">
+                      {t.signalDate} → {t.exitDate ?? "open"} · {t.barsHeld}d held
+                    </div>
+                  </div>
+                  <span
+                    className={`shrink-0 font-mono text-sm font-bold tabular-nums ${
+                      t.pnlPct >= 0 ? "text-emerald-400" : "text-rose-400"
+                    }`}
+                  >
+                    {t.pnlPct >= 0 ? "+" : ""}
+                    {t.pnlPct.toFixed(1)}%
+                  </span>
+                </div>
+
+                <div className="mt-2 grid grid-cols-3 gap-1.5 font-mono text-[10px]">
+                  {[
+                    { label: "entry", value: money(t.entryPrice), tone: "text-slate-200" },
+                    { label: "stop", value: money(t.stopLoss), tone: "text-rose-400" },
+                    { label: "target", value: money(t.targetPrice), tone: "text-emerald-400" },
+                  ].map((cell) => (
+                    <div
+                      key={cell.label}
+                      className="rounded-lg border border-slate-800/70 bg-slate-950/60 px-2 py-1"
+                    >
+                      <div className="text-[8px] uppercase tracking-wide text-slate-500">
+                        {cell.label}
+                      </div>
+                      <div className={`tabular-nums ${cell.tone}`}>{cell.value}</div>
+                    </div>
+                  ))}
+                </div>
+
+                <p className="mt-1.5 line-clamp-2 text-[10px] leading-snug text-slate-500">{t.reason}</p>
+              </li>
+            );
+          })}
+          {loaded && rows.length === 0 && (
+            <li className="px-4 py-8 text-center text-xs text-slate-500">
+              {isFiltered
+                ? "No simulated trades match this filter."
+                : "No simulated trades yet — the backtest fills this once the store holds history."}
+            </li>
+          )}
+        </ul>
+
+        {/* desktop: full table with a pinned signal/ticker column */}
+        <div className="hidden overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch] md:block">
           <table className="w-full min-w-[900px] text-left font-mono text-xs">
-            <thead className="border-b border-slate-200 bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500">
+            <thead className="border-b border-slate-800 bg-slate-950/70 text-[10px] uppercase tracking-wide text-slate-400">
               <tr>
                 <th className="px-3 py-3 sm:px-4">Signal</th>
                 <th className="px-3 py-3 sm:px-4">Ticker</th>
@@ -1007,34 +1090,34 @@ export default function BacktestPage() {
                 <th className="px-3 py-3 font-sans sm:px-4">Basis</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
-              {rows.map((trade) => {
+            <tbody className="divide-y divide-slate-800/70">
+              {pageTrades.map((trade) => {
                   const t = trade as Trade;
                   return (
-                    <tr key={`${t.id}-${t.ticker}-${t.signalDate}`} className="hover:bg-slate-50">
-                      <td className="whitespace-nowrap px-3 py-3 text-[11px] text-slate-500 sm:px-4">{t.signalDate}</td>
-                      <td className="whitespace-nowrap px-3 py-3 text-sm font-bold text-slate-900 sm:px-4">{t.ticker}</td>
-                      <td className="whitespace-nowrap px-3 py-3 text-right font-semibold text-slate-700 sm:px-4">
+                    <tr key={`${t.id}-${t.ticker}-${t.signalDate}`} className="hover:bg-slate-900/70">
+                      <td className="whitespace-nowrap px-3 py-3 text-[11px] text-slate-400 sm:px-4">{t.signalDate}</td>
+                      <td className="whitespace-nowrap px-3 py-3 text-sm font-bold text-slate-100 sm:px-4">{t.ticker}</td>
+                      <td className="whitespace-nowrap px-3 py-3 text-right font-semibold text-slate-300 sm:px-4">
                         {money(t.entryPrice)}
                       </td>
-                      <td className="whitespace-nowrap px-3 py-3 text-right font-semibold text-rose-600 sm:px-4">
+                      <td className="whitespace-nowrap px-3 py-3 text-right font-semibold text-rose-400 sm:px-4">
                         {money(t.stopLoss)}
                       </td>
-                      <td className="whitespace-nowrap px-3 py-3 text-right font-semibold text-emerald-600 sm:px-4">
+                      <td className="whitespace-nowrap px-3 py-3 text-right font-semibold text-emerald-400 sm:px-4">
                         {money(t.targetPrice)}
                       </td>
-                      <td className="whitespace-nowrap px-3 py-3 text-right font-semibold text-slate-700 sm:px-4">
+                      <td className="whitespace-nowrap px-3 py-3 text-right font-semibold text-slate-300 sm:px-4">
                         {money(t.exitPrice)}
                       </td>
                       <td
                         className={`whitespace-nowrap px-3 py-3 text-right font-bold sm:px-4 ${
-                          t.pnlPct >= 0 ? "text-emerald-600" : "text-rose-600"
+                          t.pnlPct >= 0 ? "text-emerald-400" : "text-rose-400"
                         }`}
                       >
                         {t.pnlPct >= 0 ? "+" : ""}
                         {t.pnlPct.toFixed(1)}%
                       </td>
-                      <td className="whitespace-nowrap px-3 py-3 text-center text-[11px] text-slate-500 sm:px-4">
+                      <td className="whitespace-nowrap px-3 py-3 text-center text-[11px] text-slate-400 sm:px-4">
                         {t.barsHeld}d
                       </td>
                       <td className="whitespace-nowrap px-3 py-3 text-center sm:px-4">
@@ -1042,7 +1125,7 @@ export default function BacktestPage() {
                           {t.outcome}
                         </span>
                       </td>
-                      <td className="max-w-xs truncate px-3 py-3 font-sans text-[11px] text-slate-500 sm:px-4" title={t.reason}>
+                      <td className="max-w-xs truncate px-3 py-3 font-sans text-[11px] text-slate-400 sm:px-4" title={t.reason}>
                         {t.reason}
                       </td>
                     </tr>
@@ -1050,7 +1133,7 @@ export default function BacktestPage() {
                 })}
               {loaded && rows.length === 0 && (
                 <tr>
-                  <td colSpan={10} className="px-4 py-8 text-center font-sans text-xs text-slate-400">
+                  <td colSpan={10} className="px-4 py-8 text-center font-sans text-xs text-slate-500">
                     {isFiltered
                       ? "No simulated trades match this filter."
                       : "No simulated trades yet — the backtest fills this once the store holds history."}
@@ -1061,9 +1144,33 @@ export default function BacktestPage() {
           </table>
         </div>
 
-        <p className="border-t border-slate-200 px-3 py-2 text-center text-[10px] text-slate-400 lg:hidden">
-          Swipe the table sideways to see every column.
-        </p>
+        <div className="flex flex-col gap-2 border-t border-slate-800/80 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
+          <span className="font-mono text-[10px] tabular-nums text-slate-500">
+            Showing {rows.length === 0 ? 0 : (currentTradePage - 1) * TRADES_PAGE_SIZE + 1}–
+            {Math.min(currentTradePage * TRADES_PAGE_SIZE, rows.length)} of {rows.length}
+          </span>
+          <div className="flex items-center gap-2 font-mono text-[10px] tabular-nums text-slate-400">
+            <button
+              type="button"
+              onClick={() => setTradePage(Math.max(1, currentTradePage - 1))}
+              disabled={currentTradePage <= 1}
+              className="rounded border border-slate-700 bg-slate-950 px-2 py-1 font-bold text-slate-300 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Prev
+            </button>
+            <span className="whitespace-nowrap">
+              {currentTradePage} / {tradePageCount}
+            </span>
+            <button
+              type="button"
+              onClick={() => setTradePage(Math.min(tradePageCount, currentTradePage + 1))}
+              disabled={currentTradePage >= tradePageCount}
+              className="rounded border border-slate-700 bg-slate-950 px-2 py-1 font-bold text-slate-300 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Next
+            </button>
+          </div>
+        </div>
       </section>
     </div>
   );

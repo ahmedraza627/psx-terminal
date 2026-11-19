@@ -58,30 +58,30 @@ export default function CatalystsPage() {
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold tracking-tight text-slate-900">
+          <h1 className="text-xl font-bold tracking-tight text-slate-100">
             Corporate Catalyst &amp; Dividend View
           </h1>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-slate-400">
             Upcoming PSX board meetings · dividend schedule · pre-meeting run-up vs. dump risk
           </p>
         </div>
-        <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold text-slate-600 border border-slate-200">
+        <span className="rounded-full bg-slate-800/70 px-3 py-1 text-[11px] font-semibold text-slate-400 border border-slate-800">
           Live
         </span>
       </div>
 
       {upcoming.length === 0 ? (
-        <div className="rounded-xl border border-slate-200 bg-slate-50/40 p-6 text-center">
-          <p className="text-xs text-slate-400">No catalyst entries due within 14 days.</p>
+        <div className="rounded-xl border border-slate-800 bg-slate-50/40 p-6 text-center">
+          <p className="text-xs text-slate-500">No catalyst entries due within 14 days.</p>
         </div>
       ) : (
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-5 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 px-4 py-3">
             <div>
-              <h3 className="text-sm font-bold text-slate-700">Upcoming Board Meetings (≤14 days)</h3>
-              <p className="text-[11px] text-slate-400">Priority watchlist — pre-meeting run-up vs. post-result dump risk</p>
+              <h3 className="text-sm font-bold text-slate-300">Upcoming Board Meetings (≤14 days)</h3>
+              <p className="text-[11px] text-slate-500">Priority watchlist — pre-meeting run-up vs. post-result dump risk</p>
             </div>
-            <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2.5 py-0.5 text-[10px] font-bold text-blue-700">
+            <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2.5 py-0.5 text-[10px] font-bold text-blue-300">
               ≤14 days
             </span>
           </div>
@@ -89,7 +89,7 @@ export default function CatalystsPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
-                <tr className="bg-slate-100 text-slate-500 uppercase text-[10px] tracking-wider">
+                <tr className="bg-slate-800/70 text-slate-400 uppercase text-[10px] tracking-wider">
                   <th className="px-4 py-2.5 text-left font-semibold">Ticker</th>
                   <th className="px-4 py-2.5 text-left font-semibold">Meeting Date</th>
                   <th className="px-4 py-2.5 text-left font-semibold">Expected Payout</th>
@@ -110,10 +110,10 @@ export default function CatalystsPage() {
                       : "MONITOR";
                   const verdictBadge =
                     verdict === "RIDE RUMOR"
-                      ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                      ? "bg-emerald-500/10 text-emerald-300 border border-emerald-500/30"
                       : verdict === "DUMP ON NEWS"
-                      ? "bg-rose-50 text-rose-700 border border-rose-200"
-                      : "bg-blue-50 text-blue-700 border border-blue-200";
+                      ? "bg-rose-500/10 text-rose-300 border border-rose-500/30"
+                      : "bg-blue-500/10 text-blue-300 border border-blue-500/30";
                   const payout = isBuy
                     ? metadata!.dividendYieldPct > 8
                       ? "High"
@@ -122,15 +122,15 @@ export default function CatalystsPage() {
                   return (
                     <tr
                       key={ticker}
-                      className="border-t border-slate-100 transition hover:bg-slate-50/60"
+                      className="border-t border-slate-800 transition hover:bg-slate-50/60"
                     >
-                      <td className="px-4 py-2.5 font-bold text-slate-900">{ticker}</td>
-                      <td className="px-4 py-2.5 font-mono text-slate-600">{formatDate(metadata!.boardMeetingDate)}</td>
-                      <td className="px-4 py-2.5 font-mono text-slate-600">{metadata!.dividendYieldPct > 0 ? metadata!.dividendYieldPct.toFixed(1) + "%" : "—"}</td>
-                      <td className="px-4 py-2.5 font-mono text-slate-600">{metadata!.dividendYieldPct > 0 ? metadata!.dividendYieldPct.toFixed(1) + " %" : "—"}</td>
-                      <td className="px-4 py-2.5 font-mono text-slate-600">
+                      <td className="px-4 py-2.5 font-bold text-slate-100">{ticker}</td>
+                      <td className="px-4 py-2.5 font-mono text-slate-400">{formatDate(metadata!.boardMeetingDate)}</td>
+                      <td className="px-4 py-2.5 font-mono text-slate-400">{metadata!.dividendYieldPct > 0 ? metadata!.dividendYieldPct.toFixed(1) + "%" : "—"}</td>
+                      <td className="px-4 py-2.5 font-mono text-slate-400">{metadata!.dividendYieldPct > 0 ? metadata!.dividendYieldPct.toFixed(1) + " %" : "—"}</td>
+                      <td className="px-4 py-2.5 font-mono text-slate-400">
                         <span className="font-bold">+{metadata!.avgPreRunupPct.toFixed(1)}%</span>
-                        <span className="text-slate-400"> avg (10-14d prior)</span>
+                        <span className="text-slate-500"> avg (10-14d prior)</span>
                       </td>
                       <td className="px-4 py-2.5">
                         <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold ${verdictBadge}`}>
@@ -145,8 +145,8 @@ export default function CatalystsPage() {
           </div>
 
           {rows.length > upcoming.length && (
-            <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/40 p-4 text-xs text-slate-500">
-              <span className="font-semibold text-slate-600">Note:</span> showing {upcoming.length} of {rows.length} tickers with catalyst metadata; all presented by meeting date.
+            <div className="mt-4 rounded-xl border border-slate-800 bg-slate-50/40 p-4 text-xs text-slate-400">
+              <span className="font-semibold text-slate-400">Note:</span> showing {upcoming.length} of {rows.length} tickers with catalyst metadata; all presented by meeting date.
             </div>
           )}
         </div>

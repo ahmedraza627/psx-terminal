@@ -103,7 +103,7 @@ export default function DashboardPage() {
 
   if (!data) {
     return (
-      <div className="p-8 text-center text-xs text-slate-500 font-mono">
+      <div className="p-8 text-center text-xs text-slate-400 font-mono">
         Loading V2 PSX institutional session data...
       </div>
     );
@@ -119,22 +119,22 @@ export default function DashboardPage() {
   return (
     <div className="p-4 sm:p-6 pb-20 space-y-5 max-w-7xl mx-auto w-full">
       {/* HEADER */}
-      <div className="border-b border-slate-200 pb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+      <div className="border-b border-slate-800 pb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-lg sm:text-xl font-bold tracking-tight text-slate-900">
+            <h1 className="text-lg sm:text-xl font-bold tracking-tight text-slate-100">
               PSX Daily Trade Desk
             </h1>
-            <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-900 text-emerald-300">
+            <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-emerald-300">
               V2 INSTITUTIONAL ENGINE
             </span>
           </div>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-slate-400">
             5-Layer Quant Filter: SBP Yields + NCCPL Sector Matrix + NDM Block Deals + DFX Open Interest + Clause 5.6.4 Filings.
           </p>
         </div>
         <div className="text-right">
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-mono font-medium bg-slate-100 text-slate-700 border border-slate-200">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-mono font-medium bg-slate-800/70 text-slate-300 border border-slate-800">
             Session: {data.sessionDate} ({data.sessionTime ?? ""})
           </span>
         </div>
@@ -145,8 +145,8 @@ export default function DashboardPage() {
         <div
           className={`p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-xs font-mono ${
             isDefensive
-              ? "bg-rose-50 border-rose-200 text-rose-900"
-              : "bg-emerald-50/70 border-emerald-200 text-emerald-950"
+              ? "bg-rose-500/10 border-rose-500/30 text-rose-900"
+              : "bg-emerald-50/70 border-emerald-500/30 text-emerald-950"
           }`}
         >
           <div className="flex flex-wrap items-center gap-2">
@@ -158,10 +158,10 @@ export default function DashboardPage() {
             <span className="font-bold uppercase tracking-wide">
               Market Regime: {data.regime.status}
             </span>
-            <span className="text-[11px] px-2 py-0.5 rounded bg-white/80 border border-current font-bold">
+            <span className="text-[11px] px-2 py-0.5 rounded bg-slate-900/80 border border-current font-bold">
               KSE-100: {data.regime.kseChange}
             </span>
-            <span className="text-[11px] px-2 py-0.5 rounded bg-white/80 border border-current">
+            <span className="text-[11px] px-2 py-0.5 rounded bg-slate-900/80 border border-current">
               {data.regime.breadth}
             </span>
           </div>
@@ -173,20 +173,20 @@ export default function DashboardPage() {
 
       {/* SBP MACRO LIQUIDITY & SECTOR ROTATION STRIP */}
       {macro && (
-        <div className="p-3 rounded-xl border border-slate-200 bg-slate-50/70 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2 text-[11px] font-mono">
+        <div className="p-3 rounded-xl border border-slate-800 bg-slate-50/70 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2 text-[11px] font-mono">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="font-bold text-slate-700 uppercase">SBP Macro:</span>
-            <span className="bg-white px-2 py-0.5 rounded border border-slate-200">
+            <span className="font-bold text-slate-300 uppercase">SBP Macro:</span>
+            <span className="bg-slate-900/60 px-2 py-0.5 rounded border border-slate-800">
               Policy Rate: <strong>{macro.policyRate.toFixed(2)}%</strong>
             </span>
-            <span className="bg-white px-2 py-0.5 rounded border border-slate-200">
+            <span className="bg-slate-900/60 px-2 py-0.5 rounded border border-slate-800">
               6M T-Bill: <strong>{macro.tbill6m.toFixed(2)}%</strong> ({macro.deltaBps > 0 ? `+${macro.deltaBps}` : macro.deltaBps} bps)
             </span>
             <span
               className={`px-2 py-0.5 rounded font-bold border ${
                 macro.deltaBps <= 0
-                  ? "bg-emerald-50 text-emerald-800 border-emerald-200"
-                  : "bg-amber-50 text-amber-800 border-amber-200"
+                  ? "bg-emerald-500/10 text-emerald-800 border-emerald-500/30"
+                  : "bg-amber-500/10 text-amber-200 border-amber-500/30"
               }`}
             >
               {macro.stance}
@@ -195,12 +195,12 @@ export default function DashboardPage() {
           {secSum && (secSum.buying.length > 0 || secSum.selling.length > 0) && (
             <div className="flex flex-wrap items-center gap-2">
               {secSum.buying.length > 0 && (
-                <span className="text-emerald-700">
+                <span className="text-emerald-300">
                   <strong>Fund Inflow:</strong> {secSum.buying.join(", ")}
                 </span>
               )}
               {secSum.selling.length > 0 && (
-                <span className="text-rose-700">
+                <span className="text-rose-300">
                   <strong>Outflow:</strong> {secSum.selling.join(", ")}
                 </span>
               )}
@@ -214,8 +214,8 @@ export default function DashboardPage() {
         <div
           className={`p-3.5 rounded-xl border shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-3 font-mono text-xs ${
             flow.isSmartMoneyBuying
-              ? "border-blue-200 bg-blue-50/30"
-              : "border-rose-200 bg-rose-50/30"
+              ? "border-blue-500/30 bg-blue-50/30"
+              : "border-rose-500/30 bg-rose-50/30"
           }`}
         >
           <div className="flex items-center gap-2">
@@ -224,7 +224,7 @@ export default function DashboardPage() {
                 flow.isSmartMoneyBuying ? "bg-blue-600" : "bg-rose-600"
               }`}
             ></span>
-            <span className="text-[11px] font-bold text-slate-600 uppercase">
+            <span className="text-[11px] font-bold text-slate-400 uppercase">
               NCCPL Smart Money:
             </span>
             <span
@@ -236,11 +236,11 @@ export default function DashboardPage() {
             </span>
           </div>
           <div className="flex flex-wrap items-center gap-2.5 text-[11px]">
-            <span className="bg-white px-2.5 py-1 rounded border border-slate-200 shadow-2xs">
+            <span className="bg-slate-900/60 px-2.5 py-1 rounded border border-slate-800 shadow-2xs">
               Mutual Funds:{" "}
               <strong
                 className={
-                  flow.mutualFundsM >= 0 ? "text-emerald-700" : "text-rose-700"
+                  flow.mutualFundsM >= 0 ? "text-emerald-300" : "text-rose-300"
                 }
               >
                 {flow.mutualFundsM >= 0
@@ -249,11 +249,11 @@ export default function DashboardPage() {
                 M PKR
               </strong>
             </span>
-            <span className="bg-white px-2.5 py-1 rounded border border-slate-200 shadow-2xs">
+            <span className="bg-slate-900/60 px-2.5 py-1 rounded border border-slate-800 shadow-2xs">
               Foreign:{" "}
               <strong
                 className={
-                  flow.foreignUsdK >= 0 ? "text-emerald-700" : "text-rose-700"
+                  flow.foreignUsdK >= 0 ? "text-emerald-300" : "text-rose-300"
                 }
               >
                 {flow.foreignUsdK >= 0
@@ -262,11 +262,11 @@ export default function DashboardPage() {
                 K
               </strong>
             </span>
-            <span className="bg-white px-2.5 py-1 rounded border border-slate-200 shadow-2xs">
+            <span className="bg-slate-900/60 px-2.5 py-1 rounded border border-slate-800 shadow-2xs">
               Retail:{" "}
               <strong
                 className={
-                  flow.individualsM >= 0 ? "text-emerald-700" : "text-rose-700"
+                  flow.individualsM >= 0 ? "text-emerald-300" : "text-rose-300"
                 }
               >
                 {flow.individualsM >= 0
@@ -292,7 +292,7 @@ export default function DashboardPage() {
 
             {/* KSE-100 INDEX STRUCTURAL BUY & RESISTANCE MAP */}
       {data.indexMap && (
-        <div className="p-3.5 rounded-xl bg-slate-900 text-white border border-slate-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-xs font-mono">
+        <div className="p-3.5 rounded-xl bg-slate-800 text-white border border-slate-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-xs font-mono">
           <div>
             <div className="text-[10px] uppercase tracking-wider text-emerald-400 font-bold">
               KSE-100 INDEX STRUCTURAL LEVEL &amp; BUY ZONE
@@ -315,7 +315,7 @@ export default function DashboardPage() {
             <h2 className="text-xs font-mono font-bold uppercase tracking-wider text-indigo-950">
               DISCOUNTED VALUE PULLBACKS (HISTORY AUDIT + INFLOW SECTORS)
             </h2>
-            <p className="text-[11px] text-slate-600">
+            <p className="text-[11px] text-slate-400">
               Tier-1 stocks trading 3%–16% below 20-day swing highs above 50-SMA support in institutional inflow sectors (Spot Market Limit Buys).
             </p>
           </div>
@@ -327,44 +327,44 @@ export default function DashboardPage() {
         {data.valuePullbacks && data.valuePullbacks.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {data.valuePullbacks.map((vp) => (
-              <div key={vp.ticker} className="bg-white rounded-lg border border-indigo-200/80 p-3.5 shadow-sm space-y-2">
+              <div key={vp.ticker} className="bg-slate-900/60 rounded-lg border border-indigo-200/80 p-3.5 shadow-sm space-y-2">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-mono font-bold text-slate-400">#{vp.rank}</span>
-                    <span className="text-sm font-bold text-slate-900">{vp.ticker}</span>
+                    <span className="text-xs font-mono font-bold text-slate-500">#{vp.rank}</span>
+                    <span className="text-sm font-bold text-slate-100">{vp.ticker}</span>
                     <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-indigo-100 text-indigo-800">
                       {vp.discountPct}
                     </span>
                     {vp.provenWinner && (
-                      <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-100 text-emerald-800">
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-500/15 text-emerald-800">
                         PROVEN WINNER
                       </span>
                     )}
                   </div>
-                  <span className="text-[11px] font-mono font-semibold text-emerald-700">
+                  <span className="text-[11px] font-mono font-semibold text-emerald-300">
                     {vp.sector}: {vp.sectorFlow}
                   </span>
                 </div>
                 <div className="grid grid-cols-3 gap-2 text-center font-mono text-xs">
-                  <div className="p-2 rounded bg-slate-50 border border-slate-200">
-                    <div className="text-[10px] text-slate-500">LIMIT BUY ZONE</div>
-                    <div className="font-bold text-slate-900">{vp.entryZone}</div>
+                  <div className="p-2 rounded bg-slate-900/40 border border-slate-800">
+                    <div className="text-[10px] text-slate-400">LIMIT BUY ZONE</div>
+                    <div className="font-bold text-slate-100">{vp.entryZone}</div>
                   </div>
-                  <div className="p-2 rounded bg-rose-50/70 border border-rose-200">
-                    <div className="text-[10px] text-rose-700">HARD STOP</div>
+                  <div className="p-2 rounded bg-rose-50/70 border border-rose-500/30">
+                    <div className="text-[10px] text-rose-300">HARD STOP</div>
                     <div className="font-bold text-rose-800">{vp.stop}</div>
                   </div>
-                  <div className="p-2 rounded bg-emerald-50/70 border border-emerald-200">
-                    <div className="text-[10px] text-emerald-700">SWING TARGET</div>
+                  <div className="p-2 rounded bg-emerald-50/70 border border-emerald-500/30">
+                    <div className="text-[10px] text-emerald-300">SWING TARGET</div>
                     <div className="font-bold text-emerald-800">{vp.target}</div>
                   </div>
                 </div>
-                <p className="text-[11px] text-slate-600 leading-relaxed">{vp.notes}</p>
+                <p className="text-[11px] text-slate-400 leading-relaxed">{vp.notes}</p>
               </div>
             ))}
           </div>
         ) : (
-          <div className="text-xs font-mono text-slate-500 bg-white/80 rounded-lg p-3 border border-indigo-100">
+          <div className="text-xs font-mono text-slate-400 bg-slate-900/80 rounded-lg p-3 border border-indigo-100">
             Accumulating multi-day EOD history for swing-high discount scan. Run daily autopilot after 7:00 PM PKT.
           </div>
         )}
@@ -373,31 +373,31 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* BUY COLUMN */}
         <div className="space-y-4">
-          <div className="flex items-center justify-between pb-2 border-b border-slate-200">
-            <h2 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
+          <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+            <h2 className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
               High-Conviction Buy Setups ({buys.length})
             </h2>
-            <span className="text-[10px] font-mono font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+            <span className="text-[10px] font-mono font-semibold text-emerald-300 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/30">
               5-LAYER FILTERED (UP TO 5)
             </span>
           </div>
 
           {isDefensive ? (
-            <div className="p-6 rounded-xl border border-dashed border-rose-200 bg-rose-50/30 text-center space-y-1">
+            <div className="p-6 rounded-xl border border-dashed border-rose-500/30 bg-rose-50/30 text-center space-y-1">
               <span className="text-xs font-mono font-bold text-rose-800 block">
                 CASH MODE ACTIVE — NO NEW LONG BUYS TRIGGERED
               </span>
-              <p className="text-[11px] text-slate-500">
+              <p className="text-[11px] text-slate-400">
                 Index distribution exceeds risk threshold. Stay in cash until macro regime normalizes.
               </p>
             </div>
           ) : buys.length === 0 ? (
-            <div className="p-6 rounded-xl border border-dashed border-slate-200 bg-slate-50/50 text-center space-y-1">
-              <span className="text-xs font-mono font-bold text-slate-700 block">
+            <div className="p-6 rounded-xl border border-dashed border-slate-800 bg-slate-50/50 text-center space-y-1">
+              <span className="text-xs font-mono font-bold text-slate-300 block">
                 NO HIGH-RVOL LONG SETUPS QUALIFIED TODAY
               </span>
-              <p className="text-[11px] text-slate-500">
+              <p className="text-[11px] text-slate-400">
                 No stocks passed the 5-Layer RVOL + Sector Flow threshold. Capital preserved.
               </p>
             </div>
@@ -409,13 +409,13 @@ export default function DashboardPage() {
                   className={`p-4 rounded-xl border shadow-sm transition-all space-y-3 ${
                     stock.ndmBlock || stock.insiderConfluence
                       ? "border-indigo-300 bg-indigo-50/20 ring-1 ring-indigo-200/60"
-                      : "border-slate-200 bg-white hover:border-slate-300"
+                      : "border-slate-800 bg-slate-900/60 hover:border-slate-700"
                   }`}
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="text-xs font-mono font-bold text-slate-400">#{stock.rank}</span>
-                      <span className="text-base font-black text-slate-900 font-mono">{stock.ticker}</span>
+                      <span className="text-xs font-mono font-bold text-slate-500">#{stock.rank}</span>
+                      <span className="text-base font-black text-slate-100 font-mono">{stock.ticker}</span>
                       {stock.ndmBlock && (
                         <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-700 text-white shadow-2xs">
                           NDM BLOCK DEAL
@@ -427,47 +427,47 @@ export default function DashboardPage() {
                         </span>
                       )}
                       {stock.catalystTag && (
-                        <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-50 text-amber-800 border border-amber-300">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-500/10 text-amber-200 border border-amber-500/40">
                           {stock.catalystTag}
                         </span>
                       )}
                     </div>
                     <div className="flex items-center gap-1.5 font-mono text-[11px]">
-                      <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold">
+                      <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 font-semibold">
                         Prob: {stock.probability}
                       </span>
-                      <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200 font-medium">
+                      <span className="px-2 py-0.5 rounded bg-slate-800/70 text-slate-300 border border-slate-800 font-medium">
                         RVOL: {stock.rvol}
                       </span>
                       {stock.dfxSignal && (
-                        <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 font-bold">
+                        <span className="px-2 py-0.5 rounded bg-blue-500/10 text-blue-300 border border-blue-500/30 font-bold">
                           {stock.dfxSignal}
                         </span>
                       )}
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-100 font-mono text-center">
-                    <div className="bg-slate-50 p-2 rounded flex flex-col justify-center">
-                      <span className="text-[10px] uppercase text-slate-500 block font-medium">Entry Rate</span>
-                      <span className="text-xs font-bold text-slate-900">{stock.entry}</span>
+                  <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-800 font-mono text-center">
+                    <div className="bg-slate-900/40 p-2 rounded flex flex-col justify-center">
+                      <span className="text-[10px] uppercase text-slate-400 block font-medium">Entry Rate</span>
+                      <span className="text-xs font-bold text-slate-100">{stock.entry}</span>
                       {stock.entryZone && (
-                        <span className="text-[9px] text-slate-400 block font-mono mt-0.5">
+                        <span className="text-[9px] text-slate-500 block font-mono mt-0.5">
                           Zone: {stock.entryZone.replace("PKR ", "")}
                         </span>
                       )}
                     </div>
                     <div className="bg-rose-50/60 p-2 rounded border border-rose-100 flex flex-col justify-center">
-                      <span className="text-[10px] uppercase text-rose-600 block font-medium">Stop Loss</span>
-                      <span className="text-xs font-bold text-rose-700">{stock.stop}</span>
+                      <span className="text-[10px] uppercase text-rose-400 block font-medium">Stop Loss</span>
+                      <span className="text-xs font-bold text-rose-300">{stock.stop}</span>
                     </div>
                     <div className="bg-emerald-50/60 p-2 rounded border border-emerald-100 flex flex-col justify-center">
-                      <span className="text-[10px] uppercase text-emerald-700 block font-medium">Take Profit</span>
-                      <span className="text-xs font-bold text-emerald-700">{stock.target}</span>
+                      <span className="text-[10px] uppercase text-emerald-300 block font-medium">Take Profit</span>
+                      <span className="text-xs font-bold text-emerald-300">{stock.target}</span>
                     </div>
                   </div>
 
-                  <p className="text-[11px] text-slate-600 pt-1 leading-relaxed">
+                  <p className="text-[11px] text-slate-400 pt-1 leading-relaxed">
                     {stock.notes}
                   </p>
                 </div>
@@ -478,22 +478,22 @@ export default function DashboardPage() {
 
         {/* DFX SHORT COLUMN */}
         <div className="space-y-4">
-          <div className="flex items-center justify-between pb-2 border-b border-slate-200">
-            <h2 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
+          <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+            <h2 className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-rose-500"></span>
               High-Conviction DFX Shorts ({avoids.length})
             </h2>
-            <span className="text-[10px] font-mono font-semibold text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
+            <span className="text-[10px] font-mono font-semibold text-rose-300 bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/30">
               NOISE FILTERED (UP TO 5)
             </span>
           </div>
 
           {avoids.length === 0 ? (
-            <div className="p-6 rounded-xl border border-dashed border-slate-200 bg-slate-50/50 text-center space-y-1">
-              <span className="text-xs font-mono font-bold text-slate-700 block">
+            <div className="p-6 rounded-xl border border-dashed border-slate-800 bg-slate-50/50 text-center space-y-1">
+              <span className="text-xs font-mono font-bold text-slate-300 block">
                 NO HIGH-CONVICTION DFX SHORT SETUPS TODAY
               </span>
-              <p className="text-[11px] text-slate-500">
+              <p className="text-[11px] text-slate-400">
                 No futures contracts showed heavy distribution, MFS Badla traps, or Sell-the-News dumping.
               </p>
             </div>
@@ -502,18 +502,18 @@ export default function DashboardPage() {
               {avoids.map((stock) => (
                 <div
                   key={stock.ticker}
-                  className="p-4 rounded-xl border border-rose-200/80 bg-rose-50/20 shadow-sm hover:border-rose-300 transition-all space-y-3"
+                  className="p-4 rounded-xl border border-rose-200/80 bg-rose-50/20 shadow-sm hover:border-rose-500/40 transition-all space-y-3"
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="text-xs font-mono font-bold text-slate-400">#{stock.rank}</span>
-                      <span className="text-base font-black text-slate-900 font-mono">{stock.ticker}</span>
+                      <span className="text-xs font-mono font-bold text-slate-500">#{stock.rank}</span>
+                      <span className="text-base font-black text-slate-100 font-mono">{stock.ticker}</span>
                       {stock.actionTag && (
                         <span
                           className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold ${
                             stock.isShortable
-                              ? "bg-slate-900 text-amber-300 border border-slate-700"
-                              : "bg-slate-200 text-slate-700"
+                              ? "bg-slate-800 text-amber-300 border border-slate-700"
+                              : "bg-slate-200 text-slate-300"
                           }`}
                         >
                           {stock.actionTag}
@@ -531,14 +531,14 @@ export default function DashboardPage() {
                       )}
                     </div>
                     <div className="flex items-center gap-1.5 font-mono text-[11px]">
-                      <span className="px-2 py-0.5 rounded bg-rose-100 text-rose-800 border border-rose-200 font-semibold">
+                      <span className="px-2 py-0.5 rounded bg-rose-100 text-rose-800 border border-rose-500/30 font-semibold">
                         Prob: {stock.probability}
                       </span>
-                      <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200 font-medium">
+                      <span className="px-2 py-0.5 rounded bg-slate-800/70 text-slate-300 border border-slate-800 font-medium">
                         RVOL: {stock.rvol}
                       </span>
                       {stock.dfxSignal && (
-                        <span className="px-2 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200 font-bold">
+                        <span className="px-2 py-0.5 rounded bg-rose-500/10 text-rose-300 border border-rose-500/30 font-bold">
                           {stock.dfxSignal}
                         </span>
                       )}
@@ -547,38 +547,38 @@ export default function DashboardPage() {
 
                   {stock.isShortable ? (
                     <div className="grid grid-cols-3 gap-2 pt-2 border-t border-rose-100 font-mono text-center">
-                      <div className="bg-white p-2 rounded border border-rose-100 flex flex-col justify-center">
-                        <span className="text-[10px] uppercase text-slate-500 block font-medium">Short Entry</span>
-                        <span className="text-xs font-bold text-slate-900">{stock.price}</span>
+                      <div className="bg-slate-900/60 p-2 rounded border border-rose-100 flex flex-col justify-center">
+                        <span className="text-[10px] uppercase text-slate-400 block font-medium">Short Entry</span>
+                        <span className="text-xs font-bold text-slate-100">{stock.price}</span>
                         {stock.shortZone && (
-                          <span className="text-[9px] text-slate-400 block font-mono mt-0.5">
+                          <span className="text-[9px] text-slate-500 block font-mono mt-0.5">
                             Zone: {stock.shortZone.replace("PKR ", "")}
                           </span>
                         )}
                       </div>
-                      <div className="bg-amber-50/70 p-2 rounded border border-amber-200 flex flex-col justify-center">
-                        <span className="text-[10px] uppercase text-amber-800 block font-medium">Stop (Above)</span>
+                      <div className="bg-amber-50/70 p-2 rounded border border-amber-500/30 flex flex-col justify-center">
+                        <span className="text-[10px] uppercase text-amber-200 block font-medium">Stop (Above)</span>
                         <span className="text-xs font-bold text-amber-900">{stock.stop}</span>
                       </div>
-                      <div className="bg-rose-100/60 p-2 rounded border border-rose-200 flex flex-col justify-center">
-                        <span className="text-[10px] uppercase text-rose-700 block font-medium">Short Target</span>
-                        <span className="text-xs font-bold text-rose-700">{stock.downside}</span>
+                      <div className="bg-rose-100/60 p-2 rounded border border-rose-500/30 flex flex-col justify-center">
+                        <span className="text-[10px] uppercase text-rose-300 block font-medium">Short Target</span>
+                        <span className="text-xs font-bold text-rose-300">{stock.downside}</span>
                       </div>
                     </div>
                   ) : (
                     <div className="grid grid-cols-2 gap-2 pt-2 border-t border-rose-100 font-mono text-center">
-                      <div className="bg-white p-2 rounded border border-rose-100">
-                        <span className="text-[10px] uppercase text-slate-500 block font-medium">Last Close</span>
-                        <span className="text-xs font-bold text-slate-900">{stock.price}</span>
+                      <div className="bg-slate-900/60 p-2 rounded border border-rose-100">
+                        <span className="text-[10px] uppercase text-slate-400 block font-medium">Last Close</span>
+                        <span className="text-xs font-bold text-slate-100">{stock.price}</span>
                       </div>
-                      <div className="bg-rose-100/50 p-2 rounded border border-rose-200">
-                        <span className="text-[10px] uppercase text-rose-700 block font-medium">Potential Drop</span>
-                        <span className="text-xs font-bold text-rose-700">{stock.downside}</span>
+                      <div className="bg-rose-100/50 p-2 rounded border border-rose-500/30">
+                        <span className="text-[10px] uppercase text-rose-300 block font-medium">Potential Drop</span>
+                        <span className="text-xs font-bold text-rose-300">{stock.downside}</span>
                       </div>
                     </div>
                   )}
 
-                  <p className="text-[11px] text-slate-600 pt-1 leading-relaxed">
+                  <p className="text-[11px] text-slate-400 pt-1 leading-relaxed">
                     {stock.notes}
                   </p>
                 </div>

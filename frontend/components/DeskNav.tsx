@@ -5,8 +5,9 @@ import { usePathname } from "next/navigation";
 
 const LINKS = [
   { href: "/", label: "Daily Recommendations", hint: "What to trade today" },
+  { href: "/seasonality", label: "Seasonal Playbook", hint: "Cyclical windows & timing" },
   { href: "/history", label: "Historical Performance", hint: "Audited signal ledger" },
-  { href: "/backtest", label: "1Y Backtest Lab", hint: "Simulated equity curve" },
+  { href: "/backtest", label: "Backtest Lab", hint: "1Y / 5Y / 15Y stress tests" },
 ] as const;
 
 export default function DeskNav({ onNavigate }: { onNavigate?: () => void }) {
@@ -24,12 +25,20 @@ export default function DeskNav({ onNavigate }: { onNavigate?: () => void }) {
             aria-current={active ? "page" : undefined}
             className={`block rounded-lg border px-3 py-2 transition-colors ${
               active
-                ? "border-slate-200 bg-slate-50 text-slate-900"
-                : "border-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                ? "border-emerald-500/30 bg-emerald-500/10"
+                : "border-transparent hover:bg-slate-900/80"
             }`}
           >
-            <span className="block text-sm font-semibold">{link.label}</span>
-            <span className="block text-[11px] text-slate-400">{link.hint}</span>
+            <span
+              className={`block text-[13px] font-semibold tracking-tight ${
+                active ? "text-emerald-300" : "text-slate-300"
+              }`}
+            >
+              {link.label}
+            </span>
+            <span className={`block text-[10px] ${active ? "text-emerald-500/80" : "text-slate-500"}`}>
+              {link.hint}
+            </span>
           </Link>
         );
       })}

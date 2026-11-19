@@ -23,20 +23,20 @@ const money = (value: number | null) =>
 
 const statusTone = (status: string) => {
   if (status === "TARGET HIT" || status === "AVOID WORKED") {
-    return "border-emerald-300 bg-emerald-50 text-emerald-700";
+    return "border-emerald-500/40 bg-emerald-500/10 text-emerald-300";
   }
   if (status === "STOPPED OUT" || status === "AVOID FAILED") {
-    return "border-rose-300 bg-rose-50 text-rose-700";
+    return "border-rose-500/40 bg-rose-500/10 text-rose-300";
   }
-  return "border-slate-200 bg-slate-50 text-slate-600";
+  return "border-slate-800 bg-slate-900/40 text-slate-400";
 };
 
 function Card({ label, value, hint, tone }: { label: string; value: string; hint: string; tone: string }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
-      <span className="block text-[10px] font-semibold uppercase tracking-wider text-slate-400">{label}</span>
+    <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3 shadow-sm sm:p-4">
+      <span className="block text-[10px] font-semibold uppercase tracking-wider text-slate-500">{label}</span>
       <span className={`mt-1 block font-mono text-xl font-black sm:text-2xl ${tone}`}>{value}</span>
-      <span className="mt-0.5 block text-[10px] text-slate-500">{hint}</span>
+      <span className="mt-0.5 block text-[10px] text-slate-400">{hint}</span>
     </div>
   );
 }
@@ -94,8 +94,8 @@ export default function HistoryPage() {
     <div className="space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0">
-          <h1 className="text-xl font-bold tracking-tight text-slate-900">Historical Performance</h1>
-          <p className="text-xs text-slate-500">
+          <h1 className="text-xl font-bold tracking-tight text-slate-100">Historical Performance</h1>
+          <p className="text-xs text-slate-400">
             Every buy and avoid the desk issued, marked against the latest closing tape.
             {sessionDate ? ` Audited through ${sessionDate}.` : ""}
           </p>
@@ -109,8 +109,8 @@ export default function HistoryPage() {
               aria-pressed={filter === tab}
               className={`flex-1 rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors sm:flex-none ${
                 filter === tab
-                  ? "border-slate-900 bg-slate-900 text-white"
-                  : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                  ? "border-slate-900 bg-slate-800 text-white"
+                  : "border-slate-800 bg-slate-900/60 text-slate-400 hover:bg-slate-800/60"
               }`}
             >
               {tab}
@@ -124,13 +124,13 @@ export default function HistoryPage() {
           label="Signals Logged"
           value={String(entries.length)}
           hint="Auto-appended each session"
-          tone="text-slate-900"
+          tone="text-slate-100"
         />
         <Card
           label="Buy Hit Rate"
           value={hitRate === "–" ? "–" : `${hitRate}%`}
           hint={`${winners}W / ${resolvedBuys.length - winners}L resolved`}
-          tone="text-emerald-600"
+          tone="text-emerald-400"
         />
         <Card
           label="Avoid Success"
@@ -146,11 +146,11 @@ export default function HistoryPage() {
         />
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900/60 shadow-sm">
         {/* Search + result count */}
-        <div className="flex flex-col gap-2 border-b border-slate-200 p-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+        <div className="flex flex-col gap-2 border-b border-slate-800 p-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
           <div className="relative w-full sm:max-w-xs">
-            <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-400">
+            <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-500">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
                 <circle cx="11" cy="11" r="7" />
                 <path d="M20 20l-3.5-3.5" />
@@ -162,11 +162,11 @@ export default function HistoryPage() {
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Search ticker, date, status…"
               aria-label="Search the audit ledger"
-              className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 font-sans text-xs text-slate-900 placeholder:text-slate-400 focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-300"
+              className="w-full rounded-lg border border-slate-800 bg-slate-900/60 py-2 pl-9 pr-3 font-sans text-xs text-slate-100 placeholder:text-slate-500 focus:border-slate-600 focus:outline-none focus:ring-1 focus:ring-slate-700"
             />
           </div>
-          <div className="flex items-center gap-2 text-[11px] text-slate-500">
-            <span className="font-mono font-semibold text-slate-700">
+          <div className="flex items-center gap-2 text-[11px] text-slate-400">
+            <span className="font-mono font-semibold text-slate-300">
               {rows.length} {rows.length === 1 ? "row" : "rows"}
             </span>
             {isFiltered && (
@@ -176,7 +176,7 @@ export default function HistoryPage() {
                   setQuery("");
                   setFilter("ALL");
                 }}
-                className="rounded border border-slate-200 px-2 py-0.5 font-semibold text-slate-600 transition-colors hover:bg-slate-50"
+                className="rounded border border-slate-800 px-2 py-0.5 font-semibold text-slate-400 transition-colors hover:bg-slate-800/60"
               >
                 Reset
               </button>
@@ -187,7 +187,7 @@ export default function HistoryPage() {
         {/* Horizontal scroll on small screens, full table on desktop */}
         <div className="overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
           <table className="w-full min-w-[880px] text-left font-mono text-xs">
-            <thead className="border-b border-slate-200 bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500">
+            <thead className="border-b border-slate-800 bg-slate-900/40 text-[10px] uppercase tracking-wide text-slate-400">
               <tr>
                 <th className="px-3 py-3 sm:px-4">Date</th>
                 <th className="px-3 py-3 sm:px-4">Ticker</th>
@@ -201,37 +201,37 @@ export default function HistoryPage() {
                 <th className="px-3 py-3 font-sans sm:px-4">Basis</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-800/70">
               {rows.map((entry, index) => (
-                <tr key={`${entry.date}-${entry.ticker}-${entry.call}-${index}`} className="hover:bg-slate-50">
-                  <td className="whitespace-nowrap px-3 py-3 text-[11px] text-slate-500 sm:px-4">{entry.date}</td>
-                  <td className="whitespace-nowrap px-3 py-3 text-sm font-bold text-slate-900 sm:px-4">{entry.ticker}</td>
+                <tr key={`${entry.date}-${entry.ticker}-${entry.call}-${index}`} className="hover:bg-slate-800/60">
+                  <td className="whitespace-nowrap px-3 py-3 text-[11px] text-slate-400 sm:px-4">{entry.date}</td>
+                  <td className="whitespace-nowrap px-3 py-3 text-sm font-bold text-slate-100 sm:px-4">{entry.ticker}</td>
                   <td className="whitespace-nowrap px-3 py-3 sm:px-4">
                     <span
                       className={`rounded border px-2 py-0.5 text-[10px] font-bold ${
                         entry.call === "BUY"
-                          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                          : "border-rose-200 bg-rose-50 text-rose-700"
+                          ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+                          : "border-rose-500/30 bg-rose-500/10 text-rose-300"
                       }`}
                     >
                       {entry.call}
                     </span>
                   </td>
-                  <td className="whitespace-nowrap px-3 py-3 text-right font-semibold text-slate-700 sm:px-4">
+                  <td className="whitespace-nowrap px-3 py-3 text-right font-semibold text-slate-300 sm:px-4">
                     {money(entry.entry)}
                   </td>
-                  <td className="whitespace-nowrap px-3 py-3 text-right font-semibold text-rose-600 sm:px-4">
+                  <td className="whitespace-nowrap px-3 py-3 text-right font-semibold text-rose-400 sm:px-4">
                     {money(entry.stop)}
                   </td>
-                  <td className="whitespace-nowrap px-3 py-3 text-right font-semibold text-emerald-600 sm:px-4">
+                  <td className="whitespace-nowrap px-3 py-3 text-right font-semibold text-emerald-400 sm:px-4">
                     {money(entry.target)}
                   </td>
-                  <td className="whitespace-nowrap px-3 py-3 text-right font-bold text-slate-900 sm:px-4">
+                  <td className="whitespace-nowrap px-3 py-3 text-right font-bold text-slate-100 sm:px-4">
                     {money(entry.latestClose)}
                   </td>
                   <td
                     className={`whitespace-nowrap px-3 py-3 text-right font-bold sm:px-4 ${
-                      entry.pnlPct >= 0 ? "text-emerald-600" : "text-rose-600"
+                      entry.pnlPct >= 0 ? "text-emerald-400" : "text-rose-400"
                     }`}
                   >
                     {entry.pnlPct >= 0 ? "+" : ""}
@@ -245,7 +245,7 @@ export default function HistoryPage() {
                     </span>
                   </td>
                   <td
-                    className="max-w-xs truncate px-3 py-3 font-sans text-[11px] text-slate-500 sm:px-4"
+                    className="max-w-xs truncate px-3 py-3 font-sans text-[11px] text-slate-400 sm:px-4"
                     title={entry.notes}
                   >
                     {entry.notes}
@@ -254,7 +254,7 @@ export default function HistoryPage() {
               ))}
               {loaded && rows.length === 0 && (
                 <tr>
-                  <td colSpan={10} className="px-4 py-8 text-center font-sans text-xs text-slate-400">
+                  <td colSpan={10} className="px-4 py-8 text-center font-sans text-xs text-slate-500">
                     {isFiltered
                       ? "No calls match this filter — clear the search to see the full ledger."
                       : "No audited signals yet — the ledger fills each time the close is processed."}
@@ -265,7 +265,7 @@ export default function HistoryPage() {
           </table>
         </div>
 
-        <p className="border-t border-slate-200 px-3 py-2 text-center text-[10px] text-slate-400 lg:hidden">
+        <p className="border-t border-slate-800 px-3 py-2 text-center text-[10px] text-slate-500 lg:hidden">
           Swipe the table sideways to see every column.
         </p>
       </div>

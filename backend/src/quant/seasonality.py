@@ -81,6 +81,12 @@ WATCH_MAX_RANGE_PCT = 60.0
 # A name this far below its 3-year high is still cyclically discounted; one
 # that has already run hard off the low is not.
 MAX_DRAWDOWN_FROM_HIGH_PCT = 22.0
+# Tradeability gate for the actionable playbook: a seasonal signal on a name
+# nobody can exit is not a signal. Matches the daily alpha desk's liquidity bar.
+LIQUIDITY_WINDOW = 20
+MIN_AVG_TURNOVER_PKR = 5_000_000
+MIN_AVG_VOLUME = 20_000
+MIN_PRICE_PKR = 5.0
 
 STATUS_ACTIVE = "ACCUMULATION WINDOW ACTIVE"
 STATUS_WATCH = "WATCH"
@@ -400,6 +406,29 @@ def seasonal_month_table(bars: List[DailyBar]) -> Dict[int, dict]:
     return table
 
 
+def liquidity_profile(bars: List[DailyBar], window: int = LIQUIDITY_WINDOW) -> dict:
+    """Trailing average turnover/volume and the tradeability flag for one name."""
+    recent = bars[-window:] if len(bars) > window else bars
+    if not recent:
+        return {
+            "avgTurnoverPkr": 0.0,
+            "avgVolume": 0.0,
+            "liquid": False,
+        }
+    turnover = sum(b.close_price * b.volume for b in recent) / len(recent)
+    volume = sum(float(b.volume) for b in recent) / len(recent)
+    last_close = bars[-1].close_price
+    return {
+        "avgTurnoverPkr": round(turnover, 0),
+        "avgVolume": round(volume, 0),
+        "liquid": bool(
+            turnover >= MIN_AVG_TURNOVER_PKR
+            and volume >= MIN_AVG_VOLUME
+            and last_close >= MIN_PRICE_PKR
+        ),
+    }
+
+
 def position_profile(bars: List[DailyBar]) -> dict:
     """Where the latest close sits in its own 3-year range (the position filter)."""
     window = bars[-POSITION_LOOKBACK_BARS:] if len(bars) > POSITION_LOOKBACK_BARS else bars
@@ -495,6 +524,7 @@ def analyze_ticker(
 
     table = seasonal_month_table(bars)
     position = position_profile(bars)
+    liquidity = liquidity_profile(bars)
     status, note = ticker_status(current_month, accumulation_months, position)
 
     best_month = None
@@ -540,6 +570,10 @@ def analyze_ticker(
         "bestMonth": month_label(best_month[0]) if best_month else None,
         "bestMonthScore": round(best_month[1], 2) if best_month else None,
         "position": position,
+        "liquidity": liquidity,
+        "avgTurnoverPkr": liquidity["avgTurnoverPkr"],
+        "avgVolume": liquidity["avgVolume"],
+        "liquid": liquidity["liquid"],
         "calendar": calendar,
         "statsByMonth": {
             str(m): {
@@ -766,6 +800,10 @@ def build_seasonality_matrix(
             "avgForward90Pct": rec["accumulationWindowStats"]["forward90"]["avgPct"],
             "lastClose": rec["lastClose"],
             "lastDate": rec["lastDate"],
+            "avgTurnoverPkr": rec["avgTurnoverPkr"],
+            "avgVolume": rec["avgVolume"],
+            "liquid": rec["liquid"],
+            "medianForward60Pct": rec["accumulationWindowStats"]["forward60"]["medianPct"],
         }
         for sector_row in sectors
         for rec in sector_row["tickers"]
@@ -789,6 +827,12 @@ def build_seasonality_matrix(
                 "accumulationMaxRangePct": ACCUMULATION_MAX_RANGE_PCT,
                 "watchMaxRangePct": WATCH_MAX_RANGE_PCT,
                 "maxDrawdownFromHighPct": MAX_DRAWDOWN_FROM_HIGH_PCT,
+            },
+            "liquidityGate": {
+                "turnoverWindow": LIQUIDITY_WINDOW,
+                "minAvgTurnoverPkr": MIN_AVG_TURNOVER_PKR,
+                "minAvgVolume": MIN_AVG_VOLUME,
+                "minPricePkr": MIN_PRICE_PKR,
             },
             "statusDefinitions": {
                 STATUS_ACTIVE: "Calendar accumulation window open and price in the lower 45% of its 3-year range.",

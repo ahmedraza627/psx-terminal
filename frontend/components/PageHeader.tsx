@@ -15,13 +15,13 @@ export default function PageHeader({
   right?: ReactNode;
 }) {
   return (
-    <header className="flex flex-wrap items-end justify-between gap-3 border-b border-slate-200 pb-4">
+    <header className="flex flex-wrap items-end justify-between gap-3 border-b border-slate-800 pb-4">
       <div className="min-w-0">
-        <h1 className="text-[22px] font-bold tracking-tight text-slate-800">
+        <h1 className="text-[22px] font-bold tracking-tight text-slate-200">
           {title}
         </h1>
         {subtitle && (
-          <p className="pt-0.5 text-[13px] font-normal text-slate-700">{subtitle}</p>
+          <p className="pt-0.5 text-[13px] font-normal text-slate-300">{subtitle}</p>
         )}
       </div>
       {right && (

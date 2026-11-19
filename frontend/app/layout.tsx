@@ -5,7 +5,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "PSX Quant Fund - Institutional Desk",
   description:
-    "Two screens only: today's PSX buy and avoid calls, plus the audited performance history behind them.",
+    "Today's PSX buy and avoid calls, the seasonal playbook behind them, and the audited performance history.",
 };
 
 export default function RootLayout({
@@ -14,8 +14,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body className="bg-slate-50 text-slate-900 antialiased">
+    <html lang="en" className="dark">
+      <body className="min-h-screen bg-[#060A11] text-slate-200 antialiased">
         <DeskShell>{children}</DeskShell>
       </body>
     </html>
