@@ -799,7 +799,7 @@ export default function BacktestPage() {
         </div>
       )}
 
-      {data && (
+      {isStress && data && (
         <StressTestView data={data as StressTestPayload} />
       )}
 

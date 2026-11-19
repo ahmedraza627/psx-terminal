@@ -1,58 +1,105 @@
 {
-  "sessionDate": "2026-11-18",
+  "sessionDate": "2026-11-19",
   "kse100": {
-    "close": 176294.33,
-    "changePct": -0.69
+    "close": 176772.18,
+    "changePct": 0.27
   },
   "sbpRate": 11.0,
   "liquiditySweeps": [],
   "rsLeaders": [
     {
       "ticker": "PRET",
-      "close": 688.46,
-      "mansfieldRs": 15.4,
-      "volZScore": 2.2,
-      "rvol": 3.44,
-      "trendStretchPct": 23.26,
-      "poc": 671.77,
-      "stopLoss": 585.19,
-      "target": 771.08
+      "close": 720.72,
+      "mansfieldRs": 10.03,
+      "volZScore": 3.18,
+      "rvol": 3.88,
+      "trendStretchPct": 28.44,
+      "poc": 719.48,
+      "stopLoss": 612.61,
+      "target": 807.21
     },
     {
-      "ticker": "BPL",
-      "close": 118.33,
-      "mansfieldRs": 14.6,
-      "volZScore": 1.39,
-      "rvol": 1.87,
-      "trendStretchPct": 105.28,
-      "poc": 118.6,
-      "stopLoss": 103.58,
-      "target": 132.53
+      "ticker": "ASTL",
+      "close": 19.05,
+      "mansfieldRs": -9.42,
+      "volZScore": 27.52,
+      "rvol": 8.98,
+      "trendStretchPct": 9.35,
+      "poc": 18.95,
+      "stopLoss": 17.07,
+      "target": 21.34
     },
     {
-      "ticker": "LIVEN",
-      "close": 43.31,
-      "mansfieldRs": 2.92,
-      "volZScore": 4.8,
-      "rvol": 4.23,
-      "trendStretchPct": 34.95,
-      "poc": 45.74,
-      "stopLoss": 38.14,
-      "target": 48.51
+      "ticker": "EFERT",
+      "close": 222.6,
+      "mansfieldRs": -15.12,
+      "volZScore": 8.85,
+      "rvol": 4.31,
+      "trendStretchPct": 13.66,
+      "poc": 209.61,
+      "stopLoss": 211.47,
+      "target": 249.31
     },
     {
-      "ticker": "NICL",
-      "close": 276.62,
-      "mansfieldRs": 2.36,
-      "volZScore": 13.16,
-      "rvol": 16.29,
-      "trendStretchPct": 3.45,
-      "poc": 277.9,
-      "stopLoss": 260.78,
-      "target": 309.81
+      "ticker": "ENGROH",
+      "close": 279.69,
+      "mansfieldRs": -21.34,
+      "volZScore": 4.15,
+      "rvol": 1.85,
+      "trendStretchPct": 6.17,
+      "poc": 277.4,
+      "stopLoss": 266.48,
+      "target": 313.25
+    },
+    {
+      "ticker": "FFC",
+      "close": 571.73,
+      "mansfieldRs": -22.15,
+      "volZScore": 1.99,
+      "rvol": 1.59,
+      "trendStretchPct": 4.61,
+      "poc": 568.28,
+      "stopLoss": 551.19,
+      "target": 640.34
     }
   ],
-  "carryTraps": [],
+  "carryTraps": [
+    {
+      "ticker": "MACFL",
+      "spotClose": 53.16,
+      "futClose": 54.0,
+      "mansfieldRs": -22.51,
+      "annualizedCarryPct": 57.67
+    },
+    {
+      "ticker": "NATF",
+      "spotClose": 325.97,
+      "futClose": 331.11,
+      "mansfieldRs": -5.02,
+      "annualizedCarryPct": 57.55
+    },
+    {
+      "ticker": "HCAR",
+      "spotClose": 201.84,
+      "futClose": 205.02,
+      "mansfieldRs": -14.58,
+      "annualizedCarryPct": 57.51
+    },
+    {
+      "ticker": "FATIMA",
+      "spotClose": 145.9,
+      "futClose": 148.0,
+      "mansfieldRs": -21.15,
+      "annualizedCarryPct": 52.54
+    },
+    {
+      "ticker": "GCIL",
+      "spotClose": 33.14,
+      "futClose": 33.38,
+      "mansfieldRs": -24.35,
+      "annualizedCarryPct": 26.43
+    }
+  ],
   "engine": {
     "lookbackDays": 5,
     "trendMaDays": 50,
