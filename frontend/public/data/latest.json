@@ -1,103 +1,118 @@
 {
-  "sessionDate": "2026-11-19",
+  "sessionDate": "2026-11-20",
   "kse100": {
-    "close": 176772.18,
-    "changePct": 0.27
+    "close": 177382.57,
+    "changePct": 0.35
   },
   "sbpRate": 11.0,
-  "liquiditySweeps": [],
+  "liquiditySweeps": [
+    {
+      "ticker": "MLCF",
+      "close": 105.81,
+      "poc": 105.96,
+      "mansfieldRs": -18.34,
+      "volZScore": 2.09,
+      "rvol": 1.76,
+      "trendStretchPct": 12.35,
+      "atr": 3.43,
+      "target": 118.51,
+      "stopLoss": 98.95,
+      "reason": "Swept 5d low (102.6) | RVOL 1.8x | Z 2.1 | Trend +12.3% | ATR 3.43",
+      "directorFootprint": true
+    }
+  ],
   "rsLeaders": [
     {
+      "ticker": "LIVEN",
+      "close": 52.4,
+      "mansfieldRs": 10.66,
+      "volZScore": 2.46,
+      "rvol": 3.01,
+      "trendStretchPct": 60.65,
+      "poc": 45.9,
+      "stopLoss": 45.78,
+      "target": 58.69
+    },
+    {
       "ticker": "PRET",
-      "close": 720.72,
-      "mansfieldRs": 10.03,
-      "volZScore": 3.18,
-      "rvol": 3.88,
-      "trendStretchPct": 28.44,
-      "poc": 719.48,
-      "stopLoss": 612.61,
-      "target": 807.21
+      "close": 708.66,
+      "mansfieldRs": 7.52,
+      "volZScore": 1.09,
+      "rvol": 2.16,
+      "trendStretchPct": 25.56,
+      "poc": 723.92,
+      "stopLoss": 602.36,
+      "target": 793.7
     },
     {
-      "ticker": "ASTL",
-      "close": 19.05,
-      "mansfieldRs": -9.42,
-      "volZScore": 27.52,
-      "rvol": 8.98,
-      "trendStretchPct": 9.35,
-      "poc": 18.95,
-      "stopLoss": 17.07,
-      "target": 21.34
+      "ticker": "TREET",
+      "close": 28.67,
+      "mansfieldRs": -10.62,
+      "volZScore": 6.56,
+      "rvol": 4.36,
+      "trendStretchPct": 23.2,
+      "poc": 26.64,
+      "stopLoss": 26.66,
+      "target": 32.11
     },
     {
-      "ticker": "EFERT",
-      "close": 222.6,
-      "mansfieldRs": -15.12,
-      "volZScore": 8.85,
-      "rvol": 4.31,
-      "trendStretchPct": 13.66,
-      "poc": 209.61,
-      "stopLoss": 211.47,
-      "target": 249.31
+      "ticker": "MFL",
+      "close": 45.74,
+      "mansfieldRs": -13.11,
+      "volZScore": 1.67,
+      "rvol": 2.42,
+      "trendStretchPct": 4.89,
+      "poc": 43.7,
+      "stopLoss": 42.52,
+      "target": 51.23
     },
     {
-      "ticker": "ENGROH",
-      "close": 279.69,
-      "mansfieldRs": -21.34,
-      "volZScore": 4.15,
-      "rvol": 1.85,
-      "trendStretchPct": 6.17,
-      "poc": 277.4,
-      "stopLoss": 266.48,
-      "target": 313.25
-    },
-    {
-      "ticker": "FFC",
-      "close": 571.73,
-      "mansfieldRs": -22.15,
-      "volZScore": 1.99,
-      "rvol": 1.59,
-      "trendStretchPct": 4.61,
-      "poc": 568.28,
-      "stopLoss": 551.19,
-      "target": 640.34
+      "ticker": "CHCC",
+      "close": 294.11,
+      "mansfieldRs": -13.59,
+      "volZScore": 3.91,
+      "rvol": 2.59,
+      "trendStretchPct": 6.22,
+      "poc": 309.33,
+      "stopLoss": 276.04,
+      "target": 329.4
     }
   ],
   "carryTraps": [
     {
       "ticker": "MACFL",
-      "spotClose": 53.16,
-      "futClose": 54.0,
-      "mansfieldRs": -22.51,
-      "annualizedCarryPct": 57.67
-    },
-    {
-      "ticker": "NATF",
-      "spotClose": 325.97,
-      "futClose": 331.11,
-      "mansfieldRs": -5.02,
-      "annualizedCarryPct": 57.55
+      "spotClose": 53.25,
+      "futClose": 54.02,
+      "mansfieldRs": -22.58,
+      "annualizedCarryPct": 52.78
     },
     {
       "ticker": "HCAR",
-      "spotClose": 201.84,
-      "futClose": 205.02,
-      "mansfieldRs": -14.58,
-      "annualizedCarryPct": 57.51
+      "spotClose": 206.58,
+      "futClose": 209.56,
+      "mansfieldRs": -12.68,
+      "annualizedCarryPct": 52.65
     },
     {
-      "ticker": "FATIMA",
-      "spotClose": 145.9,
-      "futClose": 148.0,
-      "mansfieldRs": -21.15,
-      "annualizedCarryPct": 52.54
+      "ticker": "NATF",
+      "spotClose": 324.62,
+      "futClose": 329.3,
+      "mansfieldRs": -5.31,
+      "annualizedCarryPct": 52.62
     },
     {
-      "ticker": "GCIL",
-      "spotClose": 33.14,
-      "futClose": 33.38,
-      "mansfieldRs": -24.35,
-      "annualizedCarryPct": 26.43
+      "ticker": "POL",
+      "spotClose": 659.24,
+      "futClose": 668.74,
+      "mansfieldRs": -19.11,
+      "annualizedCarryPct": 52.6
+    },
+    {
+      "ticker": "SYS",
+      "spotClose": 110.69,
+      "futClose": 112.24,
+      "mansfieldRs": -23.14,
+      "annualizedCarryPct": 51.11
     }
   ],
   "engine": {
