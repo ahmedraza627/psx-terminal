@@ -1,7 +1,72 @@
 {
-  "sessionDate": "20NOV2026",
-  "generatedAt": "2026-11-20T18:30:57.347877+00:00",
+  "sessionDate": "23NOV2026",
+  "generatedAt": "2026-11-23T18:52:39.721468+00:00",
   "entries": [
+    {
+      "date": "23 Nov 2026",
+      "ticker": "NATF",
+      "call": "AVOID",
+      "label": "DFX CARRY TRAP",
+      "entry": 326.29,
+      "stop": null,
+      "target": null,
+      "latestClose": 326.29,
+      "pnlPct": 0.0,
+      "status": "IN PLAY",
+      "notes": "DFX CARRY TRAP \u00b7 Mansfield RS -4.11% \u00b7 Carry 51.0% vs SBP 11.0%"
+    },
+    {
+      "date": "23 Nov 2026",
+      "ticker": "HCAR",
+      "call": "AVOID",
+      "label": "DFX CARRY TRAP",
+      "entry": 204.64,
+      "stop": null,
+      "target": null,
+      "latestClose": 204.64,
+      "pnlPct": 0.0,
+      "status": "IN PLAY",
+      "notes": "DFX CARRY TRAP \u00b7 Mansfield RS -12.80% \u00b7 Carry 51.0% vs SBP 11.0%"
+    },
+    {
+      "date": "23 Nov 2026",
+      "ticker": "ZAL",
+      "call": "AVOID",
+      "label": "DFX CARRY TRAP",
+      "entry": 29.9,
+      "stop": null,
+      "target": null,
+      "latestClose": 29.9,
+      "pnlPct": 0.0,
+      "status": "IN PLAY",
+      "notes": "DFX CARRY TRAP \u00b7 Mansfield RS -17.59% \u00b7 Carry 51.3% vs SBP 11.0%"
+    },
+    {
+      "date": "23 Nov 2026",
+      "ticker": "PREMA",
+      "call": "AVOID",
+      "label": "DFX CARRY TRAP",
+      "entry": 31.58,
+      "stop": null,
+      "target": null,
+      "latestClose": 31.58,
+      "pnlPct": 0.0,
+      "status": "IN PLAY",
+      "notes": "DFX CARRY TRAP \u00b7 Mansfield RS -19.40% \u00b7 Carry 50.9% vs SBP 11.0%"
+    },
+    {
+      "date": "23 Nov 2026",
+      "ticker": "MACFL",
+      "call": "AVOID",
+      "label": "DFX CARRY TRAP",
+      "entry": 54.01,
+      "stop": null,
+      "target": null,
+      "latestClose": 54.01,
+      "pnlPct": 0.0,
+      "status": "IN PLAY",
+      "notes": "DFX CARRY TRAP \u00b7 Mansfield RS -20.15% \u00b7 Carry 50.7% vs SBP 11.0%"
+    },
     {
       "date": "20 Nov 2026",
       "ticker": "NATF",
@@ -10,9 +75,9 @@
       "entry": 324.62,
       "stop": null,
       "target": null,
-      "latestClose": 324.62,
-      "pnlPct": 0.0,
-      "status": "IN PLAY",
+      "latestClose": 326.29,
+      "pnlPct": -0.51,
+      "status": "AVOID FAILED",
       "notes": "DFX CARRY TRAP \u00b7 Mansfield RS -5.31% \u00b7 Carry 52.6% vs SBP 11.0%"
     },
     {
@@ -23,9 +88,9 @@
       "entry": 206.58,
       "stop": null,
       "target": null,
-      "latestClose": 206.58,
-      "pnlPct": 0.0,
-      "status": "IN PLAY",
+      "latestClose": 204.64,
+      "pnlPct": 0.94,
+      "status": "AVOID WORKED",
       "notes": "DFX CARRY TRAP \u00b7 Mansfield RS -12.68% \u00b7 Carry 52.6% vs SBP 11.0%"
     },
     {
@@ -36,9 +101,9 @@
       "entry": 659.24,
       "stop": null,
       "target": null,
-      "latestClose": 659.24,
-      "pnlPct": 0.0,
-      "status": "IN PLAY",
+      "latestClose": 659.56,
+      "pnlPct": -0.05,
+      "status": "AVOID FAILED",
       "notes": "DFX CARRY TRAP \u00b7 Mansfield RS -19.11% \u00b7 Carry 52.6% vs SBP 11.0%"
     },
     {
@@ -49,9 +114,9 @@
       "entry": 53.25,
       "stop": null,
       "target": null,
-      "latestClose": 53.25,
-      "pnlPct": 0.0,
-      "status": "IN PLAY",
+      "latestClose": 54.01,
+      "pnlPct": -1.43,
+      "status": "AVOID FAILED",
       "notes": "DFX CARRY TRAP \u00b7 Mansfield RS -22.58% \u00b7 Carry 52.8% vs SBP 11.0%"
     },
     {
@@ -62,9 +127,9 @@
       "entry": 110.69,
       "stop": null,
       "target": null,
-      "latestClose": 110.69,
-      "pnlPct": 0.0,
-      "status": "IN PLAY",
+      "latestClose": 109.49,
+      "pnlPct": 1.08,
+      "status": "AVOID WORKED",
       "notes": "DFX CARRY TRAP \u00b7 Mansfield RS -23.14% \u00b7 Carry 51.1% vs SBP 11.0%"
     },
     {
@@ -75,8 +140,8 @@
       "entry": 105.96,
       "stop": 98.95,
       "target": 118.51,
-      "latestClose": 105.81,
-      "pnlPct": -0.14,
+      "latestClose": 106.76,
+      "pnlPct": 0.76,
       "status": "IN PLAY",
       "notes": "LIQUIDITY SWEEP BUY \u00b7 POC 105.96 \u00b7 Vol Z 2.09 \u00b7 Mansfield RS -18.34% \u00b7 Director footprint"
     },
@@ -88,9 +153,9 @@
       "entry": 325.97,
       "stop": null,
       "target": null,
-      "latestClose": 324.62,
-      "pnlPct": 0.41,
-      "status": "AVOID WORKED",
+      "latestClose": 326.29,
+      "pnlPct": -0.1,
+      "status": "AVOID FAILED",
       "notes": "DFX CARRY TRAP \u00b7 Mansfield RS -5.02% \u00b7 Carry 57.5% vs SBP 11.0%"
     },
     {
@@ -101,8 +166,8 @@
       "entry": 201.84,
       "stop": null,
       "target": null,
-      "latestClose": 206.58,
-      "pnlPct": -2.35,
+      "latestClose": 204.64,
+      "pnlPct": -1.39,
       "status": "AVOID FAILED",
       "notes": "DFX CARRY TRAP \u00b7 Mansfield RS -14.58% \u00b7 Carry 57.5% vs SBP 11.0%"
     },
@@ -114,8 +179,8 @@
       "entry": 145.9,
       "stop": null,
       "target": null,
-      "latestClose": 145.25,
-      "pnlPct": 0.45,
+      "latestClose": 144.69,
+      "pnlPct": 0.83,
       "status": "AVOID WORKED",
       "notes": "DFX CARRY TRAP \u00b7 Mansfield RS -21.15% \u00b7 Carry 52.5% vs SBP 11.0%"
     },
@@ -127,8 +192,8 @@
       "entry": 53.16,
       "stop": null,
       "target": null,
-      "latestClose": 53.25,
-      "pnlPct": -0.17,
+      "latestClose": 54.01,
+      "pnlPct": -1.6,
       "status": "AVOID FAILED",
       "notes": "DFX CARRY TRAP \u00b7 Mansfield RS -22.51% \u00b7 Carry 57.7% vs SBP 11.0%"
     },
@@ -140,9 +205,9 @@
       "entry": 33.14,
       "stop": null,
       "target": null,
-      "latestClose": 32.84,
-      "pnlPct": 0.91,
-      "status": "AVOID WORKED",
+      "latestClose": 33.3,
+      "pnlPct": -0.48,
+      "status": "AVOID FAILED",
       "notes": "DFX CARRY TRAP \u00b7 Mansfield RS -24.35% \u00b7 Carry 26.4% vs SBP 11.0%"
     },
     {
@@ -153,8 +218,8 @@
       "entry": 719.48,
       "stop": 612.61,
       "target": 807.21,
-      "latestClose": 708.66,
-      "pnlPct": -1.5,
+      "latestClose": 688.87,
+      "pnlPct": -4.25,
       "status": "IN PLAY",
       "notes": "LIQUIDITY SWEEP BUY \u00b7 POC 719.48 \u00b7 Vol Z 3.18 \u00b7 Mansfield RS +10.03%"
     },
@@ -166,8 +231,8 @@
       "entry": 671.77,
       "stop": 585.19,
       "target": 771.08,
-      "latestClose": 708.66,
-      "pnlPct": 5.49,
+      "latestClose": 688.87,
+      "pnlPct": 2.55,
       "status": "IN PLAY",
       "notes": "LIQUIDITY SWEEP BUY \u00b7 POC 671.77 \u00b7 Vol Z 2.20 \u00b7 Mansfield RS +15.40%"
     },
@@ -179,8 +244,8 @@
       "entry": 118.6,
       "stop": 103.58,
       "target": 132.53,
-      "latestClose": 95.85,
-      "pnlPct": -19.18,
+      "latestClose": 98.2,
+      "pnlPct": -17.2,
       "status": "STOPPED OUT",
       "notes": "LIQUIDITY SWEEP BUY \u00b7 POC 118.60 \u00b7 Vol Z 1.39 \u00b7 Mansfield RS +14.60%"
     },
@@ -192,8 +257,8 @@
       "entry": 87.83,
       "stop": null,
       "target": null,
-      "latestClose": 86.28,
-      "pnlPct": 1.76,
+      "latestClose": 85.79,
+      "pnlPct": 2.32,
       "status": "AVOID WORKED",
       "notes": "DFX CARRY TRAP \u00b7 Mansfield RS -0.01% \u00b7 Carry 59.0% vs SBP 11.0%"
     },
@@ -205,8 +270,8 @@
       "entry": 59.68,
       "stop": null,
       "target": null,
-      "latestClose": 59.7,
-      "pnlPct": -0.03,
+      "latestClose": 59.78,
+      "pnlPct": -0.17,
       "status": "AVOID FAILED",
       "notes": "DFX CARRY TRAP \u00b7 Mansfield RS -0.76% \u00b7 Carry 107.6% vs SBP 11.0%"
     },
@@ -218,8 +283,8 @@
       "entry": 139.8,
       "stop": null,
       "target": null,
-      "latestClose": 141.39,
-      "pnlPct": -1.14,
+      "latestClose": 145.67,
+      "pnlPct": -4.2,
       "status": "AVOID FAILED",
       "notes": "DFX CARRY TRAP \u00b7 Mansfield RS -1.50% \u00b7 Carry 59.3% vs SBP 11.0%"
     },
@@ -231,9 +296,9 @@
       "entry": 53.85,
       "stop": null,
       "target": null,
-      "latestClose": 53.25,
-      "pnlPct": 1.11,
-      "status": "AVOID WORKED",
+      "latestClose": 54.01,
+      "pnlPct": -0.3,
+      "status": "AVOID FAILED",
       "notes": "DFX CARRY TRAP \u00b7 Mansfield RS -3.47% \u00b7 Carry 59.0% vs SBP 11.0%"
     },
     {
@@ -244,8 +309,8 @@
       "entry": 200.14,
       "stop": null,
       "target": null,
-      "latestClose": 206.58,
-      "pnlPct": -3.22,
+      "latestClose": 204.64,
+      "pnlPct": -2.25,
       "status": "AVOID FAILED",
       "notes": "DFX CARRY TRAP \u00b7 Mansfield RS -3.59% \u00b7 Carry 59.3% vs SBP 11.0%"
     },
@@ -257,8 +322,8 @@
       "entry": 118.07,
       "stop": 110.05,
       "target": 132.53,
-      "latestClose": 95.85,
-      "pnlPct": -18.82,
+      "latestClose": 98.2,
+      "pnlPct": -16.83,
       "status": "STOPPED OUT",
       "notes": "RS ACCUMULATION WATCH \u00b7 POC 118.07 \u00b7 Vol Z 1.98 \u00b7 Mansfield RS +72.30%"
     },
@@ -270,8 +335,8 @@
       "entry": 27.98,
       "stop": 26.35,
       "target": 31.73,
-      "latestClose": 28.85,
-      "pnlPct": 3.11,
+      "latestClose": 29.04,
+      "pnlPct": 3.79,
       "status": "IN PLAY",
       "notes": "RS ACCUMULATION WATCH \u00b7 POC 27.98 \u00b7 Vol Z 4.04 \u00b7 Mansfield RS +16.39%"
     },
@@ -283,8 +348,8 @@
       "entry": 32.02,
       "stop": null,
       "target": null,
-      "latestClose": 31.01,
-      "pnlPct": 3.15,
+      "latestClose": 31.58,
+      "pnlPct": 1.37,
       "status": "AVOID WORKED",
       "notes": "DFX CARRY TRAP \u00b7 Mansfield RS -0.19% \u00b7 Carry 57.0% vs SBP 11.0%"
     },
@@ -296,9 +361,9 @@
       "entry": 204.72,
       "stop": null,
       "target": null,
-      "latestClose": 206.58,
-      "pnlPct": -0.91,
-      "status": "AVOID FAILED",
+      "latestClose": 204.64,
+      "pnlPct": 0.04,
+      "status": "AVOID WORKED",
       "notes": "DFX CARRY TRAP \u00b7 Mansfield RS -2.33% \u00b7 Carry 56.7% vs SBP 11.0%"
     },
     {
@@ -309,8 +374,8 @@
       "entry": 116.72,
       "stop": null,
       "target": null,
-      "latestClose": 115.52,
-      "pnlPct": 1.03,
+      "latestClose": 115.56,
+      "pnlPct": 0.99,
       "status": "AVOID WORKED",
       "notes": "DFX CARRY TRAP \u00b7 Mansfield RS -5.77% \u00b7 Carry 56.9% vs SBP 11.0%"
     },
@@ -322,8 +387,8 @@
       "entry": 14.21,
       "stop": null,
       "target": null,
-      "latestClose": 14.03,
-      "pnlPct": 1.27,
+      "latestClose": 14.09,
+      "pnlPct": 0.84,
       "status": "AVOID WORKED",
       "notes": "DFX CARRY TRAP \u00b7 Mansfield RS -6.22% \u00b7 Carry 56.0% vs SBP 11.0%"
     },
@@ -335,9 +400,9 @@
       "entry": 53.56,
       "stop": null,
       "target": null,
-      "latestClose": 53.25,
-      "pnlPct": 0.58,
-      "status": "AVOID WORKED",
+      "latestClose": 54.01,
+      "pnlPct": -0.84,
+      "status": "AVOID FAILED",
       "notes": "DFX CARRY TRAP \u00b7 Mansfield RS -10.24% \u00b7 Carry 57.0% vs SBP 11.0%"
     },
     {
@@ -348,9 +413,9 @@
       "entry": 26.18,
       "stop": 25.82,
       "target": 31.09,
-      "latestClose": 29.85,
-      "pnlPct": 14.02,
-      "status": "IN PLAY",
+      "latestClose": 32.84,
+      "pnlPct": 25.44,
+      "status": "TARGET HIT",
       "notes": "RS ACCUMULATION WATCH \u00b7 POC 26.18 \u00b7 Vol Z 1.90 \u00b7 Mansfield RS +11.28%"
     },
     {
@@ -361,8 +426,8 @@
       "entry": 47.98,
       "stop": 45.37,
       "target": 54.63,
-      "latestClose": 48.43,
-      "pnlPct": 0.94,
+      "latestClose": 49.54,
+      "pnlPct": 3.25,
       "status": "IN PLAY",
       "notes": "RS ACCUMULATION WATCH \u00b7 POC 47.98 \u00b7 Vol Z 1.00 \u00b7 Mansfield RS +8.81%"
     },
@@ -374,8 +439,8 @@
       "entry": 710.36,
       "stop": 685.67,
       "target": 825.75,
-      "latestClose": 718.51,
-      "pnlPct": 1.15,
+      "latestClose": 723.91,
+      "pnlPct": 1.91,
       "status": "IN PLAY",
       "notes": "RS ACCUMULATION WATCH \u00b7 POC 710.36 \u00b7 Vol Z 2.16 \u00b7 Mansfield RS +8.23%"
     }

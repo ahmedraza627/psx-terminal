@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-20T18:43:34+00:00",
+  "generatedAt": "2026-11-23T19:16:55+00:00",
   "sessionDate": "2026-11-20",
   "marketRegime": {
     "regime": "CHOPPY",
@@ -554,6 +554,6 @@
       "hedgeWindow": 63,
       "pairsPerSector": 6
     },
-    "seasonalityRefreshedAt": "2026-11-20T18:39:03+00:00"
+    "seasonalityRefreshedAt": "2026-11-23T19:10:49+00:00"
   }
 }
