@@ -25,7 +25,7 @@ TAPE_URL = "https://dps.psx.com.pk/download/mkt_summary/{}.Z"
 INDICES_URL = "https://dps.psx.com.pk/indices"
 FILINGS_URL = "https://dps.psx.com.pk/company/{}"
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0 Safari/537.36"
-SBP_RATE_PCT = 11.0  # policy rate the frontend compares carry against
+SBP_RATE_PCT = 12.0  # policy rate the frontend compares carry against
 MIN_CLOSE_PKR, MIN_TURNOVER_PKR, MIN_MEDIAN_TURNOVER_PKR = 12.0, 20_000_000, 15_000_000
 # Institutional gates. These must stay byte-identical to the engine defaults the
 # 1-year backtest reports, otherwise the desk and the lab disagree.
@@ -223,10 +223,11 @@ def analyse(cur, session: str, session_date, rows) -> tuple[list, list, list]:
                             "target": round(close * (1 + TARGET_PCT / 100), 2)})
         fut = one(cur, "SELECT close_price FROM psx_futures_eod WHERE trade_date=? AND ticker LIKE ? AND close_price>0 "
                        "ORDER BY COALESCE(volume,0) DESC LIMIT 1", (session, f"{ticker}-%"))
-        carry = calc_dfx_carry(close, fut, session_date)
-        if carry["leverageOverheated"] and mansfield < 0 and not trend_ok:  # never short a strong RS leader
-            traps.append({"ticker": ticker, "spotClose": close, "futClose": fut, "mansfieldRs": mansfield,
-                          "annualizedCarryPct": carry["annualizedCarryPct"]})
+        if fut and fut > 0:
+            carry = calc_dfx_carry(close, fut, session_date, ticker)
+            if carry["leverageOverheated"] and mansfield < 0 and not trend_ok:  # never short a strong RS leader
+                traps.append({"ticker": ticker, "spotClose": close, "futClose": fut, "mansfieldRs": mansfield,
+                              "annualizedCarryPct": carry["annualizedCarryPct"]})
     sweeps.sort(key=lambda s: -s["mansfieldRs"])
     leaders.sort(key=lambda s: -s["mansfieldRs"])
     traps.sort(key=lambda s: -s["annualizedCarryPct"])

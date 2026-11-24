@@ -176,7 +176,20 @@ const ACTION_TONE: Record<Action, string> = {
   "EXTENDED / SKIP": "border-slate-700 bg-slate-800/60 text-slate-400",
 };
 
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const MONTHS = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
 
 const statusTone = (status: string) => {
   if (status === STATUS_ACTIVE) return "border-emerald-500/40 bg-emerald-500/10 text-emerald-300";
@@ -194,16 +207,6 @@ const shortStatus = (status: string) => {
 
 const signed = (value: number, digits = 2) =>
   `${value >= 0 ? "+" : ""}${value.toFixed(digits)}%`;
-
-const heat = (value: number, samples: number) => {
-  if (samples === 0) return "bg-slate-900/60 text-slate-600";
-  if (value >= 6) return "bg-emerald-500/35 text-emerald-100";
-  if (value >= 3) return "bg-emerald-500/20 text-emerald-200";
-  if (value >= 1) return "bg-emerald-500/10 text-emerald-300";
-  if (value > -1) return "bg-slate-800/70 text-slate-300";
-  if (value > -3) return "bg-rose-500/15 text-rose-300";
-  return "bg-rose-500/25 text-rose-200";
-};
 
 /** Turnover in the units a PSX desk quotes. */
 const rupees = (value: number | null | undefined) => {
@@ -256,7 +259,6 @@ export default function SeasonalityPage() {
   const [sectorFilter, setSectorFilter] = useState<string>("ALL");
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
-  const [heatmapOpen, setHeatmapOpen] = useState(false);
 
   useEffect(() => {
     fetch("/data/seasonality_matrix.json")
@@ -388,7 +390,7 @@ export default function SeasonalityPage() {
           <p className="mt-1 text-[11px] leading-relaxed text-slate-400">
             {actionNow.length} liquid names buyable now · {activeSectors.length} sectors in window ·{" "}
             {upcoming.length} opening in the next 3 months · {extendedNow.length} extended (blocked).
-            Liquidity gate {rupees(turnoverGate)}/day, range ≤{MAX_RANGE_PCT}%.
+            SBP Policy Rate: 12.00% · ceiling 13.00% · floor 11.00%.
           </p>
         </div>
         <div className="font-mono text-[10px] text-slate-500 lg:text-right">
@@ -416,8 +418,8 @@ export default function SeasonalityPage() {
               </span>
             </div>
             <p className="mt-0.5 text-[11px] leading-snug text-slate-500">
-              Window open and price inside the lower {MAX_RANGE_PCT}% of its 3-year range — scale in
-              on red sessions.
+              Window open now, price inside the lower {MAX_RANGE_PCT}% of its 3-year range, and the 12.00%
+              SBP rate still leaves real add risk on high-turnover names. Accumulate on red sessions.
             </p>
           </div>
           {activeSectors.length > 0 && (
@@ -437,10 +439,10 @@ export default function SeasonalityPage() {
 
         {actionNow.length === 0 ? (
           <p className="px-4 py-8 text-center text-xs text-slate-500">
-            No liquid name is inside its accumulation zone — wait for a pullback.
+            No liquid name is inside an open accumulation window right now — wait for the tape to pull back.
           </p>
         ) : (
-          <>
+          <div>
             {/* desktop table */}
             <div className="hidden overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch] md:block">
               <table className="w-full min-w-[820px] text-left font-mono text-[11px]">
@@ -533,7 +535,7 @@ export default function SeasonalityPage() {
                 );
               })}
             </ul>
-          </>
+          </div>
         )}
       </section>
 
@@ -554,8 +556,8 @@ export default function SeasonalityPage() {
                 </span>
               </div>
               <p className="mt-0.5 text-[11px] leading-snug text-slate-500">
-                Window is open and price is in range, but the tape already ran or is diverging —
-                accumulation is withdrawn until it pulls back.
+                Window open and price in range, but the tape already ran hard or price is diverging into the top of its swing —
+                accumulation is withdrawn until it pulls back. With the SBP policy rate at 12.00%, paying up into a stretched name is the main risk to avoid.
               </p>
             </div>
           </header>
@@ -614,26 +616,26 @@ export default function SeasonalityPage() {
         <header className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/80 px-4 py-3">
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-[13px] font-bold tracking-tight text-slate-100">Upcoming Next</h2>
-              <span className="rounded border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 font-mono text-[9px] font-bold text-amber-300">
-                WATCH · 1–3 MONTHS
-              </span>
-              <span className="font-mono text-[10px] tabular-nums text-slate-500">
-                {upcoming.length}
+              <h2 className="text-[13px] font-bold tracking-tight text-slate-100">
+                Exit — Lock Profits On Seasonal Peaks
+              </h2>
+              <span className="font-mono text-[10px] tabular-nums text-amber-300">
+                Sell into the peak months below
               </span>
             </div>
             <p className="mt-0.5 text-[11px] leading-snug text-slate-500">
-              Set alerts on the liquid names now; do not pre-buy before the window opens.
+              Set alerts on the liquid names now; do not pre-buy before the window opens. In a 12.00% SBP rate
+              environment, buying ahead means holding dead inventory for the next 1–3 months.
             </p>
           </div>
         </header>
 
         {upcoming.length === 0 ? (
           <p className="px-4 py-8 text-center text-xs text-slate-500">
-            Nothing opens in the next three months — the next bid is further out.
+            Every sector is either in its window now or more than 3 months from opening.
           </p>
         ) : (
-          <ul className="grid gap-px bg-slate-800/60 sm:grid-cols-2 xl:grid-cols-3">
+          <ul className="divide-y divide-slate-800/70">
             {upcoming.map(({ sector, next }) => {
               const monitors = sector.tickers
                 .filter(isLiquid)
@@ -650,13 +652,6 @@ export default function SeasonalityPage() {
                     <div className="flex min-w-0 items-center gap-2">
                       <span className="truncate font-mono text-[12px] font-bold text-slate-100">
                         {sector.sector}
-                      </span>
-                      <span
-                        className={`shrink-0 rounded border px-1.5 py-0.5 font-mono text-[9px] font-bold ${statusTone(
-                          sector.status,
-                        )}`}
-                      >
-                        {shortStatus(sector.status)}
                       </span>
                     </div>
                     <span className="shrink-0 font-mono text-[10px] tabular-nums text-amber-300">
@@ -686,10 +681,7 @@ export default function SeasonalityPage() {
                           className="rounded border border-slate-700 bg-slate-950 px-1.5 py-0.5 font-mono text-[9px] text-slate-300"
                           title={`range ${t.position.rangePositionPct.toFixed(0)}% · win60 ${t.accumulationWindowStats.forward60.winRatePct.toFixed(0)}% · ${rupees(turnoverOf(t))}/day`}
                         >
-                          {t.ticker}{" "}
-                          <span className="text-slate-500">
-                            {t.position.rangePositionPct.toFixed(0)}%
-                          </span>
+                          {t.ticker} {t.position.rangePositionPct.toFixed(0)}%
                         </span>
                       ))
                     )}
@@ -698,93 +690,6 @@ export default function SeasonalityPage() {
               );
             })}
           </ul>
-        )}
-      </section>
-
-      {/* ------------------------------------------- collapsible heatmap */}
-      <section className="overflow-hidden rounded-2xl border border-slate-800/80 bg-slate-900/40">
-        <button
-          type="button"
-          onClick={() => setHeatmapOpen((open) => !open)}
-          aria-expanded={heatmapOpen}
-          className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-slate-900/70"
-        >
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-[13px] font-bold tracking-tight text-slate-100">
-                Seasonality calendar
-              </h2>
-              <span className="font-mono text-[9px] text-slate-500">
-                {data.sectors.length} sectors × 12 months
-              </span>
-            </div>
-            <p className="mt-0.5 text-[11px] text-slate-500">
-              Mean forward 60-session return by month ·{" "}
-              <span className="text-emerald-300">A</span> accumulation ·{" "}
-              <span className="text-amber-300">P</span> peak
-            </p>
-          </div>
-          <span className="shrink-0 rounded border border-slate-700 bg-slate-950 px-2 py-1 font-mono text-[10px] text-slate-400">
-            {heatmapOpen ? "Hide" : "Show"}
-          </span>
-        </button>
-
-        {heatmapOpen && (
-          <div className="border-t border-slate-800/80 p-2 sm:p-3">
-            <div className="overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
-              <table className="w-full min-w-[680px] border-separate border-spacing-y-px font-mono text-[10px]">
-                <thead>
-                  <tr className="text-[8px] uppercase tracking-wide text-slate-500">
-                    <th className="sticky left-0 z-10 bg-slate-950 px-2 py-1 text-left font-semibold">
-                      Sector
-                    </th>
-                    {MONTHS.map((label) => (
-                      <th key={label} className="px-0.5 py-1 text-center font-semibold">
-                        {label}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.sectors.map((sector) => (
-                    <tr key={sector.sector}>
-                      <td className="sticky left-0 z-10 whitespace-nowrap bg-slate-950 px-2 py-0.5">
-                        <span className="text-[10px] text-slate-300">{sector.sector}</span>
-                        <span className="ml-1 text-slate-600">{sector.members}</span>
-                      </td>
-                      {sector.calendar.map((cell) => (
-                        <td key={cell.month} className="p-0">
-                          <div
-                            title={`${sector.sector} ${cell.label}: ${cell.samples} samples · win ${cell.winRatePct.toFixed(
-                              0,
-                            )}% · avg ${signed(cell.avgForward60Pct, 1)}`}
-                            className={`relative mx-px rounded-sm py-0.5 text-center tabular-nums ${heat(
-                              cell.avgForward60Pct,
-                              cell.samples,
-                            )}`}
-                          >
-                            <span className="block text-[9px] font-bold leading-tight">
-                              {cell.avgForward60Pct.toFixed(1)}
-                            </span>
-                            {cell.isAccumulation && (
-                              <span className="absolute right-0 top-0 text-[7px] font-black text-emerald-300">
-                                A
-                              </span>
-                            )}
-                            {cell.isPeak && (
-                              <span className="absolute bottom-0 right-0 text-[7px] font-black text-amber-300">
-                                P
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
         )}
       </section>
 

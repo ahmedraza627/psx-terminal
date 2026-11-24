@@ -164,7 +164,7 @@ const signedPct = (value: number | null | undefined, digits = 1) =>
     : `${value >= 0 ? "+" : ""}${value.toFixed(digits)}%`;
 
 const RS_WATCH_FLOOR = 8.0; // only elite relative strength qualifies when no sweep fired
-const CARRY_FLOOR = 18.0; // % annualised carry that beats the 11% policy rate by enough
+const CARRY_FLOOR = 18.0; // % annualised carry that beats the 12% policy rate by enough
 
 const REGIME_TONE: Record<string, string> = {
   TRENDING: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
@@ -180,7 +180,7 @@ const EDGE_TONE: Record<string, string> = {
   "ABOVE 50D SMA": "border-slate-800 bg-slate-900/40 text-slate-400",
 };
 
-function Tag({children}: {children: React.ReactNode}) {
+function Tag({ children }: { children: React.ReactNode }) {
   return (
     <span className="rounded border border-slate-700/70 bg-slate-800/50 px-1.5 py-0.5 font-mono text-[10px] font-semibold tabular-nums text-slate-400">
       {children}
@@ -188,7 +188,7 @@ function Tag({children}: {children: React.ReactNode}) {
   );
 }
 
-function Stat({label, value, tone}: {label: string; value: string; tone?: string}) {
+function Stat({ label, value, tone }: { label: string; value: string; tone?: string }) {
   return (
     <div className="rounded-2xl border border-slate-800/80 bg-slate-900/50 px-4 py-3">
       <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</div>
@@ -200,7 +200,7 @@ function Stat({label, value, tone}: {label: string; value: string; tone?: string
 export default function DailyDeskPage() {
   const latest = readLatest();
   const alpha = readAlpha();
-  // Live gates, published by the desk run. The desk and the 1-year lab share one engine.
+  // Live gates, published by the desk run.
   const engine = {
     trendMaDays: latest?.engine?.trendMaDays ?? 50,
     minRvol: latest?.engine?.minRvol ?? 1.5,
@@ -230,16 +230,6 @@ export default function DailyDeskPage() {
           <h1 className="mt-1 text-xl font-bold tracking-tight text-slate-50 sm:text-2xl">
             Today&apos;s Trade Desk
           </h1>
-          <p className="mt-1 max-w-2xl text-[11px] leading-relaxed text-slate-400">
-            Buys and avoids are computed at the close — one engine, the same gates the backtest lab
-            replays.
-          </p>
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            <Tag>Above SMA{engine.trendMaDays}</Tag>
-            <Tag>RVOL ≥ {engine.minRvol}x · Z ≥ {engine.minVolZ}</Tag>
-            <Tag>ATR × {engine.atrStopMult} stop</Tag>
-            <Tag>Target +{engine.targetPct}%</Tag>
-          </div>
         </div>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 sm:gap-3">
           <Stat label="Session" value={latest?.sessionDate ?? "—"} />
@@ -287,7 +277,7 @@ export default function DailyDeskPage() {
                   gross {pct(alpha.portfolio.grossExposurePct, 1)}% · VaR {pct(alpha.portfolio.portfolioVarPct, 2)}%
                 </div>
               )}
-              <div>refreshed {alpha.generatedAt.slice(0, 16).replace("T", " ")} UTC</div>
+              <div>refreshed {alpha.generatedAt.slice(0, 16).replace("T", " ") + " UTC"}</div>
             </div>
           </header>
 
@@ -300,7 +290,7 @@ export default function DailyDeskPage() {
                 No name clears two independent edges today — the regime says wait.
               </p>
             ) : (
-              <>
+              <div>
                 {/* mobile: card stack, no horizontal overflow */}
                 <ul className="mt-3 space-y-2 md:hidden">
                   {alpha.picks.map((pick) => (
@@ -422,7 +412,7 @@ export default function DailyDeskPage() {
                     </tbody>
                   </table>
                 </div>
-              </>
+              </div>
             )}
 
             {alpha.extendedSetups && alpha.extendedSetups.length > 0 && (
@@ -518,12 +508,7 @@ export default function DailyDeskPage() {
             </div>
           </div>
         </section>
-      ) : (
-        <div className="rounded-2xl border border-slate-800/80 bg-slate-900/40 p-4 text-xs text-slate-400">
-          Daily alpha brief not generated yet — run{" "}
-          <code className="font-mono">python backend/src/quant/daily_alpha.py</code>.
-        </div>
-      )}
+      ) : null}
 
       {!latest && (
         <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">
@@ -649,8 +634,8 @@ export default function DailyDeskPage() {
               </span>
             </div>
             <p className="mt-0.5 text-[11px] text-slate-400">
-              Carry above {CARRY_FLOOR.toFixed(0)}% against the {pct(sbpRate, 1)}% SBP rate, with broken relative
-              strength — never buy spot here.
+              Ticklers without an active PSX futures/DFM contract are cash-settled names and are
+              handled as carry traps only when a real futures close is on the tape.
             </p>
           </header>
 

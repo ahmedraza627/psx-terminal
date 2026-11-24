@@ -128,49 +128,77 @@ export default function HistoryPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
-        <Card
-          label="Signals Logged"
-          value={String(entries.length)}
-          hint="Auto-appended each session"
-          tone="text-slate-100"
-        />
-        <Card
-          label="Buy Hit Rate"
-          value={hitRate === null ? "—" : `${hitRate}%`}
-          hint={
-            buysResolved
-              ? `${winners}W / ${resolvedBuys.length - winners}L closed`
-              : `${resolvedBuys.length} closed · ${openBuys} in play`
-          }
-          tone={hitRate === null ? "text-slate-500" : "text-emerald-400"}
-        />
-        <Card
-          label="Avoid Success"
-          value={avoidRate === null ? "—" : `${avoidRate}%`}
-          hint={
-            avoidsResolved
-              ? `${avoidsWorked} of ${resolvedAvoids.length} closed traps worked`
-              : `${resolvedAvoids.length} closed · ${openAvoids} in play`
-          }
-          tone={avoidRate === null ? "text-slate-500" : "text-amber-400"}
-        />
-        <Card
-          label="Avg P&L (closed)"
-          value={avgPnl === "–" ? "—" : `${avgPnl}%`}
-          hint={
-            closed.length ? `${closed.length} resolved signals` : "No closed signals yet"
-          }
-          tone={closed.length ? "text-sky-400" : "text-slate-500"}
-        />
+      {/* ---- headline metrics grounded on closed/resolved signals only ---- */}
+      <div className="rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-3">
+        <div className="mb-2 flex flex-wrap gap-x-6 gap-y-1 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+          <span className="text-slate-400">Closed vs in-play</span>
+          <span className="text-emerald-300">
+            {resolvedBuys.length}W + {resolvedBuys.length - winners}L = {resolvedBuys.length} BUY closed
+          </span>
+          <span className="text-amber-300">
+            {avoidsWorked} of {resolvedAvoids.length} AVOID traps worked · {openBuys} BUY + {openAvoids} AVOID in play
+          </span>
+        </div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <Card
+            label="Buy Hit Rate"
+            value={hitRate === null ? "—" : `${hitRate}%`}
+            hint={buysResolved ? `${winners}W / ${resolvedBuys.length - winners}L closed` : `${resolvedBuys.length} closed · ${openBuys} in play`}
+            tone={hitRate === null ? "text-slate-500" : "text-emerald-400"}
+          />
+          <Card
+            label="Avoid Success"
+            value={avoidRate === null ? "—" : `${avoidRate}%`}
+            hint={avoidsResolved ? `${avoidsWorked} of ${resolvedAvoids.length} worked` : `${resolvedAvoids.length} closed · ${openAvoids} in play`}
+            tone={avoidRate === null ? "text-slate-500" : "text-amber-400"}
+          />
+          <Card
+            label="Avg P&L (closed)"
+            value={avgPnl === "–" ? "—" : `${avgPnl}%`}
+            hint={closed.length ? `${closed.length} resolved signals` : "No closed signals yet"}
+            tone={closed.length ? "text-sky-400" : "text-slate-500"}
+          />
+          <Card
+            label="Signals Logged"
+            value={String(entries.length)}
+            hint="Auto-appended each session"
+            tone="text-slate-100"
+          />
+        </div>
       </div>
 
-      {buysResolved && resolvedBuys.length < MIN_SAMPLE && openBuys === 0 ? (
-        <p className="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2 text-[11px] leading-relaxed text-slate-400">
-          <span className="font-semibold text-slate-300">Hit rate needs {MIN_SAMPLE} closed signals.</span>
-          {resolvedBuys.length > 0 ? ` ${resolvedBuys.length} buy is closed and no trades are in play yet — one more closed signal before a rate appears.` : " No buys have closed yet, so a rate now would describe the sample size, not the edge."}
-        </p>
-      ) : null}
+      {/* ---- outcome breakdown: wins, losses, stop-outs, realized P&L ---- */}
+      <div className="rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-3">
+        <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+          Setup Outcome Breakdown — closed signals only
+        </h3>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <div className="rounded-lg border border-emerald-500/25 bg-emerald-500/8 px-3 py-2 text-center">
+            <div className="font-mono text-lg font-black text-emerald-300">{winners}</div>
+            <div className="text-[10px] text-slate-400">BUY wins (target hit)</div>
+          </div>
+          <div className="rounded-lg border border-rose-500/25 bg-rose-500/8 px-3 py-2 text-center">
+            <div className="font-mono text-lg font-black text-rose-300">{resolvedBuys.length - winners}</div>
+            <div className="text-[10px] text-slate-400">BUY stop-outs</div>
+          </div>
+          <div className="rounded-lg border border-emerald-500/25 bg-emerald-500/8 px-3 py-2 text-center">
+            <div className="font-mono text-lg font-black text-emerald-300">{avoidsWorked}</div>
+            <div className="text-[10px] text-slate-400">AVOID traps worked</div>
+          </div>
+          <div className="rounded-lg border border-rose-500/25 bg-rose-500/8 px-3 py-2 text-center">
+            <div className="font-mono text-lg font-black text-rose-300">{resolvedAvoids.length - avoidsWorked}</div>
+            <div className="text-[10px] text-slate-400">AVOID traps failed</div>
+          </div>
+        </div>
+        {closed.length > 0 && (
+          <div className="mt-2 rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-[11px] text-slate-400">
+            Realized P&L across {closed.length} closed signal{" "}
+            {closed.length === 1 ? "is" : "s are"}{" "}
+            {parseFloat(avgPnl) >= 0 ? "positive" : "negative"}{" "}
+            at {avgPnl}% average.
+          </div>
+        )}
+      </div>
 
       <div className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900/60 shadow-sm">
         {/* Search + result count */}

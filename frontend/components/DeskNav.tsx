@@ -7,7 +7,6 @@ const LINKS = [
   { href: "/", label: "Daily Recommendations", hint: "What to trade today" },
   { href: "/seasonality", label: "Seasonal Playbook", hint: "Cyclical windows & timing" },
   { href: "/history", label: "Historical Performance", hint: "Audited signal ledger" },
-  { href: "/backtest", label: "Backtest Lab", hint: "1Y / 5Y / 15Y stress tests" },
 ] as const;
 
 export default function DeskNav({ onNavigate }: { onNavigate?: () => void }) {

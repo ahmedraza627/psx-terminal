@@ -96,7 +96,7 @@ export default function DeskShell({ children }: { children: React.ReactNode }) {
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
             <span className="truncate">Signals computed at close</span>
           </div>
-          <div className="truncate pl-3">Spot buys · DFX carry traps</div>
+          <div className="truncate pl-3">Spot buys · carry traps</div>
         </div>
       </aside>
 

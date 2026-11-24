@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from src.core.config import get_db_path
 from src.core.models import TradeSignal
 from src.ingestion.sqlite_adapter import load_validated_bars
-from src.quant.backtester import BacktestReport, LinearBacktester
+
 from src.quant.engine import LiquidityQuantEngine
 
 app = FastAPI(
@@ -85,13 +85,3 @@ def get_live_signals(
     results.sort(key=lambda s: s.confidence_score, reverse=True)
     return results
 
-
-@app.get("/api/v1/backtest", response_model=BacktestReport)
-def get_backtest_summary():
-    cached = cache.get("backtest")
-    if cached is not None:
-        return cached
-    bars_by_ticker, _ = _get_dataset()
-    report = LinearBacktester().run(bars_by_ticker)
-    cache.set("backtest", report)
-    return report

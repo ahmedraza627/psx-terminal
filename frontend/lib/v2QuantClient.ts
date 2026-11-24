@@ -9,15 +9,6 @@ export interface V2TradeSignal {
   reason: string;
 }
 
-export interface V2BacktestSummary {
-  total_signals: number;
-  wins: number;
-  losses: number;
-  open_trades: number;
-  win_rate_pct: number;
-  avg_pnl_pct: number;
-}
-
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
 
 async function fetchWithTimeout<T>(url: string, timeoutMs = 1500): Promise<T | null> {
@@ -36,16 +27,12 @@ async function fetchWithTimeout<T>(url: string, timeoutMs = 1500): Promise<T | n
 
 export async function fetchV2LiveDeskData(): Promise<{
   signals: V2TradeSignal[];
-  backtest: V2BacktestSummary | null;
   apiOnline: boolean;
 }> {
-  const [signals, backtest] = await Promise.all([
-    fetchWithTimeout<V2TradeSignal[]>(`${API_BASE}/api/v1/signals`),
-    fetchWithTimeout<V2BacktestSummary>(`${API_BASE}/api/v1/backtest`),
-  ]);
+  const signals = await fetchWithTimeout<V2TradeSignal[]>(`${API_BASE}/api/v1/signals`);
 
   if (signals !== null) {
-    return { signals, backtest, apiOnline: true };
+    return { signals, apiOnline: true };
   }
-  return { signals: [], backtest: null, apiOnline: false };
+  return { signals: [], apiOnline: false };
 }

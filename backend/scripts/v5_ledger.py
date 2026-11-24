@@ -103,7 +103,7 @@ def log_signals(conn: sqlite3.Connection, cur: sqlite3.Cursor, session: str, buy
         if row["mansfield_rs"] is not None:
             tags.append(f"Mansfield RS {row['mansfield_rs']:+.2f}%")
         if row["carry_pct"] is not None:
-            tags.append(f"Carry {row['carry_pct']:.1f}% vs SBP 11.0%")
+            tags.append(f"Carry {row['carry_pct']:.1f}% vs SBP 12.0%")
         if row["director"]:
             tags.append("Director footprint")
         entries.append({"date": datetime.strptime(row["trade_date"], "%d%b%Y").strftime("%d %b %Y"),
