@@ -4,80 +4,101 @@
     "close": 178542.28,
     "changePct": 0.6
   },
-  "sbpRate": 11.0,
+  "sbpRate": 12.0,
   "liquiditySweeps": [],
   "rsLeaders": [
     {
-      "ticker": "ENGROH",
-      "close": 308.23,
-      "mansfieldRs": 9.0,
-      "volZScore": 1.73,
-      "poc": 304.51
-    },
-    {
-      "ticker": "TPLL",
-      "close": 16.06,
-      "mansfieldRs": 7.92,
-      "volZScore": 1.15,
-      "poc": 14.27
-    },
-    {
       "ticker": "PIOC",
       "close": 283.56,
-      "mansfieldRs": 5.42,
-      "volZScore": 1.03,
-      "poc": 276.09
+      "mansfieldRs": -12.73,
+      "volZScore": 3.35,
+      "rvol": 2.76,
+      "trendStretchPct": 15.33,
+      "poc": 275.43,
+      "stopLoss": 265.37,
+      "target": 317.59
     },
     {
-      "ticker": "FCEPL",
-      "close": 151.94,
-      "mansfieldRs": 4.62,
-      "volZScore": 3.78,
-      "poc": 150.26
+      "ticker": "MCB",
+      "close": 404.48,
+      "mansfieldRs": -14.29,
+      "volZScore": 1.22,
+      "rvol": 1.88,
+      "trendStretchPct": 3.55,
+      "poc": 408.24,
+      "stopLoss": 390.07,
+      "target": 453.02
     },
     {
-      "ticker": "FFL",
-      "close": 14.88,
-      "mansfieldRs": 3.78,
-      "volZScore": 1.11,
-      "poc": 14.86
+      "ticker": "TPLT",
+      "close": 46.24,
+      "mansfieldRs": -17.31,
+      "volZScore": 3.86,
+      "rvol": 3.43,
+      "trendStretchPct": 25.69,
+      "poc": 44.77,
+      "stopLoss": 42.37,
+      "target": 51.79
+    },
+    {
+      "ticker": "TPL",
+      "close": 25.67,
+      "mansfieldRs": -18.3,
+      "volZScore": 10.69,
+      "rvol": 5.17,
+      "trendStretchPct": 13.13,
+      "poc": 24.58,
+      "stopLoss": 23.81,
+      "target": 28.75
     }
   ],
   "carryTraps": [
     {
-      "ticker": "AGP",
-      "spotClose": 153.13,
-      "futClose": 156.0,
-      "mansfieldRs": -3.09,
-      "annualizedCarryPct": 68.41
+      "ticker": "FATIMA",
+      "spotClose": 147.7,
+      "futClose": 148.39,
+      "mansfieldRs": -19.39,
+      "annualizedCarryPct": 56.84
     },
     {
-      "ticker": "OBOY",
-      "spotClose": 13.77,
-      "futClose": 13.96,
-      "mansfieldRs": -6.05,
-      "annualizedCarryPct": 50.36
+      "ticker": "SSGC",
+      "spotClose": 23.63,
+      "futClose": 23.7,
+      "mansfieldRs": -19.41,
+      "annualizedCarryPct": 36.04
     },
     {
-      "ticker": "MCB",
-      "spotClose": 404.48,
-      "futClose": 409.95,
-      "mansfieldRs": -2.45,
-      "annualizedCarryPct": 49.36
+      "ticker": "ASL",
+      "spotClose": 15.11,
+      "futClose": 15.15,
+      "mansfieldRs": -8.0,
+      "annualizedCarryPct": 32.21
     },
     {
-      "ticker": "NATF",
-      "spotClose": 327.17,
-      "futClose": 331.59,
-      "mansfieldRs": -2.28,
-      "annualizedCarryPct": 49.31
+      "ticker": "PTC",
+      "spotClose": 43.89,
+      "futClose": 43.99,
+      "mansfieldRs": -25.12,
+      "annualizedCarryPct": 27.72
     },
     {
-      "ticker": "MUGHAL",
-      "spotClose": 62.38,
-      "futClose": 63.05,
-      "mansfieldRs": -1.37,
-      "annualizedCarryPct": 39.2
+      "ticker": "GHNI",
+      "spotClose": 1191.88,
+      "futClose": 1194.48,
+      "mansfieldRs": -4.91,
+      "annualizedCarryPct": 26.54
     }
-  ]
+  ],
+  "engine": {
+    "lookbackDays": 5,
+    "trendMaDays": 50,
+    "trendSlopeBars": 10,
+    "minRvol": 1.5,
+    "minVolZ": 1.0,
+    "atrStopMult": 2.0,
+    "maxStopPct": 15.0,
+    "targetPct": 12.0,
+    "weeklyConfluence": false,
+    "pocConfluence": false
+  }
 }

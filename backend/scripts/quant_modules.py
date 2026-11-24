@@ -11,6 +11,7 @@ import sqlite3
 from datetime import date, datetime, timedelta
 
 SESSION_FMT = "%d%b%Y"  # tape sessions look like 16NOV2026
+MONTH_CODES = ("JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC")
 ACQ_KEYWORDS = ("acquisition", "acquirer", "purchase", "buy-back", "buyback",
                 "subscription", "takeover", "merger", "investment")
 DIS_KEYWORDS = ("disposal", "sale", "divest", "exit", "transfer", "donation")
@@ -87,8 +88,31 @@ def calc_vpvr_sweep(cur, ticker, today_ohlc=None):
     return {"poc": round(poc, 2), "volZScore": round(vol_z, 2), "liquiditySweep": sweep}
 
 
-def calc_dfx_carry(spot_close, fut_close, session_date):
-    """Annualised carry to the last Friday of the month, flagged above 18%."""
+def _last_friday(year: int, month: int) -> date:
+    expiry = date(year, month, 28) + timedelta(days=4)
+    expiry = expiry.replace(day=1) - timedelta(days=1)
+    while expiry.weekday() != 4:  # walk back to Friday
+        expiry -= timedelta(days=1)
+    return expiry
+
+
+def _contract_expiry(contract, today: date):
+    """Delivery-month expiry of a PSX futures scrip such as ZAL-CDEC / MUGHAL-NOVB."""
+    suffix = str(contract or "").upper().rsplit("-", 1)[-1]
+    for month, code in enumerate(MONTH_CODES, start=1):
+        if code in suffix:
+            if month < today.month:
+                return None  # quote from a delivery month that has already passed
+            return _last_friday(today.year, month)
+    return None
+
+
+def calc_dfx_carry(spot_close, fut_close, session_date, contract=None):
+    """Annualised carry to the futures contract's own delivery-month expiry, flagged above 18%.
+
+    A row with no readable delivery month, an expired month, or no traded volume is a
+    phantom tape entry: return no carry rather than inventing a rate off it.
+    """
     out = {"annualizedCarryPct": None, "leverageOverheated": False}
     if not spot_close or not fut_close or spot_close <= 0:
         return out
@@ -99,11 +123,15 @@ def calc_dfx_carry(spot_close, fut_close, session_date):
     else:
         today = datetime.strptime(str(session_date)[:10], "%Y-%m-%d").date()
 
-    expiry = (today.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
-    while expiry.weekday() != 4:  # walk back to Friday
-        expiry -= timedelta(days=1)
+    if contract:
+        expiry = _contract_expiry(contract, today)
+        if expiry is None or (expiry - today).days < 1:
+            return out
+        effective_days = (expiry - today).days
+    else:  # no scrip context (direct call): fall back to this month's expiry
+        expiry = _last_friday(today.year, today.month)
+        effective_days = max((expiry - today).days, 10)  # guards month-end rollover compression
 
-    effective_days = max((expiry - today).days, 10)  # guards month-end rollover compression
     carry = ((fut_close - spot_close) / spot_close) * (365 / effective_days) * 100
     out["annualizedCarryPct"] = round(carry, 2)
     out["leverageOverheated"] = carry > 18.0

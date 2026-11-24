@@ -128,6 +128,14 @@ export default function HistoryPage() {
         </div>
       </div>
 
+      {closed.length === 0 && (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-[11px] leading-relaxed text-amber-200">
+          <span className="font-bold">0 closed trades — open positions in play only.</span>{" "}
+          Nothing has resolved against a close yet, so there is no settled track record to score; the rates below stay
+          blank until these signals hit a target, stop, or exit.
+        </div>
+      )}
+
       {/* ---- headline metrics grounded on closed/resolved signals only ---- */}
       <div className="rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-3">
         <div className="mb-2 flex flex-wrap gap-x-6 gap-y-1 text-[11px] font-semibold uppercase tracking-wider text-slate-500">

@@ -194,6 +194,8 @@ def analyse(cur, session: str, session_date, rows) -> tuple[list, list, list]:
         bars = tape_bars(cur, ticker, session_date)
         if not bars or bars[-1].trade_date != session_date:
             continue  # stale ticker or a bar that failed OHLC validation
+        if len(bars) < 2:
+            continue  # brand-new listing: no prior bar, so no ATR/volume baseline
         signal = ENGINE.evaluate_ticker(bars)
         vpvr = calc_vpvr_sweep(cur, ticker)
         mansfield = calc_mansfield_rs(cur, ticker, close, kse_proxy)["mansfieldRs"] or 0.0
@@ -221,12 +223,15 @@ def analyse(cur, session: str, session_date, rows) -> tuple[list, list, list]:
                             "trendStretchPct": round(stretch, 2), "poc": vpvr["poc"],
                             "stopLoss": max(ENGINE.atr_stop_price(close, atr), stop_floor),
                             "target": round(close * (1 + TARGET_PCT / 100), 2)})
-        fut = one(cur, "SELECT close_price FROM psx_futures_eod WHERE trade_date=? AND ticker LIKE ? AND close_price>0 "
-                       "ORDER BY COALESCE(volume,0) DESC LIMIT 1", (session, f"{ticker}-%"))
-        if fut and fut > 0:
-            carry = calc_dfx_carry(close, fut, session_date, ticker)
+        # Only a contract that actually traded this session counts: a close with no volume is a
+        # stale quote, and a scrip-less ticker has no futures market to compare against.
+        fut = cur.execute("SELECT ticker, close_price FROM psx_futures_eod WHERE trade_date=? AND ticker LIKE ? "
+                          "AND close_price>0 AND COALESCE(volume,0)>0 ORDER BY COALESCE(volume,0) DESC LIMIT 1",
+                          (session, f"{ticker}-%")).fetchone()
+        if fut and fut[1] and fut[1] > 0:
+            carry = calc_dfx_carry(close, fut[1], session_date, fut[0])
             if carry["leverageOverheated"] and mansfield < 0 and not trend_ok:  # never short a strong RS leader
-                traps.append({"ticker": ticker, "spotClose": close, "futClose": fut, "mansfieldRs": mansfield,
+                traps.append({"ticker": ticker, "spotClose": close, "futClose": fut[1], "mansfieldRs": mansfield,
                               "annualizedCarryPct": carry["annualizedCarryPct"]})
     sweeps.sort(key=lambda s: -s["mansfieldRs"])
     leaders.sort(key=lambda s: -s["mansfieldRs"])
