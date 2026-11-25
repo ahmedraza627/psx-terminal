@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
-/** Institutional event & flow desk: posture, top setups, distribution alerts. */
+/** Six-layer pre-breakout desk: posture, top setups, distribution alerts. */
 export const dynamic = "force-dynamic";
 
 type Seasonality = {
@@ -13,12 +13,25 @@ type Seasonality = {
   rangePositionPct?: number | null;
 };
 
+type ConfluenceLayer = { key: string; label: string; met: boolean };
+
+type TimeStop = {
+  limit: number;
+  sessionsHeld: number;
+  sessionsRemaining: number;
+  deadCapital: boolean;
+  deadline: string;
+  note: string;
+};
+
 type SetupMetrics = {
   institutionalNetPkr?: number;
   flowSessions?: number;
   flowStreak?: number;
   ret20dPct?: number | null;
   volumeRatio20?: number | null;
+  volumeRatio50?: number | null;
+  dryUpRatio?: number | null;
   freeFloatPct?: number | null;
   peRatio?: number | null;
   catalyst?: string | null;
@@ -31,9 +44,13 @@ type InstitutionalSetup = {
   tags: string[];
   close: number;
   trigger: string;
+  ignition: string;
+  confluence: { score: number; max: number; layers: ConfluenceLayer[] };
   entryZone: { low: number; high: number };
   invalidation: string;
   invalidationPrice: number;
+  timeStop: TimeStop;
+  floatTurnover: { pct: number | null; warning: boolean; freeFloatShares: number | null };
   seasonality: Seasonality;
   score: number;
   metrics: SetupMetrics;
@@ -47,6 +64,7 @@ type DistributionAlert = {
   sellStreak: number;
   instNetPkr: number;
   ret20dPct: number | null;
+  floatTurnoverPct?: number;
   seasonality: Seasonality;
   score: number;
 };
@@ -60,6 +78,13 @@ type DeskSummary = {
   catalystEvents: number;
   rightsTracked: number;
   seasonalityMonth: string | null;
+  macroBreadthPct?: number | null;
+  macroBreadthFloorPct?: number;
+  minConfluence?: number;
+  timeStopSessions?: number;
+  dryUpBandPct?: number[];
+  pocketPivotMultiple?: number;
+  freeFloatDistributionPct?: number;
 };
 
 type AlphaBrief = {
@@ -112,6 +137,14 @@ const pkrM = (value: number | null | undefined) => {
   })}M`;
 };
 
+const shortDate = (iso: string | null | undefined) => {
+  if (!iso) return "—";
+  const parsed = new Date(iso);
+  return Number.isNaN(parsed.getTime())
+    ? iso
+    : parsed.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+};
+
 const REGIME_TONE: Record<string, string> = {
   TRENDING: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
   CHOPPY: "border-amber-500/30 bg-amber-500/10 text-amber-300",
@@ -122,15 +155,27 @@ const REGIME_TONE: Record<string, string> = {
 const STRATEGY_TONE: Record<string, string> = {
   "FIPI/LIPI ABSORPTION": "border-blue-500/40 bg-blue-500/10 text-blue-300",
   "PUCARS CATALYST": "border-violet-500/40 bg-violet-500/10 text-violet-300",
+  "INSIDER / FORM 31-32": "border-indigo-500/40 bg-indigo-500/10 text-indigo-300",
   "LOW-FLOAT SQUEEZE": "border-amber-500/40 bg-amber-500/10 text-amber-300",
   "LoR TRAP": "border-fuchsia-500/40 bg-fuchsia-500/10 text-fuchsia-300",
   "SEASONAL ALIGNED": "border-emerald-500/40 bg-emerald-500/10 text-emerald-300",
+  "POCKET PIVOT": "border-cyan-500/40 bg-cyan-500/10 text-cyan-300",
+  "VOLUME DRY-UP": "border-teal-500/40 bg-teal-500/10 text-teal-300",
 };
 
 const SEASONAL_TONE: Record<string, string> = {
   "ACCUMULATION WINDOW ACTIVE": "border-emerald-500/40 bg-emerald-500/10 text-emerald-300",
   "EXTENDED / WAIT PULLBACK": "border-amber-500/40 bg-amber-500/10 text-amber-300",
-  "WATCH": "border-sky-500/40 bg-sky-500/10 text-sky-300",
+  WATCH: "border-sky-500/40 bg-sky-500/10 text-sky-300",
+};
+
+const ALERT_TONE: Record<string, string> = {
+  "FREE-FLOAT DISTRIBUTION": "border-rose-500/40 bg-rose-500/10 text-rose-300",
+  "INSTITUTIONAL DISTRIBUTION": "border-orange-500/40 bg-orange-500/10 text-orange-300",
+  "RETAIL-CHASED EXTENSION": "border-amber-500/40 bg-amber-500/10 text-amber-300",
+  "LoR PREMIUM TRAP": "border-fuchsia-500/40 bg-fuchsia-500/10 text-fuchsia-300",
+  "DEAD-CAPITAL TIME-STOP": "border-slate-500/40 bg-slate-500/10 text-slate-300",
+  "STALE / NON-TRADED": "border-slate-600/40 bg-slate-600/10 text-slate-300",
 };
 
 function Tag({ children }: { children: React.ReactNode }) {
@@ -166,6 +211,29 @@ function SectionHeading({ title, count, tone }: { title: string; count?: string;
   );
 }
 
+function ConfluenceBar({ confluence }: { confluence: InstitutionalSetup["confluence"] }) {
+  const ratio = confluence.max ? confluence.score / confluence.max : 0;
+  const tone =
+    ratio >= 5 / 6 ? "text-emerald-300" : ratio >= 3 / 6 ? "text-amber-300" : "text-slate-300";
+  return (
+    <div className="flex items-center gap-2">
+      <span className={`font-mono text-[11px] font-bold tabular-nums ${tone}`}>
+        {confluence.score}/{confluence.max}
+      </span>
+      <div className="flex gap-1">
+        {confluence.layers.map((layer) => (
+          <span
+            key={layer.key}
+            title={`${layer.label}: ${layer.met ? "met" : "missing"}`}
+            className={`h-1.5 w-4 rounded-sm ${layer.met ? "bg-emerald-400/80" : "bg-slate-700"}`}
+          />
+        ))}
+      </div>
+      <span className="text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-500">confluence</span>
+    </div>
+  );
+}
+
 function SeasonalityBadge({ seasonality }: { seasonality: Seasonality }) {
   const tone = SEASONAL_TONE[seasonality.status] ?? "border-slate-800 bg-slate-900/40 text-slate-400";
   return (
@@ -193,12 +261,14 @@ export default function DailyDeskPage() {
   const regime = alpha?.marketRegime.regime ?? "UNKNOWN";
   const kse = latest?.kse100;
   const kseUp = (kse?.changePct ?? 0) >= 0;
+  const breadth = desk?.macroBreadthPct ?? null;
+  const breadthOk = breadth !== null && breadth >= (desk?.macroBreadthFloorPct ?? 40);
 
   return (
     <div className="space-y-5">
       <header className="min-w-0">
         <span className="font-mono text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-400/80">
-          PSX · institutional event &amp; flow desk
+          PSX · six-layer pre-breakout desk
         </span>
         <h1 className="mt-1 text-xl font-bold tracking-tight text-slate-50 sm:text-2xl">Today&apos;s Trade Desk</h1>
       </header>
@@ -209,7 +279,7 @@ export default function DailyDeskPage() {
         </div>
       )}
 
-      {/* (a) MARKET & RATE POSTURE */}
+      {/* Layer 1 + macro posture */}
       <section className="overflow-hidden rounded-2xl border border-slate-800/80 bg-slate-900/40">
         <SectionHeading title="Market &amp; Rate Posture" />
         <div className="p-4 sm:p-5">
@@ -243,23 +313,29 @@ export default function DailyDeskPage() {
           </div>
 
           <p className="mt-2 text-[11px] leading-relaxed text-slate-400">
-            At a {pct(sbpRate, 2)}% policy rate the desk only pays up for supply that institutions are actually
-            absorbing, a filed corporate event with a hard exit, or a float too thin to resist demand — plus a
-            current-month seasonal tailwind where the calendar supports it.
+            At a {pct(sbpRate, 2)}% policy rate the desk only pays up when the six layers line up: a supportive
+            macro tape, a current-month seasonal window, institutional absorption or an insider filing, a live
+            corporate catalyst, volume dry-up into a pocket pivot, and a clean exit with no free-float distribution.
           </p>
+
           {desk ? (
             <div className="mt-2 flex flex-wrap gap-1.5">
+              <Tag>
+                breadth {breadth === null ? "—" : `${pct(breadth, 0)}%`} above 50d
+                {breadthOk ? " ✓" : " ✗"}
+              </Tag>
               <Tag>NCCPL flows {desk.flowSession ?? "not stored"}</Tag>
               <Tag>{desk.sectorsTracked} sectors · {desk.flowSessions} sessions</Tag>
               <Tag>Institutions {pkrM(desk.institutionalNetPkr)}</Tag>
-              <Tag>{desk.catalystEvents} PUCARS catalysts / {desk.catalystWindowDays}d</Tag>
-              {desk.rightsTracked > 0 && <Tag>{desk.rightsTracked} rights issues with TERP</Tag>}
+              <Tag>{desk.catalystEvents} PUCARS / insider filings</Tag>
+              <Tag>dry-up {desk.dryUpBandPct?.join("–") ?? "20–30"}% · pivot {desk.pocketPivotMultiple ?? 2}x</Tag>
+              <Tag>time-stop {desk.timeStopSessions ?? 30} sessions</Tag>
             </div>
           ) : null}
         </div>
       </section>
 
-      {/* (b) TOP 5 INSTITUTIONAL SETUPS */}
+      {/* Top 5 institutional setups */}
       <section className="overflow-hidden rounded-2xl border border-slate-800/80 bg-slate-900/40">
         <SectionHeading
           title="Top 5 Institutional Setups"
@@ -268,8 +344,8 @@ export default function DailyDeskPage() {
         />
         {setups.length === 0 ? (
           <p className="px-4 py-8 text-center text-xs text-slate-500 sm:px-5">
-            No name clears the institutional gates this session — no flow absorption, live catalyst, low-float value
-            case or rights edge is stored for the tape.
+            No name clears three of the six framework layers this session — no flow, catalyst, dry-up or seasonal
+            edge is stored for the tape.
           </p>
         ) : (
           <div className="divide-y divide-slate-800/70">
@@ -287,23 +363,13 @@ export default function DailyDeskPage() {
                       {setup.strategy}
                     </span>
                   </div>
-                  <span className="font-mono text-sm font-bold tabular-nums text-slate-200">PKR {money(setup.close)}</span>
-                </div>
-
-                {setup.tags.length > 1 ? (
-                  <div className="mt-1.5 flex flex-wrap gap-1">
-                    {setup.tags.map((tag) => (
-                      <span
-                        key={tag}
-                        className={`rounded border px-1.5 py-0.5 text-[9px] font-semibold ${
-                          STRATEGY_TONE[tag] ?? "border-slate-800 bg-slate-900/40 text-slate-400"
-                        }`}
-                      >
-                        {tag}
-                      </span>
-                    ))}
+                  <div className="flex flex-wrap items-center gap-3">
+                    <ConfluenceBar confluence={setup.confluence} />
+                    <span className="font-mono text-sm font-bold tabular-nums text-slate-200">
+                      PKR {money(setup.close)}
+                    </span>
                   </div>
-                ) : null}
+                </div>
 
                 <div className="mt-2 grid grid-cols-1 gap-2 lg:grid-cols-[1fr_17rem]">
                   <div className="space-y-1.5">
@@ -315,23 +381,29 @@ export default function DailyDeskPage() {
                     </div>
                     <div>
                       <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-slate-500">
+                        Ignition trigger
+                      </div>
+                      <p className="mt-0.5 text-[11px] leading-relaxed text-cyan-200/90">{setup.ignition}</p>
+                    </div>
+                    <div>
+                      <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-slate-500">
                         Entry zone
                       </div>
                       <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
                         <span className="font-mono text-[11px] font-bold tabular-nums text-emerald-300">
                           PKR {money(setup.entryZone.low)} – {money(setup.entryZone.high)}
                         </span>
-                        {setup.metrics.peRatio !== null && setup.metrics.peRatio !== undefined && (
-                          <Tag>P/E {pct(setup.metrics.peRatio, 1)}</Tag>
+                        {setup.metrics.volumeRatio50 !== null && setup.metrics.volumeRatio50 !== undefined && (
+                          <Tag>vol {pct(setup.metrics.volumeRatio50)}x 50d</Tag>
+                        )}
+                        {setup.metrics.dryUpRatio !== null && setup.metrics.dryUpRatio !== undefined && (
+                          <Tag>dry-up {pct(setup.metrics.dryUpRatio * 100, 0)}%</Tag>
                         )}
                         {setup.metrics.freeFloatPct !== null && setup.metrics.freeFloatPct !== undefined && (
                           <Tag>float {pct(setup.metrics.freeFloatPct, 1)}%</Tag>
                         )}
-                        {setup.metrics.volumeRatio20 !== null && setup.metrics.volumeRatio20 !== undefined && (
-                          <Tag>vol {pct(setup.metrics.volumeRatio20)}x</Tag>
-                        )}
-                        {setup.metrics.ret20dPct !== null && setup.metrics.ret20dPct !== undefined && (
-                          <Tag>20D {signedPct(setup.metrics.ret20dPct)}</Tag>
+                        {setup.floatTurnover.pct !== null && (
+                          <Tag>turnover {pct(setup.floatTurnover.pct)}%</Tag>
                         )}
                       </div>
                     </div>
@@ -342,7 +414,19 @@ export default function DailyDeskPage() {
                       <p className="mt-0.5 text-[11px] leading-relaxed text-rose-300/90">{setup.invalidation}</p>
                     </div>
                   </div>
-                  <SeasonalityBadge seasonality={setup.seasonality} />
+
+                  <div className="space-y-2">
+                    <SeasonalityBadge seasonality={setup.seasonality} />
+                    <div className="rounded-lg border border-slate-700/70 bg-slate-950/40 px-2.5 py-2">
+                      <div className="text-[9px] font-bold uppercase tracking-[0.12em] text-slate-500">
+                        Time-stop · {setup.timeStop.limit} sessions
+                      </div>
+                      <div className="mt-0.5 font-mono text-[10px] tabular-nums text-slate-300">
+                        exit by {shortDate(setup.timeStop.deadline)} if not working
+                      </div>
+                      <div className="mt-0.5 text-[10px] leading-snug text-slate-500">{setup.timeStop.note}</div>
+                    </div>
+                  </div>
                 </div>
               </article>
             ))}
@@ -350,7 +434,7 @@ export default function DailyDeskPage() {
         )}
       </section>
 
-      {/* (c) AVOID / DISTRIBUTION ALERTS */}
+      {/* Avoid / distribution alerts */}
       <section className="overflow-hidden rounded-2xl border border-rose-500/30 bg-slate-900/40">
         <SectionHeading
           title="Avoid / Distribution Alerts"
@@ -359,7 +443,7 @@ export default function DailyDeskPage() {
         />
         {alerts.length === 0 ? (
           <p className="px-4 py-8 text-center text-xs text-slate-500 sm:px-5">
-            No institutional distribution or retail-chased extension is stored for this session.
+            No distribution, free-float turnover, dead-capital or stale-tape flag is stored for this session.
           </p>
         ) : (
           <div className="divide-y divide-slate-800/70">
@@ -369,11 +453,19 @@ export default function DailyDeskPage() {
                   <div className="flex min-w-0 flex-wrap items-center gap-2">
                     <span className="font-mono text-sm font-bold text-slate-50">{alert.ticker}</span>
                     <span className="font-mono text-[10px] text-slate-500">{alert.sector}</span>
-                    <span className="rounded border border-rose-500/40 bg-rose-500/10 px-1.5 py-0.5 font-mono text-[9px] font-bold text-rose-300">
+                    <span
+                      className={`rounded border px-1.5 py-0.5 font-mono text-[9px] font-bold ${
+                        ALERT_TONE[alert.alert] ?? "border-rose-500/40 bg-rose-500/10 text-rose-300"
+                      }`}
+                    >
                       {alert.alert}
                     </span>
                   </div>
-                  <span className="font-mono text-sm font-bold tabular-nums text-rose-300">{pkrM(alert.instNetPkr)}</span>
+                  <span className="font-mono text-sm font-bold tabular-nums text-rose-300">
+                    {alert.floatTurnoverPct !== undefined && alert.floatTurnoverPct !== null
+                      ? `${pct(alert.floatTurnoverPct, 1)}% float`
+                      : pkrM(alert.instNetPkr)}
+                  </span>
                 </div>
                 <div className="mt-2 grid grid-cols-1 gap-2 lg:grid-cols-[1fr_17rem]">
                   <div>
@@ -390,8 +482,9 @@ export default function DailyDeskPage() {
           </div>
         )}
         <p className="border-t border-slate-800 px-4 py-2 text-[10px] leading-snug text-slate-500 sm:px-5">
-          Distribution alerts fire only on stored NCCPL sector flows: insurance and mutual funds net selling three or
-          more straight sessions, retail chasing an extended tape, or a rights entitlement priced above its TERP.
+          Alerts fire on stored data only: three or more straight sessions of insurance/mutual-fund net selling, a
+          single session turning over 15%+ of the free float, retail chasing an extended tape, a rights entitlement
+          priced above TERP, a 30-session dead-capital clock, or a name that printed no volume.
         </p>
       </section>
     </div>

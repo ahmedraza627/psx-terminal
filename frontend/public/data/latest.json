@@ -111,12 +111,62 @@
       ],
       "close": 154.96,
       "trigger": "BUY-BACK filing (2026-10-30): FINAL REPORT ON THE PURCHASE / BUY-BACK OF SHARES BY AGP LIMITED ACCUMULATION WINDOW ACTIVE in Nov (60d win 56.25%, avg 10.54%).",
+      "ignition": "No pocket pivot yet: pre-ignition coil, enter only on a >2x volume up day.",
+      "confluence": {
+        "score": 4,
+        "max": 6,
+        "layers": [
+          {
+            "key": "macroLiquidity",
+            "label": "Macro / liquidity",
+            "met": false
+          },
+          {
+            "key": "sectorSeasonality",
+            "label": "Sector seasonality",
+            "met": true
+          },
+          {
+            "key": "institutionalFlow",
+            "label": "NCCPL + insider flow",
+            "met": true
+          },
+          {
+            "key": "catalyst",
+            "label": "Low-float / LoR / PUCARS",
+            "met": true
+          },
+          {
+            "key": "volumeSetup",
+            "label": "Dry-up + pocket pivot",
+            "met": false
+          },
+          {
+            "key": "riskExit",
+            "label": "Distribution / time-stop control",
+            "met": true
+          }
+        ]
+      },
       "entryZone": {
         "low": 153.73,
         "high": 154.96
       },
       "invalidation": "Hard exit on a close below PKR 147.86 or if PSX withdraws the filing.",
       "invalidationPrice": 147.86,
+      "timeStop": {
+        "limit": 30,
+        "sessionsHeld": 0,
+        "sessionsRemaining": 30,
+        "deadCapital": false,
+        "deadline": "2027-01-06",
+        "note": "30-session dead-capital stop: exit by 06 Jan 2027 if the position has not advanced."
+      },
+      "floatTurnover": {
+        "pct": 0.43,
+        "warning": false,
+        "freeFloatShares": 84000000.0
+      },
       "seasonality": {
         "status": "ACCUMULATION WINDOW ACTIVE",
         "month": "Nov",
@@ -125,13 +175,15 @@
         "avgForward60Pct": 10.54,
         "rangePositionPct": 33.73
       },
-      "score": 85.0,
+      "score": 97.0,
       "metrics": {
         "institutionalNetPkr": 395892163.42,
         "flowSessions": 10,
         "flowStreak": 1,
         "ret20dPct": 2.44,
         "volumeRatio20": 1.82,
+        "volumeRatio50": 1.53,
+        "dryUpRatio": 0.942,
         "freeFloatPct": 30.0,
         "peRatio": 24.25,
         "catalyst": "BUY-BACK"
@@ -146,12 +198,62 @@
       ],
       "close": 304.22,
       "trigger": "BUY-BACK filing (2026-11-24): Purchase (Buy-back) of the shares under Section 88 of the Companies Act, 2017 read with Listed Companies (Buy-Back of Shares) Regulations, 2019 (Appli",
+      "ignition": "No pocket pivot yet: pre-ignition coil, enter only on a >2x volume up day.",
+      "confluence": {
+        "score": 4,
+        "max": 6,
+        "layers": [
+          {
+            "key": "macroLiquidity",
+            "label": "Macro / liquidity",
+            "met": true
+          },
+          {
+            "key": "sectorSeasonality",
+            "label": "Sector seasonality",
+            "met": false
+          },
+          {
+            "key": "institutionalFlow",
+            "label": "NCCPL + insider flow",
+            "met": true
+          },
+          {
+            "key": "catalyst",
+            "label": "Low-float / LoR / PUCARS",
+            "met": true
+          },
+          {
+            "key": "volumeSetup",
+            "label": "Dry-up + pocket pivot",
+            "met": false
+          },
+          {
+            "key": "riskExit",
+            "label": "Distribution / time-stop control",
+            "met": true
+          }
+        ]
+      },
       "entryZone": {
         "low": 304.22,
         "high": 304.22
       },
       "invalidation": "Hard exit on a close below PKR 284.84 or if PSX withdraws the filing.",
       "invalidationPrice": 284.84,
+      "timeStop": {
+        "limit": 30,
+        "sessionsHeld": 0,
+        "sessionsRemaining": 30,
+        "deadCapital": false,
+        "deadline": "2027-01-06",
+        "note": "30-session dead-capital stop: exit by 06 Jan 2027 if the position has not advanced."
+      },
+      "floatTurnover": {
+        "pct": 0.15,
+        "warning": false,
+        "freeFloatShares": 903173996.0
+      },
       "seasonality": {
         "status": "NO COVERAGE",
         "month": null,
@@ -160,125 +262,321 @@
         "avgForward60Pct": null,
         "rangePositionPct": null
       },
-      "score": 73.0,
+      "score": 91.0,
       "metrics": {
         "institutionalNetPkr": 395892163.42,
         "flowSessions": 10,
         "flowStreak": 1,
         "ret20dPct": 20.79,
         "volumeRatio20": 0.49,
+        "volumeRatio50": 0.85,
+        "dryUpRatio": 4.333,
         "freeFloatPct": 75.0,
         "peRatio": 38.85,
         "catalyst": "BUY-BACK"
       }
     },
     {
-      "ticker": "NCL",
-      "sector": "Textile Composite",
-      "strategy": "PUCARS CATALYST",
+      "ticker": "TPLP",
+      "sector": "Property",
+      "strategy": "POCKET PIVOT",
       "tags": [
-        "PUCARS CATALYST"
+        "POCKET PIVOT"
       ],
-      "close": 48.66,
-      "trigger": "BUY-BACK filing (2026-11-23): Public Announcement For Buy-Back Of Shares",
-      "entryZone": {
-        "low": 46.31,
-        "high": 48.66
+      "close": 13.72,
+      "trigger": "Pocket pivot ignition: up close on 3.09x the 50-session average volume, above the 10-session down-volume max (18,978,487).",
+      "ignition": "Pocket pivot: up close on 3.09x the 50-session average volume (38,324,587 shares), above the 10-session down-volume max.",
+      "confluence": {
+        "score": 4,
+        "max": 6,
+        "layers": [
+          {
+            "key": "macroLiquidity",
+            "label": "Macro / liquidity",
+            "met": true
+          },
+          {
+            "key": "sectorSeasonality",
+            "label": "Sector seasonality",
+            "met": false
+          },
+          {
+            "key": "institutionalFlow",
+            "label": "NCCPL + insider flow",
+            "met": true
+          },
+          {
+            "key": "catalyst",
+            "label": "Low-float / LoR / PUCARS",
+            "met": false
+          },
+          {
+            "key": "volumeSetup",
+            "label": "Dry-up + pocket pivot",
+            "met": true
+          },
+          {
+            "key": "riskExit",
+            "label": "Distribution / time-stop control",
+            "met": true
+          }
+        ]
       },
-      "invalidation": "Hard exit on a close below PKR 45.61 or if PSX withdraws the filing.",
-      "invalidationPrice": 45.61,
+      "entryZone": {
+        "low": 13.72,
+        "high": 13.72
+      },
+      "invalidation": "Hard exit on a close below PKR 12.39 \u2014 the ignition day's low must hold, otherwise the pivot failed.",
+      "invalidationPrice": 12.39,
+      "timeStop": {
+        "limit": 30,
+        "sessionsHeld": 0,
+        "sessionsRemaining": 30,
+        "deadCapital": false,
+        "deadline": "2027-01-06",
+        "note": "30-session dead-capital stop: exit by 06 Jan 2027 if the position has not advanced."
+      },
+      "floatTurnover": {
+        "pct": 10.51,
+        "warning": false,
+        "freeFloatShares": 364706469.0
+      },
       "seasonality": {
         "status": "OFF-SEASON",
         "month": "Nov",
         "tailwind": false,
-        "winRate60Pct": 47.06,
-        "avgForward60Pct": 1.04,
-        "rangePositionPct": 89.68
+        "winRate60Pct": 45.16,
+        "avgForward60Pct": 8.76,
+        "rangePositionPct": 84.39
       },
-      "score": 73.0,
+      "score": 90.0,
       "metrics": {
-        "institutionalNetPkr": -248801363.99,
+        "institutionalNetPkr": 395892163.42,
         "flowSessions": 10,
-        "flowStreak": 0,
-        "ret20dPct": 10.12,
-        "volumeRatio20": 2.11,
-        "freeFloatPct": 50.0,
-        "peRatio": 4.38,
-        "catalyst": "BUY-BACK"
+        "flowStreak": 1,
+        "ret20dPct": 19.1,
+        "volumeRatio20": 1.63,
+        "volumeRatio50": 3.09,
+        "dryUpRatio": 1.271,
+        "freeFloatPct": 65.0,
+        "peRatio": null,
+        "catalyst": null
       }
     },
     {
-      "ticker": "SAZEW",
-      "sector": "Auto",
-      "strategy": "FIPI/LIPI ABSORPTION",
+      "ticker": "THCCL",
+      "sector": "Cement",
+      "strategy": "POCKET PIVOT",
       "tags": [
-        "FIPI/LIPI ABSORPTION"
+        "POCKET PIVOT"
       ],
-      "close": 1444.59,
-      "trigger": "Institutions net bought PKR +396M over 10 sessions (FIPI PKR +338M, funds PKR +114M, insurance PKR -56M) while price moved +4.0% in 20 sessions on 0.54x 20d volume.",
-      "entryZone": {
-        "low": 1444.59,
-        "high": 1444.59
+      "close": 78.6,
+      "trigger": "Pocket pivot ignition: up close on 2.75x the 50-session average volume, above the 10-session down-volume max (7,049,992).",
+      "ignition": "Pocket pivot: up close on 2.75x the 50-session average volume (8,749,332 shares), above the 10-session down-volume max.",
+      "confluence": {
+        "score": 4,
+        "max": 6,
+        "layers": [
+          {
+            "key": "macroLiquidity",
+            "label": "Macro / liquidity",
+            "met": true
+          },
+          {
+            "key": "sectorSeasonality",
+            "label": "Sector seasonality",
+            "met": false
+          },
+          {
+            "key": "institutionalFlow",
+            "label": "NCCPL + insider flow",
+            "met": true
+          },
+          {
+            "key": "catalyst",
+            "label": "Low-float / LoR / PUCARS",
+            "met": false
+          },
+          {
+            "key": "volumeSetup",
+            "label": "Dry-up + pocket pivot",
+            "met": true
+          },
+          {
+            "key": "riskExit",
+            "label": "Distribution / time-stop control",
+            "met": true
+          }
+        ]
       },
-      "invalidation": "Hard exit on a close below PKR 1,366.48 (2xATR, 15% outer bound) or if the 10-session institutional net flips negative.",
-      "invalidationPrice": 1366.48,
+      "entryZone": {
+        "low": 76.04,
+        "high": 78.6
+      },
+      "invalidation": "Hard exit on a close below PKR 73.59 \u2014 the ignition day's low must hold, otherwise the pivot failed.",
+      "invalidationPrice": 73.59,
+      "timeStop": {
+        "limit": 30,
+        "sessionsHeld": 0,
+        "sessionsRemaining": 30,
+        "deadCapital": false,
+        "deadline": "2027-01-06",
+        "note": "30-session dead-capital stop: exit by 06 Jan 2027 if the position has not advanced."
+      },
+      "floatTurnover": {
+        "pct": 5.01,
+        "warning": false,
+        "freeFloatShares": 174506719.0
+      },
+      "seasonality": {
+        "status": "OFF-SEASON",
+        "month": "Nov",
+        "tailwind": false,
+        "winRate60Pct": 63.27,
+        "avgForward60Pct": 20.65,
+        "rangePositionPct": 58.47
+      },
+      "score": 90.0,
+      "metrics": {
+        "institutionalNetPkr": 205829608.15,
+        "flowSessions": 10,
+        "flowStreak": 0,
+        "ret20dPct": 13.08,
+        "volumeRatio20": 1.9,
+        "volumeRatio50": 2.75,
+        "dryUpRatio": 1.386,
+        "freeFloatPct": 35.0,
+        "peRatio": 16.58,
+        "catalyst": null
+      }
+    },
+    {
+      "ticker": "DFML",
+      "sector": "Auto",
+      "strategy": "POCKET PIVOT",
+      "tags": [
+        "POCKET PIVOT"
+      ],
+      "close": 17.18,
+      "trigger": "Pocket pivot ignition: up close on 2.78x the 50-session average volume, above the 10-session down-volume max (3,061,035).",
+      "ignition": "Pocket pivot: up close on 2.78x the 50-session average volume (4,222,454 shares), above the 10-session down-volume max.",
+      "confluence": {
+        "score": 4,
+        "max": 6,
+        "layers": [
+          {
+            "key": "macroLiquidity",
+            "label": "Macro / liquidity",
+            "met": true
+          },
+          {
+            "key": "sectorSeasonality",
+            "label": "Sector seasonality",
+            "met": false
+          },
+          {
+            "key": "institutionalFlow",
+            "label": "NCCPL + insider flow",
+            "met": true
+          },
+          {
+            "key": "catalyst",
+            "label": "Low-float / LoR / PUCARS",
+            "met": false
+          },
+          {
+            "key": "volumeSetup",
+            "label": "Dry-up + pocket pivot",
+            "met": true
+          },
+          {
+            "key": "riskExit",
+            "label": "Distribution / time-stop control",
+            "met": true
+          }
+        ]
+      },
+      "entryZone": {
+        "low": 17.18,
+        "high": 17.18
+      },
+      "invalidation": "Hard exit on a close below PKR 15.54 \u2014 the ignition day's low must hold, otherwise the pivot failed.",
+      "invalidationPrice": 15.54,
+      "timeStop": {
+        "limit": 30,
+        "sessionsHeld": 0,
+        "sessionsRemaining": 30,
+        "deadCapital": false,
+        "deadline": "2027-01-06",
+        "note": "30-session dead-capital stop: exit by 06 Jan 2027 if the position has not advanced."
+      },
+      "floatTurnover": {
+        "pct": 4.69,
+        "warning": false,
+        "freeFloatShares": 89997506.0
+      },
       "seasonality": {
         "status": "OFF-SEASON",
         "month": "Nov",
         "tailwind": false,
         "winRate60Pct": 52.94,
-        "avgForward60Pct": 9.8,
-        "rangePositionPct": 58.47
+        "avgForward60Pct": 15.32,
+        "rangePositionPct": 18.25
       },
-      "score": 65.8,
+      "score": 90.0,
       "metrics": {
         "institutionalNetPkr": 395892163.42,
         "flowSessions": 10,
         "flowStreak": 1,
-        "ret20dPct": 4.02,
-        "volumeRatio20": 0.54,
-        "freeFloatPct": 35.0,
-        "peRatio": 3.76,
-        "catalyst": null
-      }
-    },
-    {
-      "ticker": "PRL",
-      "sector": "Refining",
-      "strategy": "FIPI/LIPI ABSORPTION",
-      "tags": [
-        "FIPI/LIPI ABSORPTION"
-      ],
-      "close": 80.52,
-      "trigger": "Institutions net bought PKR +396M over 10 sessions (FIPI PKR +338M, funds PKR +114M, insurance PKR -56M) while price moved -16.2% in 20 sessions on 0.35x 20d volume.",
-      "entryZone": {
-        "low": 80.52,
-        "high": 80.52
-      },
-      "invalidation": "Hard exit on a close below PKR 73.93 (2xATR, 15% outer bound) or if the 10-session institutional net flips negative.",
-      "invalidationPrice": 73.93,
-      "seasonality": {
-        "status": "OFF-SEASON",
-        "month": "Nov",
-        "tailwind": false,
-        "winRate60Pct": 47.06,
-        "avgForward60Pct": 2.59,
-        "rangePositionPct": 91.14
-      },
-      "score": 63.8,
-      "metrics": {
-        "institutionalNetPkr": 395892163.42,
-        "flowSessions": 10,
-        "flowStreak": 1,
-        "ret20dPct": -16.2,
-        "volumeRatio20": 0.35,
-        "freeFloatPct": 40.0,
-        "peRatio": 1.77,
+        "ret20dPct": 8.19,
+        "volumeRatio20": 2.07,
+        "volumeRatio50": 2.78,
+        "dryUpRatio": 1.635,
+        "freeFloatPct": 30.0,
+        "peRatio": null,
         "catalyst": null
       }
     }
   ],
   "distributionAlerts": [
+    {
+      "ticker": "TPLL",
+      "sector": "Insurance",
+      "alert": "FREE-FLOAT DISTRIBUTION",
+      "detail": "One session turned over 49.8% of the 44,900,000-share free float \u2014 supply is being unloaded into strength, not accumulated.",
+      "sellStreak": 1,
+      "instNetPkr": 395892163.42,
+      "ret20dPct": -2.86,
+      "seasonality": {
+        "status": "NO COVERAGE",
+        "month": null,
+        "tailwind": false,
+        "winRate60Pct": null,
+        "avgForward60Pct": null,
+        "rangePositionPct": null
+      },
+      "floatTurnoverPct": 49.82,
+      "score": 140.0
+    },
+    {
+      "ticker": "RPL",
+      "sector": "Paper",
+      "alert": "FREE-FLOAT DISTRIBUTION",
+      "detail": "One session turned over 30.8% of the 44,421,410-share free float \u2014 supply is being unloaded into strength, not accumulated.",
+      "sellStreak": 1,
+      "instNetPkr": 395892163.42,
+      "ret20dPct": 14.45,
+      "seasonality": {
+        "status": "OFF-SEASON",
+        "month": "Nov",
+        "tailwind": false,
+        "winRate60Pct": 46.43,
+        "avgForward60Pct": 3.08,
+        "rangePositionPct": 49.21
+      },
+      "floatTurnoverPct": 30.83,
+      "score": 140.0
+    },
     {
       "ticker": "BPL",
       "sector": "Oil Marketing",
@@ -332,42 +630,6 @@
         "rangePositionPct": 80.56
       },
       "score": 113.0
-    },
-    {
-      "ticker": "MARI",
-      "sector": "Energy",
-      "alert": "INSTITUTIONAL DISTRIBUTION",
-      "detail": "Insurance + mutual funds net sold 6 straight sessions (PKR -1,094M over the window) while price moved +14.2% in 20 sessions on 0.22x volume.",
-      "sellStreak": 6,
-      "instNetPkr": -1093562557.39,
-      "ret20dPct": 14.15,
-      "seasonality": {
-        "status": "OFF-SEASON",
-        "month": "Nov",
-        "tailwind": false,
-        "winRate60Pct": 65.62,
-        "avgForward60Pct": 19.38,
-        "rangePositionPct": 69.31
-      },
-      "score": 113.0
-    },
-    {
-      "ticker": "BOP",
-      "sector": "Banking",
-      "alert": "INSTITUTIONAL DISTRIBUTION",
-      "detail": "Insurance + mutual funds net sold 6 straight sessions (PKR -904M over the window) while price moved +13.7% in 20 sessions on 0.46x volume.",
-      "sellStreak": 6,
-      "instNetPkr": -903776946.83,
-      "ret20dPct": 13.7,
-      "seasonality": {
-        "status": "OFF-SEASON",
-        "month": "Nov",
-        "tailwind": false,
-        "winRate60Pct": 62.5,
-        "avgForward60Pct": 9.55,
-        "rangePositionPct": 70.9
-      },
-      "score": 113.0
     }
   ],
   "institutionalDesk": {
@@ -379,13 +641,52 @@
     "catalystEvents": 12,
     "rightsTracked": 0,
     "seasonalityMonth": "Nov",
+    "macroBreadthPct": 73.8,
+    "macroBreadthFloorPct": 40.0,
     "strategyTags": [
       "LoR TRAP",
+      "INSIDER / FORM 31-32",
       "PUCARS CATALYST",
       "LOW-FLOAT SQUEEZE",
       "FIPI/LIPI ABSORPTION",
-      "SEASONAL ALIGNED"
+      "SEASONAL ALIGNED",
+      "POCKET PIVOT",
+      "VOLUME DRY-UP"
     ],
+    "frameworkLayers": [
+      {
+        "key": "macroLiquidity",
+        "label": "Macro / liquidity"
+      },
+      {
+        "key": "sectorSeasonality",
+        "label": "Sector seasonality"
+      },
+      {
+        "key": "institutionalFlow",
+        "label": "NCCPL + insider flow"
+      },
+      {
+        "key": "catalyst",
+        "label": "Low-float / LoR / PUCARS"
+      },
+      {
+        "key": "volumeSetup",
+        "label": "Dry-up + pocket pivot"
+      },
+      {
+        "key": "riskExit",
+        "label": "Distribution / time-stop control"
+      }
+    ],
+    "minConfluence": 3,
+    "timeStopSessions": 30,
+    "dryUpBandPct": [
+      20,
+      30
+    ],
+    "pocketPivotMultiple": 2.0,
+    "freeFloatDistributionPct": 15.0,
     "boards": {
       "setups": 5,
       "alerts": 5

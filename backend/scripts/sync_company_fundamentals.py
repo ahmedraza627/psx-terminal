@@ -46,34 +46,52 @@ LOG = logging.getLogger("sync_company_fundamentals")
 
 FUNDAMENTALS_SCHEMA = (
     "CREATE TABLE IF NOT EXISTS company_fundamentals (ticker TEXT PRIMARY KEY, "
-    "free_float_pct REAL, pe_ratio REAL, pb_ratio REAL, turnaround_catalyst INTEGER NOT NULL DEFAULT 0, "
-    "updated_at TEXT NOT NULL)")
+    "free_float_pct REAL, free_float_shares REAL, pe_ratio REAL, pb_ratio REAL, "
+    "turnaround_catalyst INTEGER NOT NULL DEFAULT 0, updated_at TEXT NOT NULL)")
 RIGHTS_SCHEMA = (
     "CREATE TABLE IF NOT EXISTS active_right_issues (ticker TEXT NOT NULL, "
-    "announcement_date TEXT NOT NULL, ratio TEXT, issue_price REAL, terp REAL, "
+    "announcement_date TEXT NOT NULL, ratio TEXT, issue_price REAL, terp REAL, lor_price REAL, "
+    "subscription_price REAL, days_remaining INTEGER, purpose TEXT, sponsor_committed INTEGER, "
     "status TEXT NOT NULL DEFAULT 'ANNOUNCED', source TEXT, updated_at TEXT NOT NULL, "
     "PRIMARY KEY (ticker, announcement_date))")
 
 UPSERT_FUNDAMENTAL = (
-    "INSERT INTO company_fundamentals (ticker, free_float_pct, pe_ratio, pb_ratio, "
-    "turnaround_catalyst, updated_at) VALUES (?,?,?,?,?,?) "
+    "INSERT INTO company_fundamentals (ticker, free_float_pct, free_float_shares, pe_ratio, pb_ratio, "
+    "turnaround_catalyst, updated_at) VALUES (?,?,?,?,?,?,?) "
     "ON CONFLICT(ticker) DO UPDATE SET "
     "free_float_pct=COALESCE(excluded.free_float_pct, free_float_pct), "
+    "free_float_shares=COALESCE(excluded.free_float_shares, free_float_shares), "
     "pe_ratio=COALESCE(excluded.pe_ratio, pe_ratio), "
     "pb_ratio=COALESCE(excluded.pb_ratio, pb_ratio), "
     "turnaround_catalyst=excluded.turnaround_catalyst, updated_at=excluded.updated_at")
 UPSERT_RIGHTS = (
-    "INSERT INTO active_right_issues (ticker, announcement_date, ratio, issue_price, terp, "
-    "status, source, updated_at) VALUES (?,?,?,?,?,?,?,?) "
+    "INSERT INTO active_right_issues (ticker, announcement_date, ratio, issue_price, terp, lor_price, "
+    "subscription_price, days_remaining, purpose, sponsor_committed, status, source, updated_at) "
+    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?) "
     "ON CONFLICT(ticker, announcement_date) DO UPDATE SET "
     "ratio=COALESCE(excluded.ratio, ratio), issue_price=COALESCE(excluded.issue_price, issue_price), "
-    "terp=COALESCE(excluded.terp, terp), status=excluded.status, updated_at=excluded.updated_at")
+    "terp=COALESCE(excluded.terp, terp), lor_price=COALESCE(excluded.lor_price, lor_price), "
+    "subscription_price=COALESCE(excluded.subscription_price, subscription_price), "
+    "days_remaining=COALESCE(excluded.days_remaining, days_remaining), "
+    "purpose=COALESCE(excluded.purpose, purpose), "
+    "sponsor_committed=COALESCE(excluded.sponsor_committed, sponsor_committed), "
+    "status=excluded.status, updated_at=excluded.updated_at")
 
 
 def ensure_tables(conn: sqlite3.Connection) -> None:
     cur = conn.cursor()
     cur.execute(FUNDAMENTALS_SCHEMA)
     cur.execute(RIGHTS_SCHEMA)
+    # Stores created before the six-layer framework gain the new columns in place.
+    for table, column, ddl in (("company_fundamentals", "free_float_shares", "REAL"),
+                               ("active_right_issues", "lor_price", "REAL"),
+                               ("active_right_issues", "subscription_price", "REAL"),
+                               ("active_right_issues", "days_remaining", "INTEGER"),
+                               ("active_right_issues", "purpose", "TEXT"),
+                               ("active_right_issues", "sponsor_committed", "INTEGER")):
+        cols = [row[1] for row in cur.execute(f"PRAGMA table_info({table})")]
+        if column not in cols:
+            cur.execute(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}")
     conn.commit()
 
 
@@ -110,6 +128,7 @@ def fundamentals_from_screener(rows: list[dict]) -> dict[str, dict]:
         pe = row.get("pe_ratio")
         out[ticker] = {
             "free_float_pct": round(free_float_pct, 2) if free_float_pct is not None else None,
+            "free_float_shares": float(free_float) if free_float else None,
             "pe_ratio": round(float(pe), 2) if pe not in (None, 0) else None,
         }
     return out
@@ -123,8 +142,8 @@ def sync_screener(conn: sqlite3.Connection) -> int:
     now = _now()
     cur = conn.cursor()
     for ticker, row in data.items():
-        cur.execute(UPSERT_FUNDAMENTAL, (ticker, row["free_float_pct"], row["pe_ratio"], None,
-                                         int(ticker in turns), now))
+        cur.execute(UPSERT_FUNDAMENTAL, (ticker, row["free_float_pct"], row["free_float_shares"],
+                                         row["pe_ratio"], None, int(ticker in turns), now))
     conn.commit()
     LOG.info("company_fundamentals: %d tickers refreshed", len(data))
     return len(data)
@@ -142,9 +161,9 @@ def load_fundamentals_csv(conn: sqlite3.Connection, path: Path) -> int:
                     return float(row[key]) if row.get(key) not in (None, "") else None
                 except ValueError:
                     return None
-            cur.execute(UPSERT_FUNDAMENTAL, (ticker, num("free_float_pct"), num("pe_ratio"),
-                                             num("pb_ratio"), int(ticker in turnaround_tickers(conn)),
-                                             _now()))
+            cur.execute(UPSERT_FUNDAMENTAL, (ticker, num("free_float_pct"), num("free_float_shares"),
+                                             num("pe_ratio"), num("pb_ratio"),
+                                             int(ticker in turnaround_tickers(conn)), _now()))
             written += 1
     conn.commit()
     LOG.info("company_fundamentals: %d CSV rows upserted", written)
@@ -163,8 +182,14 @@ def load_rights_csv(conn: sqlite3.Connection, path: Path) -> int:
                     return float(row[key]) if row.get(key) not in (None, "") else None
                 except ValueError:
                     return None
+            days = num("days_remaining")
+            committed = str(row.get("sponsor_committed") or "").strip().lower()
             cur.execute(UPSERT_RIGHTS, (ticker, _iso_day(row.get("announcement_date") or date.today()),
                                         row.get("ratio") or None, num("issue_price"), num("terp"),
+                                        num("lor_price"), num("subscription_price"),
+                                        int(days) if days is not None else None,
+                                        row.get("purpose") or None,
+                                        1 if committed in ("1", "true", "yes", "y") else None,
                                         (row.get("status") or "ANNOUNCED").upper(), "csv", _now()))
             written += 1
     conn.commit()
@@ -183,8 +208,8 @@ def sync_right_issue_disclosures(conn: sqlite3.Connection) -> int:
     for ticker, trade_date, headline in rows:
         if calc_catalyst(headline)["catalyst"] != "RIGHT ISSUE":
             continue
-        cur.execute(UPSERT_RIGHTS, (ticker, _iso_day(trade_date), None, None, None,
-                                    "ANNOUNCED", "psx_disclosures", _now()))
+        cur.execute(UPSERT_RIGHTS, (ticker, _iso_day(trade_date), None, None, None, None, None, None,
+                                    None, None, "ANNOUNCED", "psx_disclosures", _now()))
         written += 1
     conn.commit()
     return written
@@ -195,7 +220,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Refresh fundamentals and rights tracking")
     parser.add_argument("--db", default=str(DB_PATH))
     parser.add_argument("--file", help="CSV: ticker,pe_ratio,pb_ratio,free_float_pct")
-    parser.add_argument("--rights-file", help="CSV: ticker,announcement_date,ratio,issue_price,terp")
+    parser.add_argument("--rights-file", help="CSV: ticker,announcement_date,ratio,issue_price,terp,"
+                                                "lor_price,subscription_price,days_remaining,purpose,"
+                                                "sponsor_committed")
     parser.add_argument("--skip-screener", action="store_true")
     args = parser.parse_args()
 

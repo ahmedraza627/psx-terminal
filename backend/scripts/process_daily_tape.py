@@ -11,9 +11,10 @@ BACKEND_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(BACKEND_DIR))  # `src.*` imports resolve from the backend package
 from quant_modules import (calc_catalyst, calc_dfx_carry, calc_director_footprint,  # noqa: E402
-                          calc_flow_streak, calc_institutional_flows, calc_lor_spread,
-                          calc_low_float, calc_mansfield_rs, calc_quiet_absorption,
-                          calc_vpvr_sweep)
+                          calc_mansfield_rs, calc_pocket_pivot, calc_quiet_absorption,
+                          calc_volume_dryup, calc_vpvr_sweep)
+from institutional_desk import (active_rights, build_desk, catalyst_events,  # noqa: E402
+                               load_seasonality, open_position_ages, stale_tickers)
 from v5_ledger import log_signals  # noqa: E402
 from src.core.models import DailyBar  # noqa: E402
 from src.ingestion.sqlite_adapter import parse_psx_date  # noqa: E402
@@ -26,7 +27,6 @@ OUTPUT_PATH = Path(os.getenv("SYNC_OUTPUT_PATH",
 LOCAL_Z_DIR = Path(os.getenv("PSX_Z_DIR", r"D:\downloads"))
 HISTORY_PATH = OUTPUT_PATH.with_name("history.json")  # V5 audit ledger
 SEASONALITY_PATH = OUTPUT_PATH.with_name("seasonality_matrix.json")
-CATALYST_WINDOW_DAYS = 60  # a PUCARS event older than this is already in the price
 TAPE_URL = "https://dps.psx.com.pk/download/mkt_summary/{}.Z"
 INDICES_URL = "https://dps.psx.com.pk/indices"
 FILINGS_URL = "https://dps.psx.com.pk/company/{}"
@@ -73,11 +73,23 @@ def ensure_tables(conn: sqlite3.Connection) -> None:
     cur.execute("CREATE INDEX IF NOT EXISTS nccpl_flows_date_sector_idx ON nccpl_flows "
                 "(trade_date DESC, sector_name)")
     cur.execute("CREATE TABLE IF NOT EXISTS company_fundamentals (ticker TEXT PRIMARY KEY, free_float_pct REAL, "
-                "pe_ratio REAL, pb_ratio REAL, turnaround_catalyst INTEGER NOT NULL DEFAULT 0, "
-                "updated_at TEXT NOT NULL)")
+                "free_float_shares REAL, pe_ratio REAL, pb_ratio REAL, "
+                "turnaround_catalyst INTEGER NOT NULL DEFAULT 0, updated_at TEXT NOT NULL)")
     cur.execute("CREATE TABLE IF NOT EXISTS active_right_issues (ticker TEXT NOT NULL, announcement_date TEXT NOT NULL, "
-                "ratio TEXT, issue_price REAL, terp REAL, status TEXT NOT NULL DEFAULT 'ANNOUNCED', source TEXT, "
-                "updated_at TEXT NOT NULL, PRIMARY KEY (ticker, announcement_date))")
+                "ratio TEXT, issue_price REAL, terp REAL, lor_price REAL, subscription_price REAL, "
+                "days_remaining INTEGER, purpose TEXT, sponsor_committed INTEGER, "
+                "status TEXT NOT NULL DEFAULT 'ANNOUNCED', source TEXT, updated_at TEXT NOT NULL, "
+                "PRIMARY KEY (ticker, announcement_date))")
+    # Stores created before the six-layer framework gain the new columns in place.
+    for table, column, ddl in (("company_fundamentals", "free_float_shares", "REAL"),
+                               ("active_right_issues", "lor_price", "REAL"),
+                               ("active_right_issues", "subscription_price", "REAL"),
+                               ("active_right_issues", "days_remaining", "INTEGER"),
+                               ("active_right_issues", "purpose", "TEXT"),
+                               ("active_right_issues", "sponsor_committed", "INTEGER")):
+        cols = [row[1] for row in cur.execute(f"PRAGMA table_info({table})")]
+        if column not in cols:
+            cur.execute(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}")
     conn.commit()
 def parse_tape(path: Path) -> list[dict]:
     """ZIP/gzip/LZW/plain tape: date|ticker|time|name|open|high|low|close|volume|prev."""
@@ -140,7 +152,8 @@ def index_snapshot() -> dict:  # KSE-100 close/change from the DPS indices board
     return {"close": None, "changePct": None}
 CATALYST_PANELS = ("Material Information", "Board Meetings", "Others")
 DIRECTOR_TERMS = ("5.6.4", "director", "acquisition", "purchase", "sale of shares",
-                  "disclosure of interest", "insider")
+                  "disclosure of interest", "insider", "form 31", "form 32",
+                  "substantial shareholding")
 
 def _panel_table(html: str, name: str) -> str:
     """One tabs__panel body up to its closing table (PSX ships the panels server-side)."""
@@ -296,7 +309,10 @@ def analyse(cur, session: str, session_date, rows) -> tuple[list, list, list, di
                            "sector": DEFAULT_SECTOR_MAP.get(ticker, "Miscellaneous"),
                            "atr": round(atr, 2), "poc": vpvr["poc"], "mansfieldRs": mansfield,
                            "stop": round(max(close - ATR_STOP_MULT * atr, stop_floor), 2),
-                           "quiet": calc_quiet_absorption(bars)}
+                           "quiet": calc_quiet_absorption(bars),
+                           "dryup": calc_volume_dryup(bars), "pivot": calc_pocket_pivot(bars),
+                           "volume": int(bars[-1].volume or 0),
+                           "aboveSma50": bool(sma and close > sma)}
         # Only a contract that actually traded this session counts: a close with no volume is a
         # stale quote, and a scrip-less ticker has no futures market to compare against.
         fut = cur.execute("SELECT ticker, close_price FROM psx_futures_eod WHERE trade_date=? AND ticker LIKE ? "
@@ -311,270 +327,6 @@ def analyse(cur, session: str, session_date, rows) -> tuple[list, list, list, di
     leaders.sort(key=lambda s: -s["mansfieldRs"])
     traps.sort(key=lambda s: -s["annualizedCarryPct"])
     return sweeps[:5], leaders[:5], traps[:5], metrics
-# ---------------------------------------------------------------------------
-# Institutional event / flow desk
-# ---------------------------------------------------------------------------
-# NCCPL publishes nine investable sector buckets plus one catch-all; the desk's
-# sector labels (shared with the seasonality matrix) map onto them.
-NCCPL_SECTOR_NAMES = {
-    "Cement": "CEMENT",
-    "Banking": "COMMERCIAL BANKS",
-    "Fertilizer": "FERTILIZER",
-    "Food": "FOOD AND PERSONAL CARE PRODUCTS",
-    "Energy": "OIL AND GAS EXPLORATION COMPANIES",
-    "Oil Marketing": "OIL AND GAS MARKETING COMPANIES",
-    "Power": "POWER GENERATION AND DISTRIBUTION",
-    "Tech": "TECHNOLOGY AND COMMUNICATION",
-    "Textile Composite": "TEXTILE COMPOSITE",
-}
-DEFAULT_NCCPL_SECTOR = "ALL OTHER SECTORS"
-# Catalyst ranking weights for the setup score (not a return forecast).
-CATALYST_WEIGHTS = {"PUBLIC INTENTION": 16, "ACQUISITION": 15, "SCHEME OF ARRANGEMENT": 14,
-                    "DEMERGER": 13, "NON-CORE ASSET SALE": 13, "LAND SALE": 12,
-                    "BUY-BACK": 11, "RESUMPTION": 9, "RIGHT ISSUE": 7}
-STRATEGY_PRIORITY = ("LoR TRAP", "PUCARS CATALYST", "LOW-FLOAT SQUEEZE",
-                     "FIPI/LIPI ABSORPTION", "SEASONAL ALIGNED")
-
-
-def load_seasonality(path: Path = SEASONALITY_PATH) -> tuple[dict, str | None]:
-    """Ticker -> seasonal status/60-day stats from the published matrix."""
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return {}, None
-    month = (payload.get("meta") or {}).get("currentMonthLabel")
-    by_ticker: dict[str, dict] = {}
-    for sector_row in payload.get("sectors") or []:
-        for rec in sector_row.get("tickers") or []:
-            stats = ((rec.get("accumulationWindowStats") or {}).get("forward60") or {})
-            by_ticker[rec.get("ticker")] = {
-                "sector": rec.get("sector") or sector_row.get("sector"),
-                "status": rec.get("status"),
-                "month": month,
-                "rangePositionPct": (rec.get("position") or {}).get("rangePositionPct"),
-                "winRate60Pct": stats.get("winRatePct"),
-                "avgForward60Pct": stats.get("avgPct"),
-            }
-    return by_ticker, month
-
-
-def catalyst_events(cur, session_date) -> dict[str, list[dict]]:
-    """Recent PUCARS / board-meeting catalysts per ticker, newest first."""
-    try:
-        rows = cur.execute("SELECT ticker, trade_date, headline, disclosure_type FROM psx_disclosures "
-                           "WHERE disclosure_type LIKE 'PUCARS%' OR disclosure_type LIKE 'BOARD MEETING%' "
-                           "ORDER BY trade_date DESC").fetchall()
-    except sqlite3.OperationalError:
-        return {}
-    out: dict[str, list[dict]] = {}
-    for row in rows:
-        ticker, stamp, headline, kind = row[0], row[1], row[2], row[3]
-        try:
-            day = datetime.strptime(str(stamp), "%d%b%Y").date()
-        except (TypeError, ValueError):
-            continue
-        if (session_date - day).days > CATALYST_WINDOW_DAYS:
-            continue
-        tag = calc_catalyst(headline)
-        if not tag["catalyst"]:
-            continue
-        out.setdefault(ticker, []).append({"catalyst": tag["catalyst"], "headline": headline or "",
-                                           "date": day.isoformat(), "source": kind})
-    return out
-
-
-def active_rights(cur) -> dict[str, dict]:
-    """Open rights issues with a usable TERP (LoR spread)."""
-    try:
-        rows = cur.execute("SELECT ticker, terp, issue_price, ratio FROM active_right_issues "
-                           "WHERE status!='CLOSED' AND terp IS NOT NULL").fetchall()
-    except sqlite3.OperationalError:
-        return {}
-    return {row[0]: {"terp": row[1], "issuePrice": row[2], "ratio": row[3]} for row in rows}
-
-
-def _fmt_pkr(value: float) -> str:
-    return f"PKR {value / 1_000_000:+,.0f}M"
-
-
-def _pkr(value) -> str:
-    return "PKR —" if value is None else f"PKR {float(value):,.2f}"
-
-
-def build_institutional_desk(cur, session_date, metrics: dict, season: dict, season_month: str | None,
-                             catalysts: dict, rights: dict) -> tuple[list, list, dict]:
-    """Top-5 event/flow setups and up to 5 distribution alerts.
-
-    A setup exists only when a flow, event, float, rights or seasonal edge is
-    actually present in the stored data; nothing is padded to fill the board.
-    """
-    flows: dict[str, dict] = {}
-    streaks: dict[str, dict] = {}
-    setups: list[dict] = []
-    alert_pool: dict[str, dict] = {}
-
-    def sector_state(sector: str) -> tuple[dict, dict]:
-        name = NCCPL_SECTOR_NAMES.get(sector, DEFAULT_NCCPL_SECTOR)
-        if name not in flows:
-            flows[name] = calc_institutional_flows(cur, name, session_date)
-            streaks[name] = calc_flow_streak(cur, name, session_date)
-        return flows[name], streaks[name]
-
-    for ticker, m in metrics.items():
-        seasonal = season.get(ticker) or {}
-        sector = seasonal.get("sector") or m.get("sector") or "Miscellaneous"
-        flow, streak = sector_state(sector)
-        quiet = m.get("quiet") or {}
-        low = calc_low_float(cur, ticker)
-        events = catalysts.get(ticker) or []
-        catalyst = events[0] if events else None
-        lor = calc_lor_spread(m["close"], (rights.get(ticker) or {}).get("terp"))
-        aligned = seasonal.get("status") == "ACCUMULATION WINDOW ACTIVE"
-        # A name whose institutions are selling right now is distribution, not absorption,
-        # even when the 10-session sector total is still positive.
-        distributing = streak.get("streak", 0) >= 3
-        absorb = flow["institutionalNetPkr"] > 0 and bool(quiet.get("absorption")) and not distributing
-
-        ret20 = quiet.get("ret20dPct") or 0.0
-        volume_ratio = quiet.get("volumeRatio20") or 0.0
-        season_badge = {"status": seasonal.get("status") or "NO COVERAGE",
-                        "month": seasonal.get("month"), "tailwind": aligned,
-                        "winRate60Pct": seasonal.get("winRate60Pct"),
-                        "avgForward60Pct": seasonal.get("avgForward60Pct"),
-                        "rangePositionPct": seasonal.get("rangePositionPct")}
-
-        # Distribution board first: it is flow-driven and independent of any buy tag.
-        if distributing:
-            alert_pool[ticker] = {
-                "ticker": ticker, "sector": sector, "alert": "INSTITUTIONAL DISTRIBUTION",
-                "detail": f"Insurance + mutual funds net sold {streak['streak']} straight sessions "
-                          f"({_fmt_pkr(streak['windowNetPkr'])} over the window) while price moved "
-                          f"{ret20:+.1f}% in 20 sessions on {volume_ratio:.2f}x volume.",
-                "sellStreak": streak["streak"], "instNetPkr": streak["windowNetPkr"],
-                "ret20dPct": quiet.get("ret20dPct"), "seasonality": season_badge,
-                "score": round(45 + streak["streak"] * 8
-                               + min(20.0, abs(streak["windowNetPkr"]) / 25_000_000), 1),
-            }
-        if ret20 >= 15.0 and flow["retailNetPkr"] > 0 and flow["institutionalNetPkr"] < 0:
-            score_alert = round(35 + ret20 / 2 + volume_ratio * 5, 1)
-            if ticker not in alert_pool or alert_pool[ticker]["score"] < score_alert:
-                alert_pool[ticker] = {
-                    "ticker": ticker, "sector": sector, "alert": "RETAIL-CHASED EXTENSION",
-                    "detail": f"Retail net bought {_fmt_pkr(flow['retailNetPkr'])} while institutions "
-                              f"sold {_fmt_pkr(flow['institutionalNetPkr'])}; price ran {ret20:+.1f}% in "
-                              f"20 sessions on {volume_ratio:.2f}x volume.",
-                    "sellStreak": streak.get("streak", 0), "instNetPkr": flow["institutionalNetPkr"],
-                    "ret20dPct": quiet.get("ret20dPct"), "seasonality": season_badge,
-                    "score": score_alert,
-                }
-        if lor.get("lorTrap"):
-            alert_pool[ticker] = {
-                "ticker": ticker, "sector": sector, "alert": "LoR PREMIUM TRAP",
-                "detail": f"Stock trades {lor['lorPremiumPct']:.1f}% above TERP {lor['terp']:.2f}; "
-                          "buying the entitlement here pays the premium, not the value.",
-                "sellStreak": streak.get("streak", 0), "instNetPkr": flow["institutionalNetPkr"],
-                "ret20dPct": quiet.get("ret20dPct"), "seasonality": season_badge, "score": 60.0,
-            }
-        if distributing:
-            continue  # never publish a buy into live institutional distribution
-
-        tags: list[str] = []
-        facts: list[str] = []
-        score = 0.0
-        if absorb:
-            tags.append("FIPI/LIPI ABSORPTION")
-            score += 40 + min(20.0, flow["institutionalNetPkr"] / 25_000_000) + (10 if quiet.get("flat") else 8)
-            facts.append(f"Institutions net bought {_fmt_pkr(flow['institutionalNetPkr'])} over "
-                         f"{flow['sessions']} sessions (FIPI {_fmt_pkr(flow['fipiPkr'])}, funds "
-                         f"{_fmt_pkr(flow['mutualFundsPkr'])}, insurance {_fmt_pkr(flow['insurancePkr'])}) "
-                         f"while price moved {ret20:+.1f}% in 20 sessions on {volume_ratio:.2f}x 20d volume.")
-        if catalyst:
-            tags.append("PUCARS CATALYST")
-            score += 62 + CATALYST_WEIGHTS.get(catalyst["catalyst"], 8)  # a live filing leads the board
-            facts.append(f"{catalyst['catalyst']} filing ({catalyst['date']}): {catalyst['headline'][:150]}")
-        if low["lowFloat"]:
-            tags.append("LOW-FLOAT SQUEEZE")
-            score += 40 + (10 if low.get("turnaroundCatalyst") else 0)
-            facts.append(f"Free float {low['freeFloatPct']:.1f}% against P/E {low['peRatio'] or '—'} / "
-                         f"P/B {low['pbRatio'] or '—'} — thin supply, deep value.")
-        if lor.get("lorCheap"):
-            tags.append("LoR TRAP")
-            score += 35
-            facts.append(f"Stock trades {abs(lor['lorPremiumPct']):.1f}% below TERP {lor['terp']:.2f} — "
-                         "converting the entitlement is accretive; the trap is on LoR sellers.")
-        if aligned:
-            tags.append("SEASONAL ALIGNED")
-            score += 12
-            facts.append(f"{seasonal['status']} in {seasonal.get('month') or '—'} (60d win "
-                         f"{seasonal.get('winRate60Pct')}%, avg {seasonal.get('avgForward60Pct')}%).")
-            if flow["institutionalNetPkr"] < 0:  # calendar alone, institutions selling: not a buy
-                score -= 15
-        if not tags:
-            continue
-
-        primary = next((tag for tag in STRATEGY_PRIORITY if tag in tags), tags[0])
-        entry_high = round(m["close"], 2)
-        entry_low = round(min(m.get("poc") or entry_high, entry_high), 2)
-        if lor.get("lorCheap") and lor.get("terp"):
-            entry_high = max(entry_high, round(lor["terp"], 2))
-        stop = m.get("stop") or round(entry_low * 0.92, 2)
-        rules = {
-            "FIPI/LIPI ABSORPTION": f"Hard exit on a close below {_pkr(stop)} (2xATR, 15% outer bound) "
-                                    "or if the 10-session institutional net flips negative.",
-            "PUCARS CATALYST": f"Hard exit on a close below {_pkr(stop)} or if PSX withdraws the filing.",
-            "LOW-FLOAT SQUEEZE": f"Hard exit on a close below {_pkr(stop)}; a low-float squeeze "
-                                 "unwinds faster than it builds.",
-            "LoR TRAP": f"Hard exit on a close below {_pkr(stop)} or if the rights issue is withdrawn.",
-            "SEASONAL ALIGNED": f"Hard exit on a close below {_pkr(stop)} or when the seasonal "
-                                "window closes without institutional flow.",
-        }
-        setups.append({
-            "ticker": ticker, "sector": sector, "strategy": primary, "tags": tags,
-            "close": round(m["close"], 2), "trigger": " ".join(facts),
-            "entryZone": {"low": entry_low, "high": entry_high},
-            "invalidation": rules[primary], "invalidationPrice": stop,
-            "seasonality": season_badge,
-            "score": round(score, 1),
-            "metrics": {"institutionalNetPkr": flow["institutionalNetPkr"], "flowSessions": flow["sessions"],
-                        "flowStreak": streak.get("streak", 0), "ret20dPct": quiet.get("ret20dPct"),
-                        "volumeRatio20": quiet.get("volumeRatio20"),
-                        "freeFloatPct": low.get("freeFloatPct"), "peRatio": low.get("peRatio"),
-                        "catalyst": catalyst["catalyst"] if catalyst else None},
-        })
-
-    # Sector flows are shared by every name in a sector, so the boards are capped at
-    # two names per sector instead of listing the same trigger five times.
-    def take_diverse(rows: list[dict], limit: int = 5, per_sector: int = 2) -> list[dict]:
-        picked, counts = [], {}
-        for row in rows:
-            sector = row.get("sector") or "—"
-            if counts.get(sector, 0) >= per_sector:
-                continue
-            picked.append(row)
-            counts[sector] = counts.get(sector, 0) + 1
-            if len(picked) >= limit:
-                break
-        return picked
-
-    setups.sort(key=lambda row: (-row["score"],
-                                 (row["metrics"].get("volumeRatio20") or 99.0)))
-    alerts = sorted(alert_pool.values(), key=lambda row: -row["score"])
-    tracked = [flow for flow in flows.values() if flow["sessions"]]
-    summary = {
-        "flowSession": max((f["lastSession"] for f in tracked if f["lastSession"]), default=None),
-        "flowSessions": max((f["sessions"] for f in tracked), default=0),
-        "sectorsTracked": len(tracked),
-        "institutionalNetPkr": round(sum(f["institutionalNetPkr"] for f in tracked), 2),
-        "catalystWindowDays": CATALYST_WINDOW_DAYS,
-        "catalystEvents": sum(len(v) for v in catalysts.values()),
-        "rightsTracked": len(rights),
-        "seasonalityMonth": season_month,
-        "strategyTags": list(STRATEGY_PRIORITY),
-        "boards": {"setups": 5, "alerts": 5},
-    }
-    return take_diverse(setups), take_diverse(alerts), summary
-
-
 def main() -> dict:
     logging.basicConfig(level=logging.INFO, format="%(levelname)-8s %(message)s")
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -594,9 +346,15 @@ def main() -> dict:
         item["directorFootprint"] = calc_director_footprint(cur, item["ticker"], item["close"], item["poc"])["directorFootprint"]
     watch = [] if sweeps else [lead for lead in leaders if lead["mansfieldRs"] >= 8.0]
     audited = log_signals(conn, cur, session, sweeps + watch, traps, HISTORY_PATH)
-    season, season_month = load_seasonality()
-    setups, alerts, desk = build_institutional_desk(cur, session_date, metrics, season, season_month,
-                                                    catalyst_events(cur, session_date), active_rights(cur))
+    season, season_month = load_seasonality(SEASONALITY_PATH)
+    breadth = (sum(1 for m in metrics.values() if m.get("aboveSma50")) / len(metrics) * 100
+               if metrics else None)
+    session_dates = sorted({datetime.strptime(day, "%d%b%Y").date() for day in dates})
+    setups, alerts, desk = build_desk(cur, session_date, metrics, season, season_month,
+                                      catalyst_events(cur, session_date), active_rights(cur),
+                                      breadth_pct=breadth,
+                                      positions=open_position_ages(cur, session_date, session_dates),
+                                      stale=stale_tickers(cur, session, dates[-10:]))
     payload = {"sessionDate": session_date.isoformat(), "kse100": index_snapshot(), "sbpRate": SBP_RATE_PCT,
                "liquiditySweeps": sweeps, "rsLeaders": leaders, "carryTraps": traps,
                "institutionalSetups": setups, "distributionAlerts": alerts, "institutionalDesk": desk,

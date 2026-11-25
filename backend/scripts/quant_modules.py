@@ -210,6 +210,8 @@ RETAIL_PARTICIPANT = "INDIVIDUALS"
 # a generic word must never shadow a narrower event ("public announcement of
 # intention" before "acquisition").
 CATALYST_TRIGGERS = (
+    ("form 31", "FORM 31 INSIDER"),
+    ("form 32", "FORM 32 SUBSTANTIAL"),
     ("public announcement of intention", "PUBLIC INTENTION"),
     ("scheme of arrangement", "SCHEME OF ARRANGEMENT"),
     ("non-core asset", "NON-CORE ASSET SALE"),
@@ -228,6 +230,26 @@ QUIET_PRICE_BAND_PCT = 5.0        # +-5% over 15-20 sessions is "flat"
 DISCOUNT_BAND_PCT = (10.0, 20.0)  # down 10-20% is a discounted base
 ABSORPTION_WINDOW = 20            # sessions compared against their own volume SMA
 FLOW_STREAK_SESSIONS = 3          # 3+ straight net-sell sessions = distribution
+
+# Layer 5 (ignition): supply dries up to 20-30% of the 50-session average before a
+# pocket pivot prints >2x average volume on an up day.
+DRYUP_BAND = (0.20, 0.30)
+DRYUP_FAST_WINDOW = 5
+DRYUP_BASE_WINDOW = 50
+POCKET_PIVOT_MULT = 2.0
+POCKET_PIVOT_LOOKBACK = 10
+# Layer 6 (exit): one session turning over 15%+ of the free float is distribution,
+# and a position that has not worked in 30 sessions is dead capital.
+FREE_FLOAT_DISTRIBUTION_PCT = 15.0
+TIME_STOP_SESSIONS = 30
+CONFLUENCE_LAYERS = (
+    ("macroLiquidity", "Macro / liquidity"),
+    ("sectorSeasonality", "Sector seasonality"),
+    ("institutionalFlow", "NCCPL + insider flow"),
+    ("catalyst", "Low-float / LoR / PUCARS"),
+    ("volumeSetup", "Dry-up + pocket pivot"),
+    ("riskExit", "Distribution / time-stop control"),
+)
 
 
 def _iso_day(value) -> str:
@@ -347,15 +369,16 @@ def calc_low_float(cur, ticker: str) -> dict:
     if not ticker:
         return out
     try:
-        cur.execute("SELECT free_float_pct, pe_ratio, pb_ratio, turnaround_catalyst "
+        cur.execute("SELECT free_float_pct, pe_ratio, pb_ratio, turnaround_catalyst, free_float_shares "
                     "FROM company_fundamentals WHERE ticker=?", (ticker,))
         row = cur.fetchone()
     except sqlite3.OperationalError:
         row = None
     if not row:
         return out
-    free_float, pe, pb, turnaround = row
+    free_float, pe, pb, turnaround, float_shares = row
     out.update({"freeFloatPct": round(float(free_float), 2) if free_float is not None else None,
+                "freeFloatShares": float(float_shares) if float_shares is not None else None,
                 "peRatio": round(float(pe), 2) if pe is not None else None,
                 "pbRatio": round(float(pb), 2) if pb is not None else None,
                 "turnaroundCatalyst": bool(turnaround)})
@@ -375,4 +398,77 @@ def calc_lor_spread(close, terp) -> dict:
     out["lorTrap"] = premium > 5.0      # paying up for the entitlement is the trap
     out["lorCheap"] = premium < -5.0    # converting into a discount is accretive
     return out
+
+
+def calc_volume_dryup(bars, fast: int = DRYUP_FAST_WINDOW, base: int = DRYUP_BASE_WINDOW) -> dict:
+    """5-session average volume as a share of the 50-session average.
+
+    The pre-breakout tell is supply drying up to 20-30% of normal; anything below
+    that is reported separately as contracting (a dead tape, not a coiled one).
+    """
+    out = {"vol5dAvg": None, "vol50dAvg": None, "dryUpRatio": None,
+           "dryUp": False, "contracting": False}
+    if len(bars) < base:
+        return out
+    volumes = [float(b.volume or 0) for b in bars]
+    fast_avg = sum(volumes[-fast:]) / fast
+    base_avg = sum(volumes[-base:]) / base
+    if base_avg <= 0:
+        return out
+    ratio = fast_avg / base_avg
+    out.update({"vol5dAvg": round(fast_avg), "vol50dAvg": round(base_avg),
+                "dryUpRatio": round(ratio, 3),
+                "dryUp": bool(DRYUP_BAND[0] <= ratio <= DRYUP_BAND[1]),
+                "contracting": bool(ratio < DRYUP_BAND[0])})
+    return out
+
+
+def calc_pocket_pivot(bars, lookback: int = POCKET_PIVOT_LOOKBACK,
+                      base: int = DRYUP_BASE_WINDOW) -> dict:
+    """Ignition: an up close on >2x the 50-session average volume.
+
+    The pivot must also out-trade every down-day volume of the prior ten sessions,
+    which is what separates demand stepping in from a one-off block print.
+    """
+    out = {"pocketPivot": False, "upDay": False, "volumeRatio50": None,
+           "priorDownVolume": None, "volume": None}
+    if len(bars) < base + 1:
+        return out
+    volumes = [float(b.volume or 0) for b in bars]
+    base_avg = sum(volumes[-base:]) / base
+    latest_volume = volumes[-1]
+    ratio = latest_volume / base_avg if base_avg > 0 else None
+    prior = bars[-(lookback + 1):-1]
+    down_volumes = [float(prior[i].volume or 0) for i in range(1, len(prior))
+                    if prior[i].close_price < prior[i - 1].close_price]
+    prior_down_max = max(down_volumes) if down_volumes else 0.0
+    up_day = bars[-1].close_price > bars[-2].close_price
+    out.update({"upDay": bool(up_day), "volumeRatio50": round(ratio, 2) if ratio is not None else None,
+                "priorDownVolume": round(prior_down_max), "volume": int(latest_volume)})
+    out["pocketPivot"] = bool(up_day and ratio is not None and ratio >= POCKET_PIVOT_MULT
+                              and latest_volume > prior_down_max)
+    return out
+
+
+def calc_float_turnover(volume, free_float_shares) -> dict:
+    """Single-session volume as a percentage of the free float."""
+    out = {"floatTurnoverPct": None, "distributionWarning": False}
+    if not volume or not free_float_shares or free_float_shares <= 0:
+        return out
+    turnover = float(volume) / float(free_float_shares) * 100
+    out["floatTurnoverPct"] = round(turnover, 2)
+    out["distributionWarning"] = turnover >= FREE_FLOAT_DISTRIBUTION_PCT
+    return out
+
+
+def calc_time_stop(sessions_held: int, limit: int = TIME_STOP_SESSIONS) -> dict:
+    """30-session dead-capital clock."""
+    held = max(int(sessions_held or 0), 0)
+    return {"limit": limit, "sessionsHeld": held,
+            "sessionsRemaining": max(limit - held, 0), "deadCapital": held >= limit}
+
+
+def calc_confluence_score(layers: dict) -> int:
+    """Count the satisfied framework layers (1-6)."""
+    return sum(1 for key, _label in CONFLUENCE_LAYERS if layers.get(key))
 
