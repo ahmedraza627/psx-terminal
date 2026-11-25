@@ -1,92 +1,47 @@
 {
-  "sessionDate": "2026-11-24",
+  "sessionDate": "2026-11-25",
   "kse100": {
-    "close": 178542.28,
-    "changePct": 0.6
+    "close": 178121.25,
+    "changePct": -0.24
   },
   "sbpRate": 12.0,
   "liquiditySweeps": [],
-  "rsLeaders": [
-    {
-      "ticker": "PIOC",
-      "close": 283.56,
-      "mansfieldRs": -12.73,
-      "volZScore": 3.35,
-      "rvol": 2.76,
-      "trendStretchPct": 15.33,
-      "poc": 275.43,
-      "stopLoss": 265.37,
-      "target": 317.59
-    },
-    {
-      "ticker": "MCB",
-      "close": 404.48,
-      "mansfieldRs": -14.29,
-      "volZScore": 1.22,
-      "rvol": 1.88,
-      "trendStretchPct": 3.55,
-      "poc": 408.24,
-      "stopLoss": 390.07,
-      "target": 453.02
-    },
-    {
-      "ticker": "TPLT",
-      "close": 46.24,
-      "mansfieldRs": -17.31,
-      "volZScore": 3.86,
-      "rvol": 3.43,
-      "trendStretchPct": 25.69,
-      "poc": 44.77,
-      "stopLoss": 42.37,
-      "target": 51.79
-    },
-    {
-      "ticker": "TPL",
-      "close": 25.67,
-      "mansfieldRs": -18.3,
-      "volZScore": 10.69,
-      "rvol": 5.17,
-      "trendStretchPct": 13.13,
-      "poc": 24.58,
-      "stopLoss": 23.81,
-      "target": 28.75
-    }
-  ],
+  "rsLeaders": [],
   "carryTraps": [
     {
-      "ticker": "FATIMA",
-      "spotClose": 147.7,
-      "futClose": 148.39,
-      "mansfieldRs": -19.39,
-      "annualizedCarryPct": 56.84
+      "ticker": "OBOY",
+      "spotClose": 13.21,
+      "futClose": 13.4,
+      "mansfieldRs": -8.73,
+      "annualizedCarryPct": 262.49
     },
     {
-      "ticker": "SSGC",
-      "spotClose": 23.63,
-      "futClose": 23.7,
-      "mansfieldRs": -19.41,
-      "annualizedCarryPct": 36.04
-    },
-    {
-      "ticker": "ASL",
-      "spotClose": 15.11,
-      "futClose": 15.15,
-      "mansfieldRs": -8.0,
-      "annualizedCarryPct": 32.21
-    },
-    {
-      "ticker": "PTC",
-      "spotClose": 43.89,
-      "futClose": 43.99,
-      "mansfieldRs": -25.12,
-      "annualizedCarryPct": 27.72
+      "ticker": "NPL",
+      "spotClose": 53.13,
+      "futClose": 53.24,
+      "mansfieldRs": -2.06,
+      "annualizedCarryPct": 37.78
     },
     {
       "ticker": "GHNI",
-      "spotClose": 1191.88,
-      "futClose": 1194.48,
-      "mansfieldRs": -4.91,
-      "annualizedCarryPct": 26.54
+      "spotClose": 1218.51,
+      "futClose": 1221.0,
+      "mansfieldRs": -0.85,
+      "annualizedCarryPct": 37.29
+    },
+    {
+      "ticker": "ATRL",
+      "spotClose": 919.24,
+      "futClose": 920.9,
+      "mansfieldRs": -8.21,
+      "annualizedCarryPct": 32.96
+    },
+    {
+      "ticker": "NCPL",
+      "spotClose": 50.92,
+      "futClose": 51.01,
+      "mansfieldRs": -2.25,
+      "annualizedCarryPct": 32.26
     }
   ],
   "engine": {
