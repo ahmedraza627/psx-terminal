@@ -96,7 +96,8 @@ def desk_calls(bars):
     session = bars[-1].trade_date.strftime("%d%b%Y")
     rows = cur.execute("SELECT ticker, close_price, low_price FROM psx_daily_eod WHERE trade_date=?",
                        (session,)).fetchall()
-    return desk.analyse(cur, session, bars[-1].trade_date, rows)
+    sweeps, leaders, traps, _metrics = desk.analyse(cur, session, bars[-1].trade_date, rows)
+    return sweeps, leaders, traps
 
 
 def test_desk_buy_is_the_engine_signal_with_atr_stop_and_flat_target():

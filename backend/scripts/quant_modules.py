@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""quant_modules.py - four pure quantitative functions for the PSX daily tape.
+"""quant_modules.py - pure quantitative helpers for the PSX event/flow desk.
 
 No network, no file writes: each function reads through the sqlite3 cursor it
 is handed and returns a dict of camelCase values.
@@ -194,3 +194,185 @@ def calc_director_footprint(cur, ticker, current_price, poc):
     out["directorFootprint"] = bool(out["priceWithin3pctPoc"]
                                     or out["acquisitionDeclarations"] > 0)
     return out
+
+
+# ---------------------------------------------------------------------------
+# Institutional flow, event catalyst and rights helpers
+# ---------------------------------------------------------------------------
+
+# NCCPL participant labels that count as institutional smart money. The scstrade
+# mirror ships the foreign aggregate as FIPI (legacy rows carry FOREIGN TOTAL).
+INSTITUTIONAL_PARTICIPANTS = ("FIPI", "FOREIGN TOTAL", "MUTUAL FUNDS", "INSURANCE")
+DISTRIBUTION_PARTICIPANTS = ("INSURANCE", "MUTUAL FUNDS")
+RETAIL_PARTICIPANT = "INDIVIDUALS"
+
+# PUCARS / board-meeting material-information triggers, most specific first:
+# a generic word must never shadow a narrower event ("public announcement of
+# intention" before "acquisition").
+CATALYST_TRIGGERS = (
+    ("public announcement of intention", "PUBLIC INTENTION"),
+    ("scheme of arrangement", "SCHEME OF ARRANGEMENT"),
+    ("non-core asset", "NON-CORE ASSET SALE"),
+    ("sale of land", "LAND SALE"),
+    ("buy-back", "BUY-BACK"),
+    ("buyback", "BUY-BACK"),
+    ("demerger", "DEMERGER"),
+    ("resumption", "RESUMPTION"),
+    ("right issue", "RIGHT ISSUE"),
+    ("acquisition", "ACQUISITION"),
+)
+
+# Absorption shape: a flat or discounted tape on shrinking volume while
+# institutions are net buyers is accumulation, not demand.
+QUIET_PRICE_BAND_PCT = 5.0        # +-5% over 15-20 sessions is "flat"
+DISCOUNT_BAND_PCT = (10.0, 20.0)  # down 10-20% is a discounted base
+ABSORPTION_WINDOW = 20            # sessions compared against their own volume SMA
+FLOW_STREAK_SESSIONS = 3          # 3+ straight net-sell sessions = distribution
+
+
+def _iso_day(value) -> str:
+    """Normalise a tape session (24NOV2026) or ISO date into YYYY-MM-DD."""
+    if isinstance(value, datetime):
+        return value.date().isoformat()
+    if isinstance(value, date):
+        return value.isoformat()
+    text = str(value or "").strip()
+    for fmt, width in (("%Y-%m-%d", 10), (SESSION_FMT, 9)):
+        try:
+            return datetime.strptime(text[:width], fmt).date().isoformat()
+        except ValueError:
+            continue
+    return text
+
+
+def _flow_sessions(cur: sqlite3.Cursor, session, n: int) -> list[str]:
+    """Stored NCCPL sessions up to `session`, newest first."""
+    try:
+        cur.execute("SELECT DISTINCT trade_date FROM nccpl_flows WHERE trade_date<=? "
+                    "ORDER BY trade_date DESC LIMIT ?", (_iso_day(session), n))
+        return [r[0] for r in cur.fetchall() if r[0]]
+    except sqlite3.OperationalError:  # table not migrated yet
+        return []
+
+
+def calc_institutional_flows(cur, sector: str, session, sessions: int = 10) -> dict:
+    """Cumulative participant net buying per sector over the last `sessions`.
+
+    Returns PKR nets for the institutional block (FIPI + mutual funds +
+    insurance), the retail counterpart and every participant that reported, so
+    the desk can say *who* absorbed the supply rather than just "smart money".
+    """
+    out = {"sector": sector, "sessions": 0, "lastSession": None, "institutionalNetPkr": 0.0,
+           "retailNetPkr": 0.0, "fipiPkr": 0.0, "mutualFundsPkr": 0.0, "insurancePkr": 0.0,
+           "participants": {}}
+    days = _flow_sessions(cur, session, sessions)
+    if not days or not sector:
+        return out
+    cur.execute(f"SELECT participant_type, SUM(COALESCE(net_pkr,0)) FROM nccpl_flows "
+                f"WHERE sector_name=? AND trade_date IN ({_marks(days)}) GROUP BY participant_type",
+                (sector, *days))
+    parts = {(r[0] or "").upper(): float(r[1] or 0.0) for r in cur.fetchall()}
+    out["sessions"] = len(days)
+    out["lastSession"] = days[0]
+    out["participants"] = {k: round(v, 2) for k, v in parts.items()}
+    out["fipiPkr"] = round(sum(parts.get(p, 0.0) for p in ("FIPI", "FOREIGN TOTAL")), 2)
+    out["mutualFundsPkr"] = round(parts.get("MUTUAL FUNDS", 0.0), 2)
+    out["insurancePkr"] = round(parts.get("INSURANCE", 0.0), 2)
+    out["retailNetPkr"] = round(parts.get(RETAIL_PARTICIPANT, 0.0), 2)
+    out["institutionalNetPkr"] = round(out["fipiPkr"] + out["mutualFundsPkr"]
+                                       + out["insurancePkr"], 2)
+    return out
+
+
+def calc_flow_streak(cur, sector: str, session, participants=DISTRIBUTION_PARTICIPANTS,
+                     limit: int = 6) -> dict:
+    """Consecutive net-sell sessions (newest first) for the chosen participants."""
+    out = {"streak": 0, "lastSessionNetPkr": 0.0, "windowNetPkr": 0.0}
+    days = _flow_sessions(cur, session, limit)
+    if not days or not sector:
+        return out
+    labels = ", ".join("?" * len(participants))
+    cur.execute(f"SELECT trade_date, SUM(COALESCE(net_pkr,0)) FROM nccpl_flows WHERE sector_name=? "
+                f"AND participant_type IN ({labels}) AND trade_date IN ({_marks(days)}) "
+                f"GROUP BY trade_date", (sector, *participants, *days))
+    per_day = {r[0]: float(r[1] or 0.0) for r in cur.fetchall()}
+    out["windowNetPkr"] = round(sum(per_day.values()), 2)
+    out["lastSessionNetPkr"] = round(per_day.get(days[0], 0.0), 2)
+    for day in days:
+        if per_day.get(day, 0.0) < 0:
+            out["streak"] += 1
+        else:
+            break
+    return out
+
+
+def calc_quiet_absorption(bars, window: int = ABSORPTION_WINDOW) -> dict:
+    """Price flat (+-5%) or down 10-20% over 15-20 sessions on sub-SMA volume."""
+    out = {"ret15dPct": None, "ret20dPct": None, "volumeRatio20": None,
+           "flat": False, "discounted": False, "quiet": False, "absorption": False}
+    if len(bars) < window + 1:
+        return out
+    closes = [b.close_price for b in bars]
+    volumes = [float(b.volume or 0) for b in bars]
+    last = closes[-1]
+    ret15 = (last / closes[-16] - 1) * 100 if closes[-16] > 0 else None
+    ret20 = (last / closes[-(window + 1)] - 1) * 100 if closes[-(window + 1)] > 0 else None
+    vol_sma = sum(volumes[-window:]) / window
+    ratio = volumes[-1] / vol_sma if vol_sma > 0 else None
+    out["ret15dPct"] = round(ret15, 2) if ret15 is not None else None
+    out["ret20dPct"] = round(ret20, 2) if ret20 is not None else None
+    out["volumeRatio20"] = round(ratio, 2) if ratio is not None else None
+    lows, highs = DISCOUNT_BAND_PCT
+    flat = all(abs(r) <= QUIET_PRICE_BAND_PCT for r in (ret15, ret20) if r is not None)
+    discounted = any(-highs <= r <= -lows for r in (ret15, ret20) if r is not None)
+    quiet = ratio is not None and ratio <= 1.0
+    out.update({"flat": bool(flat), "discounted": bool(discounted), "quiet": bool(quiet),
+                "absorption": bool(quiet and (flat or discounted))})
+    return out
+
+
+def calc_catalyst(headline: str) -> dict:
+    """Map a PUCARS / board-meeting headline onto one high-alpha event tag."""
+    text = " ".join(str(headline or "").lower().split())
+    for phrase, tag in CATALYST_TRIGGERS:
+        if phrase in text:
+            return {"catalyst": tag, "trigger": phrase}
+    return {"catalyst": None, "trigger": None}
+
+
+def calc_low_float(cur, ticker: str) -> dict:
+    """Low-float + deep-value screen from company_fundamentals."""
+    out = {"freeFloatPct": None, "peRatio": None, "pbRatio": None, "lowFloat": False,
+           "turnaroundCatalyst": False}
+    if not ticker:
+        return out
+    try:
+        cur.execute("SELECT free_float_pct, pe_ratio, pb_ratio, turnaround_catalyst "
+                    "FROM company_fundamentals WHERE ticker=?", (ticker,))
+        row = cur.fetchone()
+    except sqlite3.OperationalError:
+        row = None
+    if not row:
+        return out
+    free_float, pe, pb, turnaround = row
+    out.update({"freeFloatPct": round(float(free_float), 2) if free_float is not None else None,
+                "peRatio": round(float(pe), 2) if pe is not None else None,
+                "pbRatio": round(float(pb), 2) if pb is not None else None,
+                "turnaroundCatalyst": bool(turnaround)})
+    cheap = (pe is not None and 0 < pe < 5.0) or (pb is not None and 0 < pb < 0.7)
+    out["lowFloat"] = bool(free_float is not None and free_float < 20.0 and cheap)
+    return out
+
+
+def calc_lor_spread(close, terp) -> dict:
+    """Letter-of-Rights premium: a close far above TERP means the LoR is rich."""
+    out = {"terp": None, "lorPremiumPct": None, "lorTrap": False, "lorCheap": False}
+    if not close or not terp or close <= 0 or terp <= 0:
+        return out
+    premium = (close / terp - 1) * 100
+    out["terp"] = round(float(terp), 2)
+    out["lorPremiumPct"] = round(premium, 2)
+    out["lorTrap"] = premium > 5.0      # paying up for the entitlement is the trap
+    out["lorCheap"] = premium < -5.0    # converting into a discount is accretive
+    return out
+

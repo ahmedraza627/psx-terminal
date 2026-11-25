@@ -1,105 +1,89 @@
 import fs from "node:fs";
 import path from "node:path";
 
-/** Today's actionable PSX desk: posture, what to buy, what to avoid. */
+/** Institutional event & flow desk: posture, top setups, distribution alerts. */
 export const dynamic = "force-dynamic";
 
-type Sweep = {
-  ticker: string;
-  close: number;
-  poc: number;
-  volZScore: number;
-  mansfieldRs: number;
-  stopLoss: number;
-  target: number;
-  rvol?: number;
-  atr?: number;
-  directorFootprint: boolean;
+type Seasonality = {
+  status: string;
+  month: string | null;
+  tailwind: boolean;
+  winRate60Pct: number | null;
+  avgForward60Pct: number | null;
+  rangePositionPct?: number | null;
 };
 
-type Leader = {
-  ticker: string;
-  close: number;
-  mansfieldRs: number;
-  volZScore: number;
-  poc: number;
-  rvol?: number;
-  stopLoss?: number;
-  target?: number;
+type SetupMetrics = {
+  institutionalNetPkr?: number;
+  flowSessions?: number;
+  flowStreak?: number;
+  ret20dPct?: number | null;
+  volumeRatio20?: number | null;
+  freeFloatPct?: number | null;
+  peRatio?: number | null;
+  catalyst?: string | null;
 };
 
-type Trap = {
-  ticker: string;
-  spotClose: number;
-  futClose: number;
-  annualizedCarryPct: number;
-  mansfieldRs: number;
-};
-
-type AlphaPick = {
-  rank: number;
+type InstitutionalSetup = {
   ticker: string;
   sector: string;
+  strategy: string;
+  tags: string[];
   close: number;
-  edges: string[];
-  stopLoss: number;
-  targetWeightPct: number;
-  riskBudgetPct: number;
+  trigger: string;
+  entryZone: { low: number; high: number };
+  invalidation: string;
+  invalidationPrice: number;
+  seasonality: Seasonality;
+  score: number;
+  metrics: SetupMetrics;
 };
 
-type ExtendedSetup = {
+type DistributionAlert = {
   ticker: string;
   sector: string;
-  close: number;
-  note: string;
+  alert: string;
+  detail: string;
+  sellStreak: number;
+  instNetPkr: number;
   ret20dPct: number | null;
-  swingPositionPct: number | null;
-  rsi14: number | null;
-  bearishDivergence: boolean;
-  divergenceType: string | null;
-  divergenceNote: string | null;
+  seasonality: Seasonality;
+  score: number;
+};
+
+type DeskSummary = {
+  flowSession: string | null;
+  flowSessions: number;
+  sectorsTracked: number;
+  institutionalNetPkr: number;
+  catalystWindowDays: number;
+  catalystEvents: number;
+  rightsTracked: number;
+  seasonalityMonth: string | null;
 };
 
 type AlphaBrief = {
   sessionDate: string;
   marketRegime: { regime: string; posture: string };
-  picks: AlphaPick[];
-  extendedSetups?: ExtendedSetup[];
 };
 
 type Latest = {
   sessionDate: string;
   kse100?: { close: number | null; changePct: number | null };
   sbpRate?: number;
-  liquiditySweeps?: Sweep[];
-  rsLeaders?: Leader[];
-  carryTraps?: Trap[];
-  engine?: { targetPct?: number };
+  institutionalSetups?: InstitutionalSetup[];
+  distributionAlerts?: DistributionAlert[];
+  institutionalDesk?: DeskSummary;
 };
 
-function readAlpha(): AlphaBrief | null {
+function readJson<T>(name: string): T | null {
   const candidates = [
-    path.join(process.cwd(), "public", "data", "daily_alpha_brief.json"),
-    path.join(process.cwd(), "frontend", "public", "data", "daily_alpha_brief.json"),
+    path.join(process.cwd(), "public", "data", name),
+    path.join(process.cwd(), "frontend", "public", "data", name),
   ];
   for (const file of candidates) {
     try {
-      return JSON.parse(fs.readFileSync(file, "utf-8")) as AlphaBrief;
-    } catch {
-      // try the next candidate
-    }
-  }
-  return null;
-}
-
-function readLatest(): Latest | null {
-  const candidates = [
-    path.join(process.cwd(), "public", "data", "latest.json"),
-    path.join(process.cwd(), "frontend", "public", "data", "latest.json"),
-  ];
-  for (const file of candidates) {
-    try {
-      return JSON.parse(fs.readFileSync(file, "utf-8")) as Latest;
+      return JSON.parse(fs.readFileSync(file, "utf-8")) as T;
     } catch {
       // try the next candidate
     }
@@ -120,8 +104,13 @@ const signedPct = (value: number | null | undefined, digits = 1) =>
     ? "—"
     : `${value >= 0 ? "+" : ""}${value.toFixed(digits)}%`;
 
-const RS_WATCH_FLOOR = 8.0; // only elite relative strength qualifies when no sweep fired
-const CARRY_FLOOR = 18.0; // % annualised carry that beats the 12% policy rate by enough
+const pkrM = (value: number | null | undefined) => {
+  if (value === null || value === undefined || Number.isNaN(value)) return "—";
+  const millions = value / 1_000_000;
+  return `PKR ${millions >= 0 ? "+" : "−"}${Math.abs(millions).toLocaleString("en-PK", {
+    maximumFractionDigits: 0,
+  })}M`;
+};
 
 const REGIME_TONE: Record<string, string> = {
   TRENDING: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
@@ -130,11 +119,18 @@ const REGIME_TONE: Record<string, string> = {
   UNKNOWN: "border-slate-800 bg-slate-900/40 text-slate-400",
 };
 
-const EDGE_TONE: Record<string, string> = {
-  "ACCUMULATION WINDOW ACTIVE": "border-blue-500/30 bg-blue-500/10 text-blue-300",
-  "MOMENTUM LEADER": "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
-  "LIQUIDITY SWEEP": "border-amber-500/30 bg-amber-500/10 text-amber-300",
-  "ABOVE 50D SMA": "border-slate-800 bg-slate-900/40 text-slate-400",
+const STRATEGY_TONE: Record<string, string> = {
+  "FIPI/LIPI ABSORPTION": "border-blue-500/40 bg-blue-500/10 text-blue-300",
+  "PUCARS CATALYST": "border-violet-500/40 bg-violet-500/10 text-violet-300",
+  "LOW-FLOAT SQUEEZE": "border-amber-500/40 bg-amber-500/10 text-amber-300",
+  "LoR TRAP": "border-fuchsia-500/40 bg-fuchsia-500/10 text-fuchsia-300",
+  "SEASONAL ALIGNED": "border-emerald-500/40 bg-emerald-500/10 text-emerald-300",
+};
+
+const SEASONAL_TONE: Record<string, string> = {
+  "ACCUMULATION WINDOW ACTIVE": "border-emerald-500/40 bg-emerald-500/10 text-emerald-300",
+  "EXTENDED / WAIT PULLBACK": "border-amber-500/40 bg-amber-500/10 text-amber-300",
+  "WATCH": "border-sky-500/40 bg-sky-500/10 text-sky-300",
 };
 
 function Tag({ children }: { children: React.ReactNode }) {
@@ -170,31 +166,39 @@ function SectionHeading({ title, count, tone }: { title: string; count?: string;
   );
 }
 
-export default function DailyDeskPage() {
-  const latest = readLatest();
-  const alpha = readAlpha();
-  const targetPct = latest?.engine?.targetPct ?? 12;
-  const sweeps = latest?.liquiditySweeps ?? [];
-  const traps = (latest?.carryTraps ?? []).filter(
-    (trap) => (trap.annualizedCarryPct ?? 0) > CARRY_FLOOR && (trap.mansfieldRs ?? 0) < 0,
+function SeasonalityBadge({ seasonality }: { seasonality: Seasonality }) {
+  const tone = SEASONAL_TONE[seasonality.status] ?? "border-slate-800 bg-slate-900/40 text-slate-400";
+  return (
+    <div className={`rounded-lg border px-2.5 py-2 ${tone}`}>
+      <div className="text-[9px] font-bold uppercase tracking-[0.12em] opacity-80">
+        Seasonality · {seasonality.month ?? "—"}
+      </div>
+      <div className="mt-0.5 text-[10px] font-semibold leading-snug">{seasonality.status}</div>
+      <div className="mt-0.5 font-mono text-[10px] tabular-nums opacity-80">
+        {seasonality.winRate60Pct === null ? "60d win —" : `60d win ${pct(seasonality.winRate60Pct, 0)}%`}
+        {" · "}
+        {seasonality.avgForward60Pct === null ? "avg —" : `avg ${signedPct(seasonality.avgForward60Pct)}`}
+      </div>
+    </div>
   );
-  const watch = sweeps.length
-    ? []
-    : (latest?.rsLeaders ?? []).filter((lead) => (lead.mansfieldRs ?? 0) >= RS_WATCH_FLOOR);
-  const waitSetups = alpha?.extendedSetups ?? [];
-  const picks = alpha?.picks ?? [];
+}
+
+export default function DailyDeskPage() {
+  const latest = readJson<Latest>("latest.json");
+  const alpha = readJson<AlphaBrief>("daily_alpha_brief.json");
+  const setups = latest?.institutionalSetups ?? [];
+  const alerts = latest?.distributionAlerts ?? [];
+  const desk = latest?.institutionalDesk;
   const sbpRate = latest?.sbpRate ?? 12;
   const regime = alpha?.marketRegime.regime ?? "UNKNOWN";
   const kse = latest?.kse100;
   const kseUp = (kse?.changePct ?? 0) >= 0;
-  const watchCount = picks.length + sweeps.length + watch.length;
-  const avoidCount = waitSetups.length + traps.length;
 
   return (
     <div className="space-y-5">
       <header className="min-w-0">
         <span className="font-mono text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-400/80">
-          PSX · EOD intelligence
+          PSX · institutional event &amp; flow desk
         </span>
         <h1 className="mt-1 text-xl font-bold tracking-tight text-slate-50 sm:text-2xl">Today&apos;s Trade Desk</h1>
       </header>
@@ -207,7 +211,7 @@ export default function DailyDeskPage() {
 
       {/* (a) MARKET & RATE POSTURE */}
       <section className="overflow-hidden rounded-2xl border border-slate-800/80 bg-slate-900/40">
-        <SectionHeading title="Market & Rate Posture" />
+        <SectionHeading title="Market &amp; Rate Posture" />
         <div className="p-4 sm:p-5">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <Metric
@@ -239,176 +243,156 @@ export default function DailyDeskPage() {
           </div>
 
           <p className="mt-2 text-[11px] leading-relaxed text-slate-400">
-            At a {pct(sbpRate, 2)}% policy rate, cash and finance costs set a {pct(sbpRate, 2)}% hurdle: carry must
-            clear it comfortably before a futures position is worth holding, and spot longs need trend plus volume —
-            not just a cheap price.
+            At a {pct(sbpRate, 2)}% policy rate the desk only pays up for supply that institutions are actually
+            absorbing, a filed corporate event with a hard exit, or a float too thin to resist demand — plus a
+            current-month seasonal tailwind where the calendar supports it.
           </p>
+          {desk ? (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              <Tag>NCCPL flows {desk.flowSession ?? "not stored"}</Tag>
+              <Tag>{desk.sectorsTracked} sectors · {desk.flowSessions} sessions</Tag>
+              <Tag>Institutions {pkrM(desk.institutionalNetPkr)}</Tag>
+              <Tag>{desk.catalystEvents} PUCARS catalysts / {desk.catalystWindowDays}d</Tag>
+              {desk.rightsTracked > 0 && <Tag>{desk.rightsTracked} rights issues with TERP</Tag>}
+            </div>
+          ) : null}
         </div>
       </section>
 
-      {/* (b) ACTIONABLE WATCHLIST */}
+      {/* (b) TOP 5 INSTITUTIONAL SETUPS */}
       <section className="overflow-hidden rounded-2xl border border-slate-800/80 bg-slate-900/40">
         <SectionHeading
-          title="Actionable Watchlist"
-          count={`${watchCount} NAME${watchCount === 1 ? "" : "S"}`}
+          title="Top 5 Institutional Setups"
+          count={`${setups.length} / 5`}
           tone="border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
         />
-        {watchCount === 0 ? (
+        {setups.length === 0 ? (
           <p className="px-4 py-8 text-center text-xs text-slate-500 sm:px-5">
-            Nothing clears the desk gates this session — stay in cash and wait for the next tape.
+            No name clears the institutional gates this session — no flow absorption, live catalyst, low-float value
+            case or rights edge is stored for the tape.
           </p>
         ) : (
           <div className="divide-y divide-slate-800/70">
-            {picks.map((pick) => (
-              <div key={`pick-${pick.ticker}`} className="px-4 py-3 sm:px-5">
+            {setups.map((setup) => (
+              <article key={`${setup.strategy}-${setup.ticker}`} className="px-4 py-3.5 sm:px-5">
                 <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
                   <div className="flex min-w-0 flex-wrap items-center gap-2">
-                    <span className="font-mono text-sm font-bold text-slate-50">{pick.ticker}</span>
-                    <span className="font-mono text-[9px] text-slate-500">#{pick.rank}</span>
-                    <span className="font-mono text-[10px] text-slate-500">{pick.sector}</span>
-                  </div>
-                  <span className="font-mono text-sm font-bold tabular-nums text-slate-200">PKR {money(pick.close)}</span>
-                </div>
-                <div className="mt-1.5 flex flex-wrap gap-1">
-                  {pick.edges.map((edge) => (
+                    <span className="font-mono text-sm font-bold text-slate-50">{setup.ticker}</span>
+                    <span className="font-mono text-[10px] text-slate-500">{setup.sector}</span>
                     <span
-                      key={edge}
-                      className={`rounded border px-1.5 py-0.5 text-[9px] font-semibold ${
-                        EDGE_TONE[edge] ?? "border-slate-800 bg-slate-900/40 text-slate-400"
+                      className={`rounded border px-1.5 py-0.5 font-mono text-[9px] font-bold ${
+                        STRATEGY_TONE[setup.strategy] ?? "border-slate-700 bg-slate-800/60 text-slate-300"
                       }`}
                     >
-                      {edge}
-                    </span>
-                  ))}
-                </div>
-                <div className="mt-1.5 flex flex-wrap gap-1.5">
-                  <Tag>stop {money(pick.stopLoss)}</Tag>
-                  <Tag>target wt {pct(pick.targetWeightPct, 2)}%</Tag>
-                  <Tag>risk {pct(pick.riskBudgetPct, 2)}%</Tag>
-                </div>
-              </div>
-            ))}
-
-            {sweeps.map((item) => (
-              <div key={`sweep-${item.ticker}`} className="px-4 py-3 sm:px-5">
-                <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-                  <div className="flex min-w-0 flex-wrap items-center gap-2">
-                    <span className="font-mono text-sm font-bold text-slate-50">{item.ticker}</span>
-                    <span className="rounded border border-blue-500/30 bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-bold text-blue-300">
-                      LIQUIDITY SWEEP BUY
+                      {setup.strategy}
                     </span>
                   </div>
-                  <span className="font-mono text-sm font-bold tabular-nums text-slate-200">{money(item.close)}</span>
+                  <span className="font-mono text-sm font-bold tabular-nums text-slate-200">PKR {money(setup.close)}</span>
                 </div>
-                <div className="mt-1.5 flex flex-wrap gap-1.5">
-                  <Tag>entry {money(item.poc)}</Tag>
-                  <Tag>stop {money(item.stopLoss)}</Tag>
-                  <Tag>target {money(item.target)}</Tag>
-                  <Tag>RVOL {pct(item.rvol)}x</Tag>
-                  <Tag>Mansfield RS +{pct(item.mansfieldRs)}%</Tag>
-                </div>
-              </div>
-            ))}
 
-            {watch.map((item) => (
-              <div key={`watch-${item.ticker}`} className="px-4 py-3 sm:px-5">
-                <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-                  <div className="flex min-w-0 flex-wrap items-center gap-2">
-                    <span className="font-mono text-sm font-bold text-slate-50">{item.ticker}</span>
-                    <span className="rounded border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-bold text-amber-300">
-                      RS ACCUMULATION WATCH
-                    </span>
+                {setup.tags.length > 1 ? (
+                  <div className="mt-1.5 flex flex-wrap gap-1">
+                    {setup.tags.map((tag) => (
+                      <span
+                        key={tag}
+                        className={`rounded border px-1.5 py-0.5 text-[9px] font-semibold ${
+                          STRATEGY_TONE[tag] ?? "border-slate-800 bg-slate-900/40 text-slate-400"
+                        }`}
+                      >
+                        {tag}
+                      </span>
+                    ))}
                   </div>
-                  <span className="font-mono text-sm font-bold tabular-nums text-slate-200">{money(item.close)}</span>
+                ) : null}
+
+                <div className="mt-2 grid grid-cols-1 gap-2 lg:grid-cols-[1fr_17rem]">
+                  <div className="space-y-1.5">
+                    <div>
+                      <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-slate-500">
+                        Trigger condition
+                      </div>
+                      <p className="mt-0.5 text-[11px] leading-relaxed text-slate-300">{setup.trigger}</p>
+                    </div>
+                    <div>
+                      <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-slate-500">
+                        Entry zone
+                      </div>
+                      <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                        <span className="font-mono text-[11px] font-bold tabular-nums text-emerald-300">
+                          PKR {money(setup.entryZone.low)} – {money(setup.entryZone.high)}
+                        </span>
+                        {setup.metrics.peRatio !== null && setup.metrics.peRatio !== undefined && (
+                          <Tag>P/E {pct(setup.metrics.peRatio, 1)}</Tag>
+                        )}
+                        {setup.metrics.freeFloatPct !== null && setup.metrics.freeFloatPct !== undefined && (
+                          <Tag>float {pct(setup.metrics.freeFloatPct, 1)}%</Tag>
+                        )}
+                        {setup.metrics.volumeRatio20 !== null && setup.metrics.volumeRatio20 !== undefined && (
+                          <Tag>vol {pct(setup.metrics.volumeRatio20)}x</Tag>
+                        )}
+                        {setup.metrics.ret20dPct !== null && setup.metrics.ret20dPct !== undefined && (
+                          <Tag>20D {signedPct(setup.metrics.ret20dPct)}</Tag>
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-slate-500">
+                        Hard invalidation
+                      </div>
+                      <p className="mt-0.5 text-[11px] leading-relaxed text-rose-300/90">{setup.invalidation}</p>
+                    </div>
+                  </div>
+                  <SeasonalityBadge seasonality={setup.seasonality} />
                 </div>
-                <div className="mt-1.5 flex flex-wrap gap-1.5">
-                  <Tag>entry {money(item.poc || item.close)}</Tag>
-                  <Tag>stop {money(item.stopLoss ?? item.close * 0.85)}</Tag>
-                  <Tag>target {money(item.target ?? item.close * (1 + targetPct / 100))}</Tag>
-                  <Tag>Mansfield RS +{pct(item.mansfieldRs)}%</Tag>
-                </div>
-                <p className="mt-1 text-[10px] text-slate-500">
-                  No sweep fired today, so this is accumulation only — trim size, no chasing.
-                </p>
-              </div>
+              </article>
             ))}
           </div>
         )}
       </section>
 
-      {/* (c) AVOID / WAIT PULLBACK */}
+      {/* (c) AVOID / DISTRIBUTION ALERTS */}
       <section className="overflow-hidden rounded-2xl border border-rose-500/30 bg-slate-900/40">
         <SectionHeading
-          title="Avoid / Wait Pullback"
-          count={`${avoidCount} FLAG${avoidCount === 1 ? "" : "S"}`}
+          title="Avoid / Distribution Alerts"
+          count={`${alerts.length} / 5`}
           tone="border-rose-500/30 bg-rose-500/10 text-rose-300"
         />
-        {avoidCount === 0 ? (
+        {alerts.length === 0 ? (
           <p className="px-4 py-8 text-center text-xs text-slate-500 sm:px-5">
-            No name is extended or carrying hard enough to flag today.
+            No institutional distribution or retail-chased extension is stored for this session.
           </p>
         ) : (
           <div className="divide-y divide-slate-800/70">
-            {waitSetups.map((setup) => (
-              <div key={`wait-${setup.ticker}`} className="px-4 py-3 sm:px-5">
+            {alerts.map((alert) => (
+              <article key={`${alert.alert}-${alert.ticker}`} className="px-4 py-3.5 sm:px-5">
                 <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
                   <div className="flex min-w-0 flex-wrap items-center gap-2">
-                    <span className="font-mono text-sm font-bold text-slate-50">{setup.ticker}</span>
+                    <span className="font-mono text-sm font-bold text-slate-50">{alert.ticker}</span>
+                    <span className="font-mono text-[10px] text-slate-500">{alert.sector}</span>
                     <span className="rounded border border-rose-500/40 bg-rose-500/10 px-1.5 py-0.5 font-mono text-[9px] font-bold text-rose-300">
-                      WAIT PULLBACK
-                    </span>
-                    <span className="font-mono text-[10px] text-slate-500">{setup.sector}</span>
-                  </div>
-                  <span className="font-mono text-sm tabular-nums text-slate-300">{money(setup.close)}</span>
-                </div>
-                <p className="mt-1 text-[10px] leading-relaxed text-slate-400">{setup.note}</p>
-                <div className="mt-1.5 flex flex-wrap gap-1.5">
-                  <Tag>20D {signedPct(setup.ret20dPct)}</Tag>
-                  <Tag>swing {setup.swingPositionPct === null ? "—" : `${pct(setup.swingPositionPct, 0)}%`}</Tag>
-                  {setup.rsi14 !== null && <Tag>RSI {pct(setup.rsi14, 1)}</Tag>}
-                  {setup.bearishDivergence && (
-                    <span
-                      className="rounded border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 font-mono text-[9px] font-bold text-amber-300"
-                      title={setup.divergenceNote ?? "Swing-high divergence"}
-                    >
-                      DIVERGENCE · {setup.divergenceType === "PRICE_VOLUME" ? "VOLUME" : "RSI"}
-                    </span>
-                  )}
-                </div>
-              </div>
-            ))}
-
-            {traps.map((item) => (
-              <div key={`trap-${item.ticker}`} className="px-4 py-3 sm:px-5">
-                <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-                  <div className="flex min-w-0 flex-wrap items-center gap-2">
-                    <span className="font-mono text-sm font-bold text-slate-50">{item.ticker}</span>
-                    <span className="rounded border border-rose-500/40 bg-rose-500/10 px-1.5 py-0.5 font-mono text-[9px] font-bold text-rose-300">
-                      AVOID SPOT
+                      {alert.alert}
                     </span>
                   </div>
-                  <span className="font-mono text-sm font-bold tabular-nums text-rose-300">
-                    {pct(item.annualizedCarryPct)}% carry
-                  </span>
+                  <span className="font-mono text-sm font-bold tabular-nums text-rose-300">{pkrM(alert.instNetPkr)}</span>
                 </div>
-                <div className="mt-1.5 flex flex-wrap gap-1.5">
-                  <Tag>spot {money(item.spotClose)}</Tag>
-                  <Tag>futures {money(item.futClose)}</Tag>
-                  <Tag>
-                    +{pct((item.annualizedCarryPct ?? 0) - sbpRate)}% over SBP {pct(sbpRate, 2)}%
-                  </Tag>
-                  <Tag>Mansfield RS {pct(item.mansfieldRs)}%</Tag>
+                <div className="mt-2 grid grid-cols-1 gap-2 lg:grid-cols-[1fr_17rem]">
+                  <div>
+                    <p className="text-[11px] leading-relaxed text-slate-300">{alert.detail}</p>
+                    <div className="mt-1.5 flex flex-wrap gap-1.5">
+                      {alert.sellStreak > 0 && <Tag>funds sold {alert.sellStreak} sessions</Tag>}
+                      {alert.ret20dPct !== null && <Tag>20D {signedPct(alert.ret20dPct)}</Tag>}
+                    </div>
+                  </div>
+                  <SeasonalityBadge seasonality={alert.seasonality} />
                 </div>
-              </div>
+              </article>
             ))}
           </div>
         )}
-        {traps.length > 0 && (
-          <p className="border-t border-slate-800 px-4 py-2 text-[10px] leading-snug text-slate-500 sm:px-5">
-            Carry traps are only flagged where a futures contract actually traded on the tape — a name with no
-            futures/DFM close is never given a synthetic rate.
-          </p>
-        )}
+        <p className="border-t border-slate-800 px-4 py-2 text-[10px] leading-snug text-slate-500 sm:px-5">
+          Distribution alerts fire only on stored NCCPL sector flows: insurance and mutual funds net selling three or
+          more straight sessions, retail chasing an extended tape, or a rights entitlement priced above its TERP.
+        </p>
       </section>
     </div>
   );

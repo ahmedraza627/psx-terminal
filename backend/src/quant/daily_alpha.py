@@ -79,8 +79,8 @@ POC_BUCKETS = 20
 SWEEP_VOL_Z = 1.5
 MOMENTUM_LEADER_MIN = 10.0  # composite 3M+6M ROC in %
 
-TOP_N = 10
-MAX_EXTENDED = 6           # blocked-but-interesting names surfaced for review
+TOP_N = 5                  # the desk board shows at most five buy setups
+MAX_EXTENDED = 5           # ...and at most five avoid / wait-pullback names
 RISK_BUDGET_PCT = 1.0      # equity at risk per position at its stop
 MAX_WEIGHT_PCT = 12.0      # per-name concentration cap
 MIN_WEIGHT_PCT = 1.0
@@ -723,6 +723,7 @@ def build_daily_alpha(
                 "divergenceType": guard["divergenceType"],
                 "divergenceNote": guard["divergenceNote"],
                 "score": confluence_score(base_edges, momentum),
+                "avgTurnoverPkr": liquid_profiles[ticker]["avgTurnoverPkr"],
                 "seasonalStatus": (season_row or {}).get("status"),
                 "lastDate": bars[-1].trade_date.isoformat(),
             })
@@ -755,7 +756,8 @@ def build_daily_alpha(
         })
 
     candidates.sort(key=lambda row: (-row["score"], -row["momentum6mPct"]))
-    blocked_setups.sort(key=lambda row: -row["score"])
+    # The avoid board is capped, so the most liquid names keep their slots.
+    blocked_setups.sort(key=lambda row: (-row["avgTurnoverPkr"], -row["score"]))
     picks = candidates[:top_n]
     portfolio = size_picks(picks, proxy_bars, proxy_returns)
     for rank, row in enumerate(picks, start=1):

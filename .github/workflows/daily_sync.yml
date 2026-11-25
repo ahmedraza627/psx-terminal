@@ -55,8 +55,25 @@ jobs:
           restore-keys: |
             psx-db-
 
+      # Institutional layer: NCCPL participant x sector flows and the DPS
+      # fundamentals screen. Both are non-fatal - a blocked feed leaves the desk
+      # boards empty (and says so) rather than publishing stale flow.
+      - name: Ingest NCCPL sector flows
+        continue-on-error: true
+        run: python backend/scripts/sync_nccpl_flows.py --days 12
+
+      - name: Refresh company fundamentals
+        continue-on-error: true
+        run: python backend/scripts/sync_company_fundamentals.py
+
       - name: Ingest live tape and refresh desk JSON
         run: python backend/src/sync_daily.py
+
+      # Disclosures were refreshed by the tape run above; re-derive the
+      # turnaround-catalyst flags from them without re-fetching the screener.
+      - name: Refresh turnaround flags
+        continue-on-error: true
+        run: python backend/scripts/sync_company_fundamentals.py --skip-screener
 
       - name: Checkpoint SQLite WAL
         run: |
