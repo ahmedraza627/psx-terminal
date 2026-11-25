@@ -6,6 +6,7 @@ export const dynamic = "force-dynamic";
 
 type Seasonality = {
   status: string;
+  coverage?: "TICKER" | "SECTOR" | null;
   month: string | null;
   tailwind: boolean;
   winRate60Pct: number | null;
@@ -85,6 +86,7 @@ type DeskSummary = {
   dryUpBandPct?: number[];
   pocketPivotMultiple?: number;
   freeFloatDistributionPct?: number;
+  carryTrapsSuppressed?: number;
 };
 
 type AlphaBrief = {
@@ -241,7 +243,10 @@ function SeasonalityBadge({ seasonality }: { seasonality: Seasonality }) {
       <div className="text-[9px] font-bold uppercase tracking-[0.12em] opacity-80">
         Seasonality · {seasonality.month ?? "—"}
       </div>
-      <div className="mt-0.5 text-[10px] font-semibold leading-snug">{seasonality.status}</div>
+      <div className="mt-0.5 text-[10px] font-semibold leading-snug">
+        {seasonality.status}
+        {seasonality.coverage === "SECTOR" ? " · sector" : ""}
+      </div>
       <div className="mt-0.5 font-mono text-[10px] tabular-nums opacity-80">
         {seasonality.winRate60Pct === null ? "60d win —" : `60d win ${pct(seasonality.winRate60Pct, 0)}%`}
         {" · "}
@@ -330,6 +335,9 @@ export default function DailyDeskPage() {
               <Tag>{desk.catalystEvents} PUCARS / insider filings</Tag>
               <Tag>dry-up {desk.dryUpBandPct?.join("–") ?? "20–30"}% · pivot {desk.pocketPivotMultiple ?? 2}x</Tag>
               <Tag>time-stop {desk.timeStopSessions ?? 30} sessions</Tag>
+              {desk.carryTrapsSuppressed ? (
+                <Tag>{desk.carryTrapsSuppressed} carry trap{desk.carryTrapsSuppressed === 1 ? "" : "s"} suppressed · setup conflict</Tag>
+              ) : null}
             </div>
           ) : null}
         </div>

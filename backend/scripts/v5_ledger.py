@@ -50,8 +50,10 @@ def _prepare(cur: sqlite3.Cursor) -> None:
         pass
 
 
-def _seed_from_ledger(cur: sqlite3.Cursor, out: Path) -> int:
+def _seed_from_ledger(cur: sqlite3.Cursor, out: Path,
+                      exclude: set[tuple[str, str]] | None = None) -> int:
     """A fresh store (CI runner) must not wipe the audited history already in git."""
+    exclude = exclude or set()
     if cur.execute("SELECT COUNT(*) FROM v5_signal_log").fetchone()[0] or not out.is_file():
         return 0
     try:
@@ -65,6 +67,8 @@ def _seed_from_ledger(cur: sqlite3.Cursor, out: Path) -> int:
             ticker, call = entry["ticker"], entry["call"]
         except (KeyError, ValueError):
             continue
+        if call == "AVOID" and (day, ticker) in exclude:
+            continue
         cur.execute(INSERT, (day, ticker, call, entry.get("label") or call, entry.get("entry"),
                              entry.get("stop"), entry.get("target"), None, None, None, None, 0,
                              entry.get("notes")))
@@ -73,10 +77,16 @@ def _seed_from_ledger(cur: sqlite3.Cursor, out: Path) -> int:
 
 
 def log_signals(conn: sqlite3.Connection, cur: sqlite3.Cursor, session: str, buys: list[dict],
-                avoids: list[dict], out: Path) -> int:
-    """Upsert today's calls, then rewrite history.json with live P&L for every past call."""
+                avoids: list[dict], out: Path,
+                exclude: set[tuple[str, str]] | None = None) -> int:
+    """Upsert today's calls, then rewrite history.json with live P&L for every past call.
+
+    `exclude` names (session, ticker) AVOID rows that a same-session BUY setup
+    overrides: they are dropped from the store, from the re-seed and from the ledger.
+    """
+    exclude = exclude or set()
     _prepare(cur)
-    seeded = _seed_from_ledger(cur, out)
+    seeded = _seed_from_ledger(cur, out, exclude)
     for item in buys:
         close = item["close"]
         cur.execute(INSERT, (session, item["ticker"], "BUY",
@@ -86,8 +96,13 @@ def log_signals(conn: sqlite3.Connection, cur: sqlite3.Cursor, session: str, buy
                              item.get("target") or round(close * 1.12, 2), item["poc"], item.get("volZScore"),
                              item["mansfieldRs"], None, int(bool(item.get("directorFootprint"))), None))
     for item in avoids:
+        if (session, item["ticker"]) in exclude:
+            continue
         cur.execute(INSERT, (session, item["ticker"], "AVOID", "DFX CARRY TRAP", item["spotClose"], None, None,
                              None, None, item["mansfieldRs"], item["annualizedCarryPct"], 0, None))
+    for day, ticker in exclude:  # reconcile a contradictory AVOID written by an earlier run
+        cur.execute("DELETE FROM v5_signal_log WHERE trade_date=? AND ticker=? AND call='AVOID'",
+                    (day, ticker))
     conn.commit()
 
     entries = []

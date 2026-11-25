@@ -327,6 +327,18 @@ def analyse(cur, session: str, session_date, rows) -> tuple[list, list, list, di
     leaders.sort(key=lambda s: -s["mansfieldRs"])
     traps.sort(key=lambda s: -s["annualizedCarryPct"])
     return sweeps[:5], leaders[:5], traps[:5], metrics
+def reconcile_traps(traps: list[dict], setups: list[dict]) -> tuple[list[dict], list[dict]]:
+    """A name cannot be both a live setup and a carry trap on the same session.
+
+    The six-layer setup is the desk's current read, so the carry trap is suppressed
+    and the suppression is published - never logged as a contradictory AVOID.
+    """
+    active = {row["ticker"] for row in setups}
+    kept = [row for row in traps if row["ticker"] not in active]
+    suppressed = [{"ticker": row["ticker"], "call": "AVOID", "label": "DFX CARRY TRAP",
+                   "reason": "active six-layer setup on the same session"}
+                  for row in traps if row["ticker"] in active]
+    return kept, suppressed
 def main() -> dict:
     logging.basicConfig(level=logging.INFO, format="%(levelname)-8s %(message)s")
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -345,8 +357,7 @@ def main() -> dict:
     for item in sweeps:
         item["directorFootprint"] = calc_director_footprint(cur, item["ticker"], item["close"], item["poc"])["directorFootprint"]
     watch = [] if sweeps else [lead for lead in leaders if lead["mansfieldRs"] >= 8.0]
-    audited = log_signals(conn, cur, session, sweeps + watch, traps, HISTORY_PATH)
-    season, season_month = load_seasonality(SEASONALITY_PATH)
+    season, season_month, sector_season = load_seasonality(SEASONALITY_PATH)
     breadth = (sum(1 for m in metrics.values() if m.get("aboveSma50")) / len(metrics) * 100
                if metrics else None)
     session_dates = sorted({datetime.strptime(day, "%d%b%Y").date() for day in dates})
@@ -354,9 +365,15 @@ def main() -> dict:
                                       catalyst_events(cur, session_date), active_rights(cur),
                                       breadth_pct=breadth,
                                       positions=open_position_ages(cur, session_date, session_dates),
-                                      stale=stale_tickers(cur, session, dates[-10:]))
+                                      stale=stale_tickers(cur, session, dates[-10:]),
+                                      sector_season=sector_season)
+    traps, suppressed = reconcile_traps(traps, setups)
+    desk["carryTrapsSuppressed"] = len(suppressed)
+    audited = log_signals(conn, cur, session, sweeps + watch, traps, HISTORY_PATH,
+                          exclude={(session, row["ticker"]) for row in suppressed})
     payload = {"sessionDate": session_date.isoformat(), "kse100": index_snapshot(), "sbpRate": SBP_RATE_PCT,
                "liquiditySweeps": sweeps, "rsLeaders": leaders, "carryTraps": traps,
+               "suppressedCarryTraps": suppressed,
                "institutionalSetups": setups, "distributionAlerts": alerts, "institutionalDesk": desk,
                "engine": {"lookbackDays": LOOKBACK_DAYS, "trendMaDays": TREND_MA_DAYS,
                           "trendSlopeBars": TREND_SLOPE_BARS, "minRvol": MIN_RVOL, "minVolZ": MIN_VOL_Z,

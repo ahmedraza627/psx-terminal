@@ -53,26 +53,47 @@ MIN_CONFLUENCE = 3               # a setup needs at least half the framework
 TIME_STOP_CALENDAR_DAYS = 42     # ~30 PSX sessions of dead capital
 
 
-def load_seasonality(path: Path) -> tuple[dict, str | None]:
-    """Ticker -> seasonal status/60-day stats from the published matrix."""
+def load_seasonality(path: Path) -> tuple[dict, str | None, dict]:
+    """Ticker and sector seasonal status/60-day stats from the published matrix.
+
+    The sector map is the fallback for names the matrix cannot score on their own
+    history (new listings such as ENGROH, which has fewer than the 500 sessions the
+    matrix needs) - their PSX sector window still exists and must be shown.
+    """
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
-        return {}, None
+        return {}, None, {}
     month = (payload.get("meta") or {}).get("currentMonthLabel")
     by_ticker: dict[str, dict] = {}
+    by_sector: dict[str, dict] = {}
     for sector_row in payload.get("sectors") or []:
+        sector = sector_row.get("sector")
+        sector_stats = ((sector_row.get("accumulationWindow") or {}).get("forward60") or {})
+        if sector:
+            by_sector[sector] = {
+                "sector": sector,
+                "status": sector_row.get("status"),
+                "month": month,
+                "rangePositionPct": None,
+                "winRate60Pct": sector_stats.get("winRatePct"),
+                "avgForward60Pct": sector_stats.get("avgPct"),
+                "coverage": "SECTOR",
+                "members": sector_row.get("members"),
+                "activeMembers": sector_row.get("activeCount"),
+            }
         for rec in sector_row.get("tickers") or []:
             stats = ((rec.get("accumulationWindowStats") or {}).get("forward60") or {})
             by_ticker[rec.get("ticker")] = {
-                "sector": rec.get("sector") or sector_row.get("sector"),
+                "sector": rec.get("sector") or sector,
                 "status": rec.get("status"),
                 "month": month,
                 "rangePositionPct": (rec.get("position") or {}).get("rangePositionPct"),
                 "winRate60Pct": stats.get("winRatePct"),
                 "avgForward60Pct": stats.get("avgPct"),
+                "coverage": "TICKER",
             }
-    return by_ticker, month
+    return by_ticker, month, by_sector
 
 
 def catalyst_events(cur, session_date, window_days: int = CATALYST_WINDOW_DAYS) -> dict[str, list[dict]]:
@@ -167,11 +188,17 @@ def _pkr(value) -> str:
     return "PKR —" if value is None else f"PKR {float(value):,.2f}"
 
 
+def _stat(value) -> str:
+    """Valuation ratios print N/A when the feed does not publish them (P/B)."""
+    return "N/A" if value is None else f"{float(value):,.2f}"
+
+
 def build_desk(cur, session_date: date, metrics: dict, season: dict, season_month: str | None,
                catalysts: dict, rights: dict, breadth_pct: float | None = None,
-               positions: list[dict] | None = None, stale: list[dict] | None = None
-               ) -> tuple[list, list, dict]:
+               positions: list[dict] | None = None, stale: list[dict] | None = None,
+               sector_season: dict | None = None) -> tuple[list, list, dict]:
     """Score the liquid tape across the six layers and publish both boards."""
+    sector_season = sector_season or {}
     flows: dict[str, dict] = {}
     streaks: dict[str, dict] = {}
     setups: list[dict] = []
@@ -187,7 +214,7 @@ def build_desk(cur, session_date: date, metrics: dict, season: dict, season_mont
         return flows[name], streaks[name]
 
     for ticker, m in metrics.items():
-        seasonal = season.get(ticker) or {}
+        seasonal = season.get(ticker) or sector_season.get(m.get("sector") or "") or {}
         sector = seasonal.get("sector") or m.get("sector") or "Miscellaneous"
         flow, streak = sector_state(sector)
         quiet = m.get("quiet") or {}
@@ -206,6 +233,7 @@ def build_desk(cur, session_date: date, metrics: dict, season: dict, season_mont
         ret20 = quiet.get("ret20dPct") or 0.0
         volume_ratio = quiet.get("volumeRatio20") or 0.0
         season_badge = {"status": seasonal.get("status") or "NO COVERAGE",
+                        "coverage": seasonal.get("coverage"),
                         "month": seasonal.get("month"), "tailwind": aligned,
                         "winRate60Pct": seasonal.get("winRate60Pct"),
                         "avgForward60Pct": seasonal.get("avgForward60Pct"),
@@ -289,8 +317,8 @@ def build_desk(cur, session_date: date, metrics: dict, season: dict, season_mont
         if low["lowFloat"]:
             tags.append("LOW-FLOAT SQUEEZE")
             score += 10 + (6 if low.get("turnaroundCatalyst") else 0)
-            facts.append(f"Free float {low['freeFloatPct']:.1f}% against P/E {low['peRatio'] or '—'} / "
-                         f"P/B {low['pbRatio'] or '—'} — thin supply, deep value.")
+            facts.append(f"Free float {low['freeFloatPct']:.1f}% against P/E {_stat(low['peRatio'])} / "
+                         f"P/B {_stat(low['pbRatio'])} — thin supply, deep value.")
         if lor.get("lorCheap"):
             tags.append("LoR TRAP")
             score += 8
@@ -367,6 +395,7 @@ def build_desk(cur, session_date: date, metrics: dict, season: dict, season_mont
                         "volumeRatio20": quiet.get("volumeRatio20"),
                         "volumeRatio50": pivot.get("volumeRatio50"), "dryUpRatio": dryup.get("dryUpRatio"),
                         "freeFloatPct": low.get("freeFloatPct"), "peRatio": low.get("peRatio"),
+                        "pbRatio": low.get("pbRatio"),
                         "catalyst": catalyst["catalyst"] if catalyst else None},
         })
 

@@ -91,13 +91,14 @@
       "futClose": 51.01,
       "mansfieldRs": -21.79,
       "annualizedCarryPct": 32.26
-    },
+    }
+  ],
+  "suppressedCarryTraps": [
     {
       "ticker": "AGP",
-      "spotClose": 154.96,
-      "futClose": 159.0,
-      "mansfieldRs": -12.65,
-      "annualizedCarryPct": 31.72
+      "call": "AVOID",
+      "label": "DFX CARRY TRAP",
+      "reason": "active six-layer setup on the same session"
     }
   ],
   "institutionalSetups": [
@@ -169,6 +170,7 @@
       },
       "seasonality": {
         "status": "ACCUMULATION WINDOW ACTIVE",
+        "coverage": "TICKER",
         "month": "Nov",
         "tailwind": true,
         "winRate60Pct": 56.25,
@@ -186,6 +188,7 @@
         "dryUpRatio": 0.942,
         "freeFloatPct": 30.0,
         "peRatio": 24.25,
+        "pbRatio": null,
         "catalyst": "BUY-BACK"
       }
     },
@@ -255,11 +258,12 @@
         "freeFloatShares": 903173996.0
       },
       "seasonality": {
-        "status": "NO COVERAGE",
-        "month": null,
+        "status": "WATCH",
+        "coverage": "SECTOR",
+        "month": "Nov",
         "tailwind": false,
-        "winRate60Pct": null,
-        "avgForward60Pct": null,
+        "winRate60Pct": 58.08,
+        "avgForward60Pct": 14.68,
         "rangePositionPct": null
       },
       "score": 91.0,
@@ -273,6 +277,7 @@
         "dryUpRatio": 4.333,
         "freeFloatPct": 75.0,
         "peRatio": 38.85,
+        "pbRatio": null,
         "catalyst": "BUY-BACK"
       }
     },
@@ -343,6 +348,7 @@
       },
       "seasonality": {
         "status": "OFF-SEASON",
+        "coverage": "TICKER",
         "month": "Nov",
         "tailwind": false,
         "winRate60Pct": 45.16,
@@ -360,6 +366,7 @@
         "dryUpRatio": 1.271,
         "freeFloatPct": 65.0,
         "peRatio": null,
+        "pbRatio": null,
         "catalyst": null
       }
     },
@@ -430,6 +437,7 @@
       },
       "seasonality": {
         "status": "OFF-SEASON",
+        "coverage": "TICKER",
         "month": "Nov",
         "tailwind": false,
         "winRate60Pct": 63.27,
@@ -447,6 +455,7 @@
         "dryUpRatio": 1.386,
         "freeFloatPct": 35.0,
         "peRatio": 16.58,
+        "pbRatio": null,
         "catalyst": null
       }
     },
@@ -517,6 +526,7 @@
       },
       "seasonality": {
         "status": "OFF-SEASON",
+        "coverage": "TICKER",
         "month": "Nov",
         "tailwind": false,
         "winRate60Pct": 52.94,
@@ -534,6 +544,7 @@
         "dryUpRatio": 1.635,
         "freeFloatPct": 30.0,
         "peRatio": null,
+        "pbRatio": null,
         "catalyst": null
       }
     }
@@ -548,11 +559,12 @@
       "instNetPkr": 395892163.42,
       "ret20dPct": -2.86,
       "seasonality": {
-        "status": "NO COVERAGE",
-        "month": null,
+        "status": "WATCH",
+        "coverage": "SECTOR",
+        "month": "Nov",
         "tailwind": false,
-        "winRate60Pct": null,
-        "avgForward60Pct": null,
+        "winRate60Pct": 55.38,
+        "avgForward60Pct": 6.68,
         "rangePositionPct": null
       },
       "floatTurnoverPct": 49.82,
@@ -568,6 +580,7 @@
       "ret20dPct": 14.45,
       "seasonality": {
         "status": "OFF-SEASON",
+        "coverage": "TICKER",
         "month": "Nov",
         "tailwind": false,
         "winRate60Pct": 46.43,
@@ -587,6 +600,7 @@
       "ret20dPct": 169.01,
       "seasonality": {
         "status": "OFF-SEASON",
+        "coverage": "TICKER",
         "month": "Nov",
         "tailwind": false,
         "winRate60Pct": 62.5,
@@ -605,6 +619,7 @@
       "ret20dPct": 21.99,
       "seasonality": {
         "status": "OFF-SEASON",
+        "coverage": "TICKER",
         "month": "Nov",
         "tailwind": false,
         "winRate60Pct": 50.0,
@@ -623,6 +638,7 @@
       "ret20dPct": 3.9,
       "seasonality": {
         "status": "OFF-SEASON",
+        "coverage": "TICKER",
         "month": "Nov",
         "tailwind": false,
         "winRate60Pct": 71.88,
@@ -690,7 +706,8 @@
     "boards": {
       "setups": 5,
       "alerts": 5
-    }
+    },
+    "carryTrapsSuppressed": 1
   },
   "engine": {
     "lookbackDays": 5,
