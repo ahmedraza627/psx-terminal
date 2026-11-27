@@ -52,6 +52,10 @@ def fetch(url: str) -> str:
         request, timeout=60).read().decode("utf-8", "replace")
 def one(cur: sqlite3.Cursor, sql: str, params=()):
     row = cur.execute(sql, params).fetchone(); return row[0] if row else None
+
+def session_close(cur: sqlite3.Cursor, session: str, ticker: str) -> float | None:
+    row = cur.execute("SELECT close_price FROM psx_daily_eod WHERE trade_date=? AND ticker=?", (session, ticker)).fetchone()
+    return row[0] if row else None
 def ensure_tables(conn: sqlite3.Connection) -> None:
     cur = conn.cursor()
     for name in ("psx_daily_eod", "psx_futures_eod"):
@@ -369,8 +373,25 @@ def main() -> dict:
                                       sector_season=sector_season)
     traps, suppressed = reconcile_traps(traps, setups)
     desk["carryTrapsSuppressed"] = len(suppressed)
-    audited = log_signals(conn, cur, session, sweeps + watch, traps, HISTORY_PATH,
-                          exclude={(session, row["ticker"]) for row in suppressed})
+    # The ledger's AVOID calls are the desk's own distribution/extension board -
+    # never the raw carry-trap fence, which the desk only publishes as context.
+    # The desk's AVOID board outranks a raw sweep: a name flagged as distributing or
+    # extended is not a BUY on the same session.
+    alert_tickers = {row["ticker"] for row in alerts}
+    buys = [row for row in sweeps + watch if row["ticker"] not in alert_tickers]
+    active = {row["ticker"] for row in setups} | {row["ticker"] for row in buys}
+    ledger_alerts = []
+    for row in alerts:
+        if row["ticker"] in active:
+            continue  # a live setup/position owns the name on this session
+        close = (metrics.get(row["ticker"]) or {}).get("close") or session_close(cur, session, row["ticker"])
+        ledger_alerts.append({"ticker": row["ticker"], "alert": row["alert"],
+                              "close": close, "detail": row.get("detail")})
+    if len(ledger_alerts) != len(alerts):
+        LOG.info("ledger AVOID calls: %d of %d desk alerts (setup/position conflicts suppressed)",
+                 len(ledger_alerts), len(alerts))
+    excluded = {(session, row["ticker"]) for row in setups} | {(session, row["ticker"]) for row in buys}
+    audited = log_signals(conn, cur, session, buys, ledger_alerts, HISTORY_PATH, exclude=excluded)
     payload = {"sessionDate": session_date.isoformat(), "kse100": index_snapshot(), "sbpRate": SBP_RATE_PCT,
                "liquiditySweeps": sweeps, "rsLeaders": leaders, "carryTraps": traps,
                "suppressedCarryTraps": suppressed,

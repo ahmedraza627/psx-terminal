@@ -138,18 +138,51 @@ def test_same_session_setup_wins_over_a_contradictory_carry_trap():
                            "reason": "active six-layer setup on the same session"}]
 
 
-def test_ledger_drops_an_avoid_suppressed_by_the_same_session_setup(tmp_path):
+def _ledger_conn():
     conn = sqlite3.connect(":memory:")
     conn.row_factory = sqlite3.Row
     conn.execute("CREATE TABLE psx_daily_eod (trade_date TEXT, ticker TEXT, close_price REAL)")
-    conn.execute("INSERT INTO psx_daily_eod VALUES ('25NOV2026', 'AGP', 310.0)")
-    out = tmp_path / "history.json"
-    avoid = [{"ticker": "AGP", "spotClose": 308.0, "mansfieldRs": -4.0, "annualizedCarryPct": 22.0}]
+    return conn
 
-    log_signals(conn, conn.cursor(), "25NOV2026", [], avoid, out)
+
+def test_ledger_logs_desk_alerts_as_avoid_calls(tmp_path):
+    conn = _ledger_conn()
+    conn.execute("INSERT INTO psx_daily_eod VALUES ('27NOV2026', 'TPLL', 210.0)")
+    out = tmp_path / "history.json"
+    alerts = [{"ticker": "TPLL", "alert": "FREE-FLOAT DISTRIBUTION", "close": 210.0,
+               "detail": "17% of the free float turned over in one session."}]
+
+    log_signals(conn, conn.cursor(), "27NOV2026", [], alerts, out)
+    entries = json.loads(out.read_text(encoding="utf-8"))["entries"]
+    assert len(entries) == 1
+    assert entries[0]["call"] == "AVOID"
+    assert entries[0]["label"] == "FREE-FLOAT DISTRIBUTION"
+    assert "free float" in entries[0]["notes"]
+
+
+def test_ledger_retires_legacy_carry_trap_avoids(tmp_path):
+    conn = _ledger_conn()
+    out = tmp_path / "history.json"
+    out.write_text(json.dumps({"sessionDate": "25NOV2026", "entries": [
+        {"date": "25 Nov 2026", "ticker": "GHNI", "call": "AVOID", "label": "DFX CARRY TRAP",
+         "entry": 40.0, "stop": None, "target": None,
+         "notes": "Carry 22.0% vs SBP 12.0%"}]}), encoding="utf-8")
+
+    log_signals(conn, conn.cursor(), "27NOV2026", [], [], out)
+    assert json.loads(out.read_text(encoding="utf-8"))["entries"] == []
+
+
+def test_ledger_drops_an_avoid_suppressed_by_the_same_session_setup(tmp_path):
+    conn = _ledger_conn()
+    conn.execute("INSERT INTO psx_daily_eod VALUES ('27NOV2026', 'AGP', 310.0)")
+    out = tmp_path / "history.json"
+    alerts = [{"ticker": "AGP", "alert": "INSTITUTIONAL DISTRIBUTION", "close": 308.0,
+               "detail": "Institutions sold five straight sessions."}]
+
+    log_signals(conn, conn.cursor(), "27NOV2026", [], alerts, out)
     assert any(e["ticker"] == "AGP" and e["call"] == "AVOID"
                for e in json.loads(out.read_text(encoding="utf-8"))["entries"])
 
-    log_signals(conn, conn.cursor(), "25NOV2026", [], avoid, out,
-                exclude={("25NOV2026", "AGP")})
+    log_signals(conn, conn.cursor(), "27NOV2026", [], alerts, out,
+                exclude={("27NOV2026", "AGP")})
     assert json.loads(out.read_text(encoding="utf-8"))["entries"] == []

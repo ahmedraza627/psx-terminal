@@ -3,6 +3,11 @@
 `history.json` is the ledger of record: the SQLite table is a scratch store that
 is rebuilt from the tape on every run, so a fresh (CI) store re-seeds itself from
 the committed ledger instead of truncating it.
+
+AVOID calls come from the institutional desk's distribution/extension board, so
+the ledger and the main desk always read the same names. Legacy DFX carry-trap
+AVOIDs are retired: a carry trap without institutional distribution or extension
+confirmation is noise the desk no longer publishes.
 """
 from __future__ import annotations
 
@@ -11,6 +16,7 @@ import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
+LEGACY_AVOID_LABEL = "DFX CARRY TRAP"
 SCHEMA = ("CREATE TABLE IF NOT EXISTS v5_signal_log (trade_date TEXT NOT NULL, ticker TEXT NOT NULL, "
           "call TEXT NOT NULL, label TEXT, entry REAL, stop REAL, target REAL, poc REAL, vol_z REAL, "
           "mansfield_rs REAL, carry_pct REAL, director INTEGER, PRIMARY KEY (trade_date, ticker, call))")
@@ -67,7 +73,7 @@ def _seed_from_ledger(cur: sqlite3.Cursor, out: Path,
             ticker, call = entry["ticker"], entry["call"]
         except (KeyError, ValueError):
             continue
-        if call == "AVOID" and (day, ticker) in exclude:
+        if call == "AVOID" and ((day, ticker) in exclude or entry.get("label") == LEGACY_AVOID_LABEL):
             continue
         cur.execute(INSERT, (day, ticker, call, entry.get("label") or call, entry.get("entry"),
                              entry.get("stop"), entry.get("target"), None, None, None, None, 0,
@@ -77,12 +83,15 @@ def _seed_from_ledger(cur: sqlite3.Cursor, out: Path,
 
 
 def log_signals(conn: sqlite3.Connection, cur: sqlite3.Cursor, session: str, buys: list[dict],
-                avoids: list[dict], out: Path,
+                alerts: list[dict], out: Path,
                 exclude: set[tuple[str, str]] | None = None) -> int:
     """Upsert today's calls, then rewrite history.json with live P&L for every past call.
 
-    `exclude` names (session, ticker) AVOID rows that a same-session BUY setup
-    overrides: they are dropped from the store, from the re-seed and from the ledger.
+    `alerts` are the institutional desk's AVOID calls (distribution, extension,
+    free-float unloading, LoR premium, dead capital, stale tape), so the ledger
+    mirrors the main desk. `exclude` names (session, ticker) pairs a same-session
+    BUY setup overrides: they are dropped from the store, from the re-seed and
+    from the ledger. Legacy carry-trap AVOIDs are purged from the store.
     """
     exclude = exclude or set()
     _prepare(cur)
@@ -95,11 +104,15 @@ def log_signals(conn: sqlite3.Connection, cur: sqlite3.Cursor, session: str, buy
                              item["poc"] or close, item.get("stopLoss") or round(close * 0.93, 2),
                              item.get("target") or round(close * 1.12, 2), item["poc"], item.get("volZScore"),
                              item["mansfieldRs"], None, int(bool(item.get("directorFootprint"))), None))
-    for item in avoids:
+    for item in alerts:
         if (session, item["ticker"]) in exclude:
             continue
-        cur.execute(INSERT, (session, item["ticker"], "AVOID", "DFX CARRY TRAP", item["spotClose"], None, None,
-                             None, None, item["mansfieldRs"], item["annualizedCarryPct"], 0, None))
+        cur.execute(INSERT, (session, item["ticker"], "AVOID",
+                             item.get("alert") or "INSTITUTIONAL DISTRIBUTION",
+                             item.get("close"), None, None, None, None, None, None, 0,
+                             item.get("detail")))
+    # Retire legacy carry-trap AVOIDs: the desk's distribution board is the authority.
+    cur.execute("DELETE FROM v5_signal_log WHERE call='AVOID' AND label=?", (LEGACY_AVOID_LABEL,))
     for day, ticker in exclude:  # reconcile a contradictory AVOID written by an earlier run
         cur.execute("DELETE FROM v5_signal_log WHERE trade_date=? AND ticker=? AND call='AVOID'",
                     (day, ticker))
@@ -129,8 +142,12 @@ def log_signals(conn: sqlite3.Connection, cur: sqlite3.Cursor, session: str, buy
                         "latestClose": round(live, 2) if live else None, "pnlPct": round(pnl, 2),
                         "status": status, "notes": row["notes"] or " · ".join(tags)})
 
+    try:  # publish the ledger header in the same ISO form as latest.json
+        session_label = datetime.strptime(session, "%d%b%Y").strftime("%Y-%m-%d")
+    except ValueError:
+        session_label = session
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps({"sessionDate": session, "generatedAt": datetime.now(timezone.utc).isoformat(),
+    out.write_text(json.dumps({"sessionDate": session_label, "generatedAt": datetime.now(timezone.utc).isoformat(),
                                "entries": entries}, indent=2), encoding="utf-8")
     if seeded:
         print(f"[INFO] ledger seeded from {out.name}: {seeded} historical calls restored")
